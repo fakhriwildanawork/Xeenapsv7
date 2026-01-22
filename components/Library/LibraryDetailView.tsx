@@ -25,13 +25,8 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
     }
   };
 
-  const supportingRefs: string[] = React.useMemo(() => {
-    try {
-      return JSON.parse(item.supportingReferences || "[]");
-    } catch (e) {
-      return [];
-    }
-  }, [item.supportingReferences]);
+  // The backend now provides a parsed array directly
+  const supportingRefs = item.supportingReferences || [];
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-end pointer-events-none">

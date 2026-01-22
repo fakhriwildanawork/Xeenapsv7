@@ -73,15 +73,16 @@ function handleIdentifierSearch(idValue) {
 /**
  * NEW: Supporting References Logic
  * Fetches 3 related citations from Crossref and formats them as Harvard Bibliographic Entry.
+ * Returns Array of citations.
  */
 function getSupportingReferencesFromCrossref(keywords) {
-  if (!keywords || keywords.length === 0) return "[]";
+  if (!keywords || keywords.length === 0) return [];
   
   const query = keywords.slice(0, 3).join(" ");
   try {
     const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=3&filter=type:journal-article`;
     const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (response.getResponseCode() !== 200) return "[]";
+    if (response.getResponseCode() !== 200) return [];
     
     const data = JSON.parse(response.getContentText());
     const items = data.message.items || [];
@@ -111,10 +112,10 @@ function getSupportingReferencesFromCrossref(keywords) {
       return bib.replace(/, ,/g, ',').replace(/\.\./g, '.').trim();
     });
     
-    return JSON.stringify(citations);
+    return citations;
   } catch (e) {
     console.error("Crossref search failed: " + e.toString());
-    return "[]";
+    return [];
   }
 }
 

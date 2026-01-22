@@ -47,6 +47,8 @@ function getPaginatedItems(ssId, sheetName, page = 1, limit = 25, search = "", t
     let items = [];
     let totalFilteredCount = 0;
 
+    const jsonFields = ['authors', 'pubInfo', 'identifiers', 'tags', 'supportingReferences'];
+
     if (!search && typeFilter === "All" && !pathFilter && sortKey === "createdAt" && sortDir === "desc") {
       totalFilteredCount = lastRow - 1;
       const startRow = Math.max(2, lastRow - (page * limit) + 1);
@@ -58,12 +60,11 @@ function getPaginatedItems(ssId, sheetName, page = 1, limit = 25, search = "", t
           let item = {};
           headers.forEach((h, i) => {
             let val = row[i];
-            const jsonFields = ['authors', 'pubInfo', 'identifiers', 'tags'];
             if (jsonFields.includes(h)) { 
               try { 
-                val = JSON.parse(row[i] || (h === 'authors' ? '[]' : '{}')); 
+                val = JSON.parse(row[i] || (h === 'authors' || h === 'supportingReferences' ? '[]' : '{}')); 
               } catch(e) { 
-                val = (h === 'authors') ? [] : {}; 
+                val = (h === 'authors' || h === 'supportingReferences') ? [] : {}; 
               } 
             }
             item[h] = val;
@@ -115,12 +116,11 @@ function getPaginatedItems(ssId, sheetName, page = 1, limit = 25, search = "", t
         let item = {};
         headers.forEach((h, i) => {
           let val = row[i];
-          const jsonFields = ['authors', 'pubInfo', 'identifiers', 'tags'];
           if (jsonFields.includes(h)) { 
             try { 
-              val = JSON.parse(row[i] || (h === 'authors' ? '[]' : '{}')); 
+              val = JSON.parse(row[i] || (h === 'authors' || h === 'supportingReferences' ? '[]' : '{}')); 
             } catch(e) { 
-              val = (h === 'authors') ? [] : {}; 
+              val = (h === 'authors' || h === 'supportingReferences') ? [] : {}; 
             } 
           }
           item[h] = val;
