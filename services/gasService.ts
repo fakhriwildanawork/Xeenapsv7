@@ -16,6 +16,8 @@ export const initializeDatabase = async (): Promise<{ status: string; message: s
     if (!GAS_WEB_APP_URL) throw new Error('VITE_GAS_URL is missing.');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
       body: JSON.stringify({ action: 'setupDatabase' }),
     });
     return await response.json();
@@ -27,7 +29,11 @@ export const initializeDatabase = async (): Promise<{ status: string; message: s
 export const fetchLibrary = async (): Promise<LibraryItem[]> => {
   try {
     if (!GAS_WEB_APP_URL) return [];
-    const response = await fetch(`${GAS_WEB_APP_URL}?action=getLibrary`);
+    const response = await fetch(`${GAS_WEB_APP_URL}?action=getLibrary`, {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow'
+    });
     if (!response.ok) return [];
     const result: GASResponse<LibraryItem[]> = await response.json();
     return result.data || [];
@@ -52,7 +58,12 @@ export const fetchLibraryPaginated = async (
   try {
     if (!GAS_WEB_APP_URL) return { items: [], totalCount: 0 };
     const url = `${GAS_WEB_APP_URL}?action=getLibrary&page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&type=${encodeURIComponent(type)}&path=${encodeURIComponent(path)}&sortKey=${sortKey}&sortDir=${sortDir}`;
-    const response = await fetch(url, { signal });
+    const response = await fetch(url, { 
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow',
+      signal 
+    });
     if (!response.ok) return { items: [], totalCount: 0 };
     const result: any = await response.json();
     return { 
@@ -72,6 +83,8 @@ export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, m
     if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL not configured');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
       body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride }),
       signal
     });
@@ -110,6 +123,8 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
       body: JSON.stringify({ action: 'extractOnly', url }),
       signal
     });
@@ -127,12 +142,13 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
 export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal): Promise<Partial<LibraryItem> | null> => {
   if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL missing.');
   
-  // Use provided signal or create a local one with 15s timeout as fallback
   const internalSignal = signal || AbortSignal.timeout(15000);
 
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
       body: JSON.stringify({ action: 'searchByIdentifier', idValue }),
       signal: internalSignal
     });
@@ -159,6 +175,8 @@ export const uploadAndStoreFile = async (file: File, signal?: AbortSignal): Prom
 
   const response = await fetch(GAS_WEB_APP_URL, { 
     method: 'POST', 
+    mode: 'cors',
+    redirect: 'follow',
     body: JSON.stringify({ 
       action: 'extractOnly', 
       fileData: base64Data, 
@@ -179,6 +197,8 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
       body: JSON.stringify({ action: 'saveItem', item, file: fileContent }),
     });
     const result = await res.json();
@@ -191,6 +211,8 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
 export const deleteLibraryItem = async (id: string): Promise<boolean> => {
   const res = await fetch(GAS_WEB_APP_URL, {
     method: 'POST',
+    mode: 'cors',
+    redirect: 'follow',
     body: JSON.stringify({ action: 'deleteItem', id }),
   });
   const result = await res.json();

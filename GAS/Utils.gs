@@ -1,9 +1,12 @@
+
 /**
  * XEENAPS PKM - UTILITIES
  */
 
 function createJsonResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+  // Menggunakan MimeType.TEXT untuk menghindari kendala CORS pada browser tertentu saat proses redirect GAS.
+  // Konten tetap berupa string JSON yang valid sehingga response.json() di frontend tetap berfungsi.
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.TEXT);
 }
 
 function getKeysFromSheet(sheetName, colIndex) {
