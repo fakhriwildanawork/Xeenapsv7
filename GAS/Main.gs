@@ -1,6 +1,6 @@
 
 /**
- * XEENAPS PKM - MAIN ROUTER (RELIABLE CLUSTER VERSION)
+ * XEENAPS PKM - MAIN ROUTER (STABLE VERSION)
  */
 
 function doGet(e) {
@@ -8,7 +8,7 @@ function doGet(e) {
     const action = e.parameter.action;
     const token = (e.parameter.token || "").trim();
     
-    // Verifikasi Token untuk aksi sistem internal (seperti checkQuota)
+    // Verifikasi Token untuk aksi sistem internal
     if (action === 'checkQuota' && token !== CONFIG.SECURITY.INTERNAL_TOKEN.trim()) {
       return createJsonResponse({ status: 'error', message: 'Unauthorized (GET)' });
     }
@@ -56,7 +56,6 @@ function doGet(e) {
 function doPost(e) {
   let body;
   try {
-    // Parsing body dengan logging untuk debugging
     const rawContent = e.postData.contents;
     body = JSON.parse(rawContent);
     
@@ -65,20 +64,19 @@ function doPost(e) {
 
     // VALIDASI KEAMANAN: Memastikan request memiliki token yang valid
     if (clientToken !== serverToken) {
-      console.error(`Unauthorized POST: Received [${clientToken}], Expected [${serverToken}]`);
+      console.error(`Token Mismatch! Received: "${clientToken}", Expected: "${serverToken}"`);
       return createJsonResponse({ 
         status: 'error', 
-        message: 'Unauthorized access (Token Mismatch). Please re-deploy GAS and check your INTERNAL_TOKEN.' 
+        message: 'Unauthorized access (Token Mismatch). Received token length: ' + clientToken.length 
       });
     }
   } catch(err) {
-    return createJsonResponse({ status: 'error', message: 'Bad request format or missing POST body.' });
+    return createJsonResponse({ status: 'error', message: 'Bad request format or missing security token.' });
   }
   
   const action = body.action;
   
   try {
-    // --- 1. CORE SYSTEM ACTIONS ---
     if (action === 'setupDatabase') return createJsonResponse(setupDatabase());
     
     if (action === 'addStorageNode') {
@@ -89,7 +87,6 @@ function doPost(e) {
       return createJsonResponse({ status: 'success' });
     }
 
-    // --- 2. CLUSTER STORAGE OPERATIONS ---
     if (action === 'saveJsonFile') {
       const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
       const folder = DriveApp.getFolderById(folderId);
@@ -106,7 +103,6 @@ function doPost(e) {
       return createJsonResponse({ status: 'success', fileId: file.getId() });
     }
     
-    // --- 3. LIBRARY MANAGEMENT ---
     if (action === 'saveItem') {
       const item = body.item;
       const extractedText = body.extractedText || "";
@@ -148,7 +144,6 @@ function doPost(e) {
       return createJsonResponse({ status: 'success' });
     }
     
-    // --- 4. EXTRACTION & AI PROXY (RESTORED & VERIFIED) ---
     if (action === 'extractOnly') {
       let extractedText = "";
       let fileName = body.fileName || "Extracted Content";
@@ -187,16 +182,12 @@ function doPost(e) {
       return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
     }
 
-    return createJsonResponse({ status: 'error', message: 'Invalid POST action: ' + action });
+    return createJsonResponse({ status: 'error', message: 'Invalid POST action' });
   } catch (err) {
-    console.error("Critical error in doPost: " + err.message);
     return createJsonResponse({ status: 'error', message: err.toString() });
   }
 }
 
-/**
- * HELPER: Memanggil Slave (Internal Cluster Communication)
- */
 function callSlave(url, payload) {
   payload.token = CONFIG.SECURITY.INTERNAL_TOKEN.trim();
   try {
@@ -204,14 +195,10 @@ function callSlave(url, payload) {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
-      muteHttpExceptions: true,
-      followRedirects: true
+      muteHttpExceptions: true
     });
     return JSON.parse(res.getContentText());
-  } catch(e) {
-    console.error("Slave Call Failed: " + e.message);
-    return null;
-  }
+  } catch(e) { return null; }
 }
 
 function getViableStorageTarget() {
@@ -236,8 +223,7 @@ function getViableStorageTarget() {
             requests.push({
               url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN.trim(),
               method: 'get',
-              muteHttpExceptions: true,
-              followRedirects: true
+              muteHttpExceptions: true
             });
             nodeInfo.push({ label: values[i][0], url: nodeUrl, folderId: values[i][2] });
           }
@@ -289,8 +275,7 @@ function getStorageNodesList() {
           requests.push({
             url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN.trim(),
             method: 'get',
-            muteHttpExceptions: true,
-            followRedirects: true
+            muteHttpExceptions: true
           });
           nodeMeta.push({ label: values[i][0], url: nodeUrl, folderId: values[i][2] });
         }

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
@@ -27,10 +26,9 @@ import {
   FormDropdown 
 } from '../Common/FormComponents';
 
-interface LibraryFormProps {
-  onComplete: () => void;
-  items: LibraryItem[];
-}
+// Security Token Sync
+const INTERNAL_TOKEN = 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ';
+const postHeaders = { 'Content-Type': 'application/json' };
 
 /**
  * Rich Text Abstract Editor Component
@@ -111,6 +109,12 @@ const AbstractEditor: React.FC<{
   );
 };
 
+// Fix: Defined the missing LibraryFormProps interface to resolve the compilation error on line 113
+interface LibraryFormProps {
+  onComplete: () => void;
+  items?: LibraryItem[];
+}
+
 const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,7 +123,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const lastExtractedUrl = useRef<string>("");
   const lastIdentifier = useRef<string>("");
 
-  // Initialize the workflow hook with 30s timeout
   const workflow = useAsyncWorkflow(30000);
 
   const CATEGORY_OPTIONS = [
@@ -191,7 +194,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       pages: '',
       year: '',
       fullDate: '',
-      // Field Lock: Preserve primary input box values
       doi: keepInput && prev.addMethod === 'REF' ? prev.doi : '',
       url: keepInput && prev.addMethod === 'LINK' ? prev.url : '',
       issn: '',
@@ -207,7 +209,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       extractedText: '',
       chunks: []
     }));
-    // Fix: Only clear file if NOT keeping input (manual reset)
     if (!keepInput) setFile(null);
   };
 
@@ -229,9 +230,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     return chunks;
   };
 
-  /**
-   * Unified workflow for enrichment
-   */
   const runExtractionWorkflow = async (
     extractedText: string, 
     chunks: string[], 
@@ -243,7 +241,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     delete (baseData as any).chunks;
     delete (baseData as any).extractedText;
 
-    // STEP 1: Search Official Metadata if identifier found
     const targetId = identifiers.doi || identifiers.isbn || identifiers.issn || identifiers.pmid || identifiers.arxivId;
     if (!initialMetadata.title && targetId) {
       setExtractionStage('FETCHING_ID');
@@ -251,12 +248,9 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         const officialData = await callIdentifierSearch(targetId, signal);
         if (officialData) {
           baseData = { ...baseData, ...officialData };
-          
-          // Field Lock: Preserve user input box values
           const dataToApply = { ...officialData };
           if (formData.addMethod === 'LINK') delete (dataToApply as any).url;
           if (formData.addMethod === 'REF') delete (dataToApply as any).doi;
-          
           setFormData(prev => ({ ...prev, ...dataToApply }));
         }
       } catch (e) {
@@ -269,18 +263,15 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       baseData.imageView = identifiers.imageView;
     }
 
-    // STEP 2: Enrich with AI Librarian
     setExtractionStage('AI_ANALYSIS');
     const aiEnriched = await extractMetadataWithAI(extractedText, baseData, signal);
     
-    // YouTube Specific Logic Overrides
     const isYouTube = extractedText.includes("YOUTUBE_METADATA") || (baseData.url && (baseData.url.includes('youtube.com') || baseData.url.includes('youtu.be')));
     if (isYouTube) {
       aiEnriched.publisher = "Youtube";
       aiEnriched.category = "Video";
     }
 
-    // Robust Normalization for Category
     const normalizedCategory = (() => {
       if (!aiEnriched.category) return '';
       const target = aiEnriched.category.trim();
@@ -292,21 +283,17 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
 
     setFormData(prev => {
       const finalEnriched = { ...aiEnriched };
-      
-      // Preserve User Inputs (Field Lock)
       if (prev.addMethod === 'LINK') delete (finalEnriched as any).url;
       if (prev.addMethod === 'REF') delete (finalEnriched as any).doi;
 
       return {
         ...prev,
         ...finalEnriched,
-        // Precise identifier mapping
         doi: identifiers.doi || finalEnriched.doi || prev.doi,
         isbn: identifiers.isbn || finalEnriched.isbn || prev.isbn,
         issn: identifiers.issn || finalEnriched.issn || prev.issn,
         pmid: identifiers.pmid || finalEnriched.pmid || prev.pmid,
         arxivId: identifiers.arxivId || finalEnriched.arxivId || prev.arxivId,
-        
         authors: (aiEnriched.authors && aiEnriched.authors.length > 0) ? aiEnriched.authors : prev.authors,
         keywords: (aiEnriched.keywords && aiEnriched.keywords.length > 0) ? aiEnriched.keywords : prev.keywords,
         labels: (aiEnriched.labels && aiEnriched.labels.length > 0) ? aiEnriched.labels : prev.labels,
@@ -330,14 +317,10 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
 
   const handleExtractionError = (err: any) => {
     setExtractionStage('IDLE');
-    if (err.message === 'TIMEOUT') {
-      showXeenapsAlert({ icon: 'error', title: 'PROCESS FAILED', text: 'Timeout (30s).' });
-    } else {
-      showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: err.message || 'Error occurred.' });
-    }
+    const msg = err.message || err.toString();
+    showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: msg });
   };
 
-  // LINK Workflow
   useEffect(() => {
     const url = formData.url.trim();
     if (!url || !url.startsWith('http') || url === lastExtractedUrl.current || formData.addMethod !== 'LINK') return;
@@ -354,7 +337,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
-          const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url }), signal });
+          // FIX: Include Token and Header
+          const res = await fetch(GAS_WEB_APP_URL, { 
+            method: 'POST', 
+            headers: postHeaders,
+            body: JSON.stringify({ action: 'extractOnly', url, token: INTERNAL_TOKEN }), 
+            signal 
+          });
           const data = await res.json();
           if (data.status === 'success' && data.extractedText) {
             const ids = { 
@@ -366,8 +355,8 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               imageView: data.imageView 
             };
             await runExtractionWorkflow(data.extractedText, chunkifyText(data.extractedText), ids, {}, signal);
-          } else if (data.status === 'error') {
-            throw new Error(data.message);
+          } else {
+            throw new Error(data.message || 'Failed to extract content.');
           }
         },
         () => setExtractionStage('IDLE'),
@@ -377,7 +366,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     return () => clearTimeout(tid);
   }, [formData.url, formData.addMethod, workflow.execute]);
 
-  // REF Workflow
   useEffect(() => {
     const idVal = formData.doi.trim(); 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
@@ -389,7 +377,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             let finalId = idVal;
             if (idVal.startsWith('http')) {
               setExtractionStage('READING');
-              const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: idVal }), signal });
+              // FIX: Include Token and Header
+              const scrapeRes = await fetch(GAS_WEB_APP_URL, { 
+                method: 'POST', 
+                headers: postHeaders,
+                body: JSON.stringify({ action: 'extractOnly', url: idVal, token: INTERNAL_TOKEN }), 
+                signal 
+              });
               const scrapeData = await scrapeRes.json();
               if (scrapeData.status === 'success') {
                 finalId = scrapeData.detectedDoi || scrapeData.detectedPmid || scrapeData.detectedArxiv || idVal;
@@ -404,7 +398,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               const targetUrl = data.url || (data.doi ? `https://doi.org/${data.doi}` : null);
               if (targetUrl && targetUrl.startsWith('http')) {
                 setExtractionStage('READING');
-                const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: targetUrl }), signal });
+                // FIX: Include Token and Header
+                const scrapeRes = await fetch(GAS_WEB_APP_URL, { 
+                  method: 'POST', 
+                  headers: postHeaders,
+                  body: JSON.stringify({ action: 'extractOnly', url: targetUrl, token: INTERNAL_TOKEN }), 
+                  signal 
+                });
                 const scrapeData = await scrapeRes.json();
                 if (scrapeData.status === 'success' && scrapeData.extractedText) {
                   await runExtractionWorkflow(scrapeData.extractedText, chunkifyText(scrapeData.extractedText), {}, data, signal);
@@ -424,12 +424,10 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     }
   }, [formData.doi, formData.addMethod, workflow.execute]);
 
-  // FILE Workflow
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Fix: Call with true to keep the file box visual
       resetMetadataFields(true);
       workflow.execute(
         async (signal) => {
@@ -439,7 +437,19 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             reader.onload = () => resolve((reader.result as string).split(',')[1]);
             reader.readAsDataURL(selectedFile);
           });
-          const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', fileData: base64Data, fileName: selectedFile.name, mimeType: selectedFile.type }), signal });
+          // FIX: Include Token and Header
+          const response = await fetch(GAS_WEB_APP_URL, { 
+            method: 'POST', 
+            headers: postHeaders,
+            body: JSON.stringify({ 
+              action: 'extractOnly', 
+              fileData: base64Data, 
+              fileName: selectedFile.name, 
+              mimeType: selectedFile.type,
+              token: INTERNAL_TOKEN
+            }), 
+            signal 
+          });
           const result = await response.json();
           if (result.status === 'success' && result.extractedText) {
             const ids = { 
@@ -450,8 +460,8 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               arxivId: result.detectedArxiv 
             };
             await runExtractionWorkflow(result.extractedText, chunkifyText(result.extractedText), ids, {}, signal);
-          } else if (result.status === 'error') {
-            throw new Error(result.message);
+          } else {
+            throw new Error(result.message || 'File processing failed.');
           }
         },
         () => setExtractionStage('IDLE'),
@@ -463,7 +473,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    Swal.fire({ title: 'Registering Item...', text: 'Larger files may take a moment longer to process.', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
+    Swal.fire({ title: 'Registering Item...', text: 'Finalizing cloud sync.', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
     try {
       let detectedFormat = FileFormat.PDF;
       let fileUploadData = undefined;
@@ -491,13 +501,25 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         insightJsonId: '', 
         mainInfo: formData.mainInfo 
       };
-      const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'saveItem', item: newItem, file: fileUploadData, extractedText: formData.extractedText }) });
+      
+      // FIX: Include Token and Header
+      const res = await fetch(GAS_WEB_APP_URL, { 
+        method: 'POST', 
+        headers: postHeaders,
+        body: JSON.stringify({ 
+          action: 'saveItem', 
+          item: newItem, 
+          file: fileUploadData, 
+          extractedText: formData.extractedText,
+          token: INTERNAL_TOKEN
+        }) 
+      });
       const result = await res.json();
       Swal.close();
-      if (result.status === 'success') { onComplete(); navigate('/'); }
-    } catch (err) {
+      if (result.status === 'success') { onComplete(); navigate('/'); } else { throw new Error(result.message); }
+    } catch (err: any) {
       Swal.close();
-      showXeenapsAlert({ icon: 'error', title: 'Save Failed' });
+      showXeenapsAlert({ icon: 'error', title: 'Save Failed', text: err.message });
     } finally {
       setIsSubmitting(false);
     }
