@@ -6,8 +6,6 @@
 function setupDatabase() {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.LIBRARY);
-    
-    // 1. Setup Collections Sheet
     let sheet = ss.getSheetByName("Collections");
     if (!sheet) {
       sheet = ss.insertSheet("Collections");
@@ -16,6 +14,7 @@ function setupDatabase() {
       sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#f3f3f3");
       sheet.setFrozenRows(1);
     } else {
+      // AUTO-UPDATE COLUMNS: Detect and append missing headers from schema
       const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       const targetHeaders = CONFIG.SCHEMAS.LIBRARY;
       const missingHeaders = targetHeaders.filter(h => !currentHeaders.includes(h));
@@ -26,19 +25,7 @@ function setupDatabase() {
         sheet.getRange(1, startCol, 1, missingHeaders.length).setFontWeight("bold").setBackground("#f3f3f3");
       }
     }
-
-    // 2. Setup StorageNodes Sheet in Registry Spreadsheet
-    const rss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
-    let sNodeSheet = rss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-    if (!sNodeSheet) {
-      sNodeSheet = rss.insertSheet(CONFIG.STORAGE.REGISTRY_SHEET);
-      const sHeaders = ["Node Label", "Web App URL", "Folder ID", "Added At"];
-      sNodeSheet.getRange(1, 1, 1, sHeaders.length).setValues([sHeaders]);
-      sNodeSheet.getRange(1, 1, 1, sHeaders.length).setFontWeight("bold").setBackground("#004A74").setFontColor("white");
-      sNodeSheet.setFrozenRows(1);
-    }
-
-    return { status: 'success', message: 'Database "Collections" and "Storage Cluster" have been successfully initialized.' };
+    return { status: 'success', message: 'Database "Collections" has been successfully initialized/updated.' };
   } catch (err) { return { status: 'error', message: err.toString() }; }
 }
 
@@ -153,6 +140,7 @@ function saveToSheet(ssId, sheetName, item) {
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) { setupDatabase(); sheet = ss.getSheetByName(sheetName); }
   
+  // Assemble merged fields for sharding storage if not already present
   if (!item.pubInfo) {
     item.pubInfo = { 
       journal: item.journalName || "", 
@@ -204,6 +192,9 @@ function saveToSheet(ssId, sheetName, item) {
   }
 }
 
+/**
+ * Updated deleteFromSheet with permanent file deletion logic
+ */
 function deleteFromSheet(ssId, sheetName, id) {
   const ss = SpreadsheetApp.openById(ssId);
   const sheet = ss.getSheetByName(sheetName);
@@ -215,10 +206,15 @@ function deleteFromSheet(ssId, sheetName, id) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][idIdx] === id) {
+      // 1. Get fileId from the row before deleting it
       const fileId = data[i][fileIdIdx];
+      
+      // 2. Hard delete the file from Drive if it exists
       if (fileId && String(fileId).trim() !== "") {
         permanentlyDeleteFile(fileId);
       }
+      
+      // 3. Remove the row from the sheet
       sheet.deleteRow(i + 1);
       break;
     }
