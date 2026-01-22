@@ -224,7 +224,7 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
   const isDataLoading = isInternalLoading || isGlobalLoading;
 
   return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden relative pr-1">
+    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar pr-1 relative">
       {selectedItem && (
         <LibraryDetailView 
           item={selectedItem} 
@@ -233,12 +233,12 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
         />
       )}
 
-      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between shrink-0">
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between shrink-0 mb-4">
         <SmartSearchBox value={localSearch} onChange={setLocalSearch} onSearch={handleSearchTrigger} />
         <AddButton onClick={() => navigate('/add')} icon={<PlusIcon className="w-5 h-5" />}>Add Collection</AddButton>
       </div>
 
-      <div className="flex items-center justify-between lg:justify-start gap-4 shrink-0 relative z-[30] mt-4">
+      <div className="flex items-center justify-between lg:justify-start gap-4 shrink-0 relative z-[30] mb-4">
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-2 no-scrollbar flex-1">
           {filters.map(filter => (
             <StandardFilterButton key={filter} isActive={activeFilter === filter} onClick={() => { setActiveFilter(filter); setCurrentPage(1); }}>{filter}</StandardFilterButton>
@@ -246,7 +246,7 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
         </div>
       </div>
 
-      <div className="lg:hidden flex items-center justify-start gap-4 px-1 py-1 shrink-0">
+      <div className="lg:hidden flex items-center justify-start gap-4 px-1 py-1 shrink-0 mb-4">
         <div className="relative">
           <button onClick={() => setShowSortMenu(!showSortMenu)} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${showSortMenu ? 'bg-[#004A74] border-[#004A74] text-white shadow-md' : 'bg-white border-gray-100 text-[#004A74] shadow-sm'}`}><AdjustmentsHorizontalIcon className="w-4 h-4 stroke-[2.5]" /><span className="text-[10px] font-black uppercase tracking-widest">Sort</span></button>
           {showSortMenu && (
@@ -267,17 +267,17 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
         <StandardQuickActionButton variant="warning" onClick={() => handleBatchAction('isFavorite')}>{anyUnfavorited ? <StarSolid className="w-5 h-5" /> : <StarIcon className="w-5 h-5" />}</StandardQuickActionButton>
       </StandardQuickAccessBar>
 
-      <div className="hidden lg:flex flex-col flex-1 min-h-0 mt-4 overflow-hidden">
+      <div className="hidden lg:block mt-4">
         <StandardTableContainer>
           <StandardTableWrapper>
-            <thead className="sticky top-0 z-[50]">
+            <thead>
               <tr>
                 <th className="sticky left-0 z-[60] px-6 py-4 w-12 bg-gray-50 border-r border-gray-100/50 shadow-sm text-center"><div className="flex items-center justify-center"><StandardCheckbox onChange={toggleSelectAll} checked={serverItems.length > 0 && selectedIds.length === serverItems.length} /></div></th>
                 {tableColumns.map(col => <StandardTh key={col.key} onClick={() => handleSort(col.key)} isActiveSort={sortConfig.key === col.key} width={col.width} className={col.key === 'title' ? 'sticky left-12 z-[55] border-r border-gray-100/50 shadow-sm' : ''}>{col.label} {getSortIcon(col.key)}</StandardTh>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {isDataLoading ? <TableSkeletonRows count={5} /> : serverItems.length === 0 ? <tr><td colSpan={tableColumns.length + 1} className="px-6 py-24 text-center"><div className="flex flex-col items-center justify-center space-y-2"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div></td></tr> : serverItems.map((item) => (
+              {isDataLoading ? <TableSkeletonRows count={8} /> : serverItems.length === 0 ? <tr><td colSpan={tableColumns.length + 1} className="px-6 py-24 text-center"><div className="flex flex-col items-center justify-center space-y-2"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div></td></tr> : serverItems.map((item) => (
                 <StandardTr key={item.id} className="cursor-pointer" onClick={() => setSelectedItem(item)}>
                   <td className="px-6 py-4 sticky left-0 z-20 border-r border-gray-100/50 bg-white group-hover:bg-[#f0f7fa] shadow-sm text-center" onClick={(e) => e.stopPropagation()}><StandardCheckbox checked={selectedIds.includes(item.id)} onChange={() => toggleSelectItem(item.id)} /></td>
                   <StandardTd isActiveSort={sortConfig.key === 'title'} className="sticky left-12 z-20 border-r border-gray-100/50 bg-white group-hover:bg-[#f0f7fa] shadow-sm"><ElegantTooltip text={item.title}><div className="flex items-start gap-2 group/title w-full"><div className="flex-1 min-w-0"><div className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}><span className="inline-flex items-center gap-1 mr-1.5 align-middle shrink-0">{item.isBookmarked && <BookmarkSolid className="w-3.5 h-3.5 text-[#004A74]" />}{item.isFavorite && <StarSolid className="w-3.5 h-3.5 text-[#FED400]" />}</span><span className="text-sm font-bold text-[#004A74] group-hover/title:underline leading-tight transition-all">{item.title}</span></div></div><EyeIcon className="w-3.5 h-3.5 text-gray-300 group-hover/title:text-[#004A74] opacity-0 group-hover/title:opacity-100 transition-all shrink-0 mt-1" /></div></ElegantTooltip></StandardTd>
@@ -296,8 +296,8 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
         </StandardTableContainer>
       </div>
 
-      <div className="lg:hidden flex-none pb-10 mt-4 overflow-y-auto">
-        {isDataLoading ? <CardGridSkeleton count={6} /> : serverItems.length === 0 ? <div className="py-24 text-center flex flex-col items-center justify-center space-y-2 bg-white border border-gray-100/50 rounded-[2rem] shadow-sm mx-1"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div> : (
+      <div className="lg:hidden mt-4">
+        {isDataLoading ? <CardGridSkeleton count={8} /> : serverItems.length === 0 ? <div className="py-24 text-center flex flex-col items-center justify-center space-y-2 bg-white border border-gray-100/50 rounded-[2rem] shadow-sm mx-1"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div> : (
           <StandardGridContainer>
             {serverItems.map((item) => (
               <StandardItemCard key={item.id} isSelected={selectedIds.includes(item.id)} onClick={() => setSelectedItem(item)}>
@@ -315,6 +315,13 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
         )}
         {totalPages > 1 && <div className="pt-8"><StandardTableFooter totalItems={totalItemsServer} currentPage={currentPage} itemsPerPage={itemsPerPage} totalPages={totalPages} onPageChange={setCurrentPage} /></div>}
       </div>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 74, 116, 0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 74, 116, 0.2); }
+      `}</style>
     </div>
   );
 };

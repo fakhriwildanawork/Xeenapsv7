@@ -162,10 +162,12 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   return (
-    <div className="absolute inset-0 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden library-detail-overlay">
+    <div className="fixed inset-0 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden library-detail-overlay">
+      {/* Visual Leakage Protection Blur Layer - Triggers when mobile sidebar is open */}
+      <div className="absolute inset-0 z-[100] backdrop-blur-md bg-white/30 hidden detail-leakage-guard pointer-events-none" />
       
       {/* 1. BLOK TOMBOL (Navigation Bar) */}
-      <nav className="shrink-0 bg-white/95 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between z-50 sticky top-0">
+      <nav className="shrink-0 bg-white/95 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between z-[90] sticky top-0">
         <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 px-3 py-2 rounded-xl transition-all">
           <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
         </button>
@@ -438,6 +440,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-[#004A74] text-white p-8 md:p-12 rounded-[3rem] max-w-lg shadow-2xl relative border border-white/10">
             <button onClick={() => setShowTips(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all"><XMarkIcon className="w-6 h-6" /></button>
+            {/* Fix: Replaced invalid item.icon with LightBulbIcon which is already imported */}
             <LightBulbIcon className="w-10 h-10 text-[#FED400] mb-6 drop-shadow-[0_0_10px_rgba(254,212,0,0.5)]" />
             <h3 className="text-xl font-black mb-4 uppercase tracking-widest">Knowledge Anchor Tips</h3>
             <p className="text-sm font-medium italic leading-relaxed opacity-90 border-l-2 border-[#FED400] pl-4">"{item.quickTipsForYou || 'Generate AI insights to unlock specific tips for this collection.'}"</p>
@@ -450,11 +453,19 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #004A7430; border-radius: 10px; }
         
-        /* Fix: Apply blur when mobile backdrop is active */
+        /* Fix: Enhanced blur coverage when mobile sidebar expands */
         body:has(.z-[70]) .library-detail-overlay {
-           filter: blur(8px);
+           filter: blur(12px) brightness(0.9);
            pointer-events: none;
-           opacity: 0.8;
+        }
+        
+        body:has(.z-[70]) .detail-leakage-guard {
+           display: block;
+        }
+
+        /* Ensure sticky nav within blurred container also looks blurred */
+        body:has(.z-[70]) .library-detail-overlay nav {
+           filter: blur(4px);
         }
       `}</style>
     </div>
