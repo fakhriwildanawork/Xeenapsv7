@@ -147,6 +147,7 @@ function doPost(e) {
       let fileName = body.fileName || "Extracted Content";
       let imageView = null;
       let detectedMime = null;
+      let primaryDoiFromMeta = null;
       
       try {
         if (body.url) {
@@ -159,6 +160,9 @@ function doPost(e) {
             } catch (e) {}
           }
           extractedText = routerUrlExtraction(body.url);
+          // Look for PRIMARY_DOI tag in the resulting metadata block
+          const doiMetaMatch = extractedText.match(/PRIMARY_DOI:\s*([^\n]+)/);
+          if (doiMetaMatch) primaryDoiFromMeta = doiMetaMatch[1].trim();
         } else if (body.fileData) {
           extractedText = handleFileExtraction(body.fileData, body.mimeType, fileName);
           detectedMime = body.mimeType;
@@ -169,27 +173,28 @@ function doPost(e) {
 
       const snippet = extractedText.substring(0, 15000);
       
-      // IMPROVED DOI REGEX: Captures the DOI but allows logic below to sanitize 'greedily' matched words
+      // REGEX Patterns
       const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+(?![a-z])/i;
       const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
       const pmidPattern = /PMID:?\s*(\d{4,10})/i;
       const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
 
-      let doiMatch = snippet.match(doiPattern);
+      // PRIORITIZE meta-tag DOI if it exists
+      let finalDoi = primaryDoiFromMeta;
+      if (!finalDoi) {
+        const doiMatch = snippet.match(doiPattern);
+        finalDoi = doiMatch ? doiMatch[0] : null;
+      }
+
       const isbnMatch = snippet.match(isbnPattern);
       const pmidMatch = snippet.match(pmidPattern);
       const arxivMatch = snippet.match(arxivPattern);
 
-      let finalDoi = doiMatch ? doiMatch[0] : null;
-
-      // CLEANUP LOGIC: Strip trailing punctuation often caught by greediness
-      if (finalDoi) {
+      // CLEANUP LOGIC for greedily matched Regex
+      if (finalDoi && !primaryDoiFromMeta) {
         finalDoi = finalDoi.replace(/[.,;)]+$/, '');
-        // DOI HEURISTIC: If a DOI ends with multiple uppercase letters following a digit (e.g., "123BMC"),
-        // it's highly likely a word attached to the identifier. We strip the word part.
-        // Valid DOI alphanumeric suffixes (like S336965) are usually longer or contain specific patterns.
         if (/[0-9][A-Z]{2,}$/.test(finalDoi)) {
-          const cleaned = finalDoi.replace(/[A-Z]{3,}$/, ''); // Strip trailing caps if 3+ chars
+          const cleaned = finalDoi.replace(/[A-Z]{3,}$/, '');
           if (cleaned.length > 7) finalDoi = cleaned;
         }
       }

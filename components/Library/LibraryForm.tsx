@@ -303,7 +303,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     return () => clearTimeout(tid);
   }, [formData.url, formData.addMethod, workflow.execute]);
 
-  // REF Workflow Effect
+  // REF Workflow Effect - Enhanced to support direct URLs in REF field
   useEffect(() => {
     const idVal = formData.doi.trim(); 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
@@ -311,8 +311,21 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         lastIdentifier.current = idVal;
         workflow.execute(
           async (signal) => {
+            let finalId = idVal;
+            
+            // If the input is a URL, perform a "Pre-Scrape" to find the identifier in meta-tags
+            if (idVal.startsWith('http')) {
+              setExtractionStage('READING');
+              const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: idVal }), signal });
+              const scrapeData = await scrapeRes.json();
+              if (scrapeData.status === 'success') {
+                // Prioritize DOI found in meta-tags, fallback to PMID/Arxiv, then finally original URL
+                finalId = scrapeData.detectedDoi || scrapeData.detectedPmid || scrapeData.detectedArxiv || idVal;
+              }
+            }
+
             setExtractionStage('FETCHING_ID');
-            const data = await callIdentifierSearch(idVal, signal);
+            const data = await callIdentifierSearch(finalId, signal);
             if (data) {
               setFormData(prev => ({ ...prev, ...data }));
               const targetUrl = data.url || (data.doi ? `https://doi.org/${data.doi}` : null);
