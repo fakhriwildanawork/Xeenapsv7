@@ -195,9 +195,12 @@ function doPost(e) {
         extractedText = "Extraction failed: " + err.toString();
       }
 
-      const snippet = extractedText.substring(0, 7500);
+      // INCREASE SEARCH RANGE FOR BETTER DETECTION
+      const snippet = extractedText.substring(0, 15000);
+      
       const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
-      const isbnPattern = /(?:ISBN(?:-1[03])?:?\s*)?(?=[0-9X\s-]{10,17}$)(?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X]/i;
+      // Improved ISBN regex without end-anchors for snippet matching
+      const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
       const pmidPattern = /PMID:?\s*(\d{4,10})/i;
       const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
 
@@ -212,7 +215,7 @@ function doPost(e) {
         fileName: fileName,
         mimeType: detectedMime,
         detectedDoi: doiMatch ? doiMatch[0] : null,
-        detectedIsbn: isbnMatch ? isbnMatch[0] : null,
+        detectedIsbn: isbnMatch ? isbnMatch[1] : null,
         detectedPmid: pmidMatch ? pmidMatch[1] : null,
         detectedArxiv: arxivMatch ? (arxivMatch[1] || arxivMatch[0]) : null,
         imageView: imageView
