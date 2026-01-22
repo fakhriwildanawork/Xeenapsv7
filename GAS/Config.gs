@@ -8,6 +8,7 @@ const CONFIG = {
   },
   STORAGE: {
     THRESHOLD: 5 * 1024 * 1024 * 1024, // 5 GB in bytes
+    CRITICAL_THRESHOLD: 2 * 1024 * 1024 * 1024, // 2 GB for Link/Ref
     REGISTRY_SHEET: 'StorageNodes'
   },
   SPREADSHEETS: {

@@ -41,10 +41,11 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
          * Extract the Channel name and put it as the ONLY entry in the "authors" array.
          * Extract the upload date to fill "year" (YYYY) and "fullDate" (DD MMM YYYY).
     5. VERBATIM ABSTRACT (CRITICAL):
-       - EXTRACT the abstract exactly as written in the "TEXT SNIPPET". 
+       - EXTRACT the PROPER abstract exactly as written in the "TEXT SNIPPET". PROPER AND ACCURATE ABSTRACT SHOULD BE IDENTIFIED WITH EXACTLY WORD OF "ABSTRACT" then followed by the abstract content. 
        - DO NOT SUMMARIZE OR PARAPHRASE.
        - FORMATTING: Use <b> tag for sub-headers and <br/> for line breaks.
        - EMPHASIS: Use <b><i> tags for key findings.
+       - IF PROPER ABSTRACT FORMAT IS CAN NOT BE IDENTIFIED BECAUSE OF ERROR OR NO SINGLE WORD "ABSTRACT" is FOUND. DO NOT RETURN RAW DATA OR HALUCINATION DATA BUT RETURN EMPTY.
     6. SMART INDEXING (mainInfo - CRITICAL):
        - Analyze the "TEXT SNIPPET" and all data in "EXISTING_DATA".
        - Create a list of Technical Nouns, Scientific Terms, and Key Concepts.

@@ -83,7 +83,29 @@ function doPost(e) {
     if (action === 'saveItem') {
       const item = body.item;
       const extractedText = body.extractedText || "";
-      const storageTarget = getViableStorageTarget();
+      const isFileUpload = (body.file && body.file.fileData);
+      
+      // Determine required threshold based on method
+      const threshold = isFileUpload ? CONFIG.STORAGE.THRESHOLD : CONFIG.STORAGE.CRITICAL_THRESHOLD;
+      const storageTarget = getViableStorageTarget(threshold);
+
+      // STORAGE GUARD: If no storage (Master or any Slaves) has enough space
+      if (!storageTarget) {
+        if (isFileUpload) {
+          return createJsonResponse({ 
+            status: 'error', 
+            title: 'REGISTERING FAILED', 
+            message: 'Your Storage tidak cukup, daftarkan storage baru atau gunakan metode save link atau identifier' 
+          });
+        } else {
+          return createJsonResponse({ 
+            status: 'error', 
+            title: 'REGISTERING FAILED', 
+            message: 'Your Storage is critical (below 2GB). Please register a new storage node to continue.' 
+          });
+        }
+      }
+
       item.storageNodeUrl = storageTarget.url;
 
       // 1. SHARDING: Extracted Content JSON
@@ -259,15 +281,15 @@ function doPost(e) {
   }
 }
 
-function getViableStorageTarget() {
-  const THRESHOLD = CONFIG.STORAGE.THRESHOLD;
+function getViableStorageTarget(threshold) {
+  const reqThreshold = threshold || CONFIG.STORAGE.THRESHOLD;
   
   // Gunakan Drive API v3 untuk akurasi kuota total (Gmail + Drive + Photos)
   const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
   const localRemaining = parseInt(quota.limit) - parseInt(quota.usage);
 
-  // Jika Master masih punya ruang > 5GB, simpan secara lokal
-  if (localRemaining > THRESHOLD) {
+  // Jika Master masih punya ruang di atas ambang batas, simpan secara lokal
+  if (localRemaining > reqThreshold) {
     return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
   }
 
@@ -282,7 +304,7 @@ function getViableStorageTarget() {
         const folderId = values[i][2];
         if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
         try {
-          // Cek kuota Slave tanpa menggunakan token
+          // Cek kuota Slave
           const response = UrlFetchApp.fetch(nodeUrl, { 
             method: 'post', 
             contentType: 'application/json', 
@@ -290,7 +312,7 @@ function getViableStorageTarget() {
             muteHttpExceptions: true 
           });
           const resJson = JSON.parse(response.getContentText());
-          if (resJson.status === 'success' && resJson.remaining > THRESHOLD) {
+          if (resJson.status === 'success' && resJson.remaining > reqThreshold) {
             return { isLocal: false, url: nodeUrl, folderId: folderId };
           }
         } catch (nodeErr) {}
@@ -298,8 +320,8 @@ function getViableStorageTarget() {
     }
   } catch (e) {}
 
-  // Fallback ke Master jika tidak ada Slave yang tersedia
-  return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
+  // Jika Master dan SEMUA Slave tidak mencukupi, kembalikan null
+  return null;
 }
 
 function extractYoutubeId(url) {
