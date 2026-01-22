@@ -53,8 +53,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
        - Create a list of Technical Nouns, Scientific Terms, and Key Concepts.
        - STRICT FILTRATION: Remove all Verbs, Conjunctions, Irrelevant characters, Person Names, and general/common words.
        - LENGTH: Max 1000 characters of clean, space-separated terms. This is used for Smart Searching.
-    7. CITATION GENERATION: Accurately using Academic Harvard Citation style.
-    8. STRICT RESTRICTION: DO NOT fill "summary", "strength", "weakness", "researchMethodology", "unfamiliarTerminology", "supportingReferences", "videoRecommendation", or "quickTipsForYou".
+    7. STRICT RESTRICTION: DO NOT fill "summary", "strength", "weakness", "researchMethodology", "unfamiliarTerminology", "supportingReferences", "videoRecommendation", or "quickTipsForYou".
     --------------------------
 
     APPROVED CATEGORY LIST:
