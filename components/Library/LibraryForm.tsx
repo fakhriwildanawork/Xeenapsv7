@@ -250,7 +250,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         const officialData = await callIdentifierSearch(targetId, signal);
         if (officialData) {
           baseData = { ...baseData, ...officialData };
-          setFormData(prev => ({ ...prev, ...officialData }));
+          
+          // Field Lock: Preserve current input box values
+          const dataToApply = { ...officialData };
+          if (formData.addMethod === 'LINK') delete (dataToApply as any).url;
+          if (formData.addMethod === 'REF') delete (dataToApply as any).doi;
+          
+          setFormData(prev => ({ ...prev, ...dataToApply }));
         }
       } catch (e) {
         console.warn("Identifier lookup failed, falling back to AI:", e);
@@ -292,25 +298,36 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       return fuzzy || target;
     })();
 
-    setFormData(prev => ({
-      ...prev,
-      ...aiEnriched,
-      authors: (aiEnriched.authors && aiEnriched.authors.length > 0) ? aiEnriched.authors : prev.authors,
-      keywords: (aiEnriched.keywords && aiEnriched.keywords.length > 0) ? aiEnriched.keywords : prev.keywords,
-      labels: (aiEnriched.labels && aiEnriched.labels.length > 0) ? aiEnriched.labels : prev.labels,
-      category: normalizedCategory,
-      topic: (aiEnriched.topic && aiEnriched.topic !== "") ? aiEnriched.topic : prev.topic,
-      subTopic: (aiEnriched.subTopic && aiEnriched.subTopic !== "") ? aiEnriched.subTopic : prev.subTopic,
-      mainInfo: aiEnriched.mainInfo || prev.mainInfo,
-      chunks: chunks,
-      extractedText: extractedText
-    }));
+    setFormData(prev => {
+      // Merge logic with Field Lock preservation
+      const finalEnriched = { ...aiEnriched };
+      if (prev.addMethod === 'LINK') delete (finalEnriched as any).url;
+      if (prev.addMethod === 'REF') delete (finalEnriched as any).doi;
+
+      return {
+        ...prev,
+        ...finalEnriched,
+        authors: (aiEnriched.authors && aiEnriched.authors.length > 0) ? aiEnriched.authors : prev.authors,
+        keywords: (aiEnriched.keywords && aiEnriched.keywords.length > 0) ? aiEnriched.keywords : prev.keywords,
+        labels: (aiEnriched.labels && aiEnriched.labels.length > 0) ? aiEnriched.labels : prev.labels,
+        category: normalizedCategory,
+        topic: (aiEnriched.topic && aiEnriched.topic !== "") ? aiEnriched.topic : prev.topic,
+        subTopic: (aiEnriched.subTopic && aiEnriched.subTopic !== "") ? aiEnriched.subTopic : prev.subTopic,
+        mainInfo: aiEnriched.mainInfo || prev.mainInfo,
+        chunks: chunks,
+        extractedText: extractedText
+      };
+    });
     setExtractionStage('IDLE');
   };
 
   const isSocialMediaBlocked = (url: string) => {
-    const blockedDomains = [/instagram\.com/i, /tiktok\.com/i, /facebook\.com/i, /linkedin\.com/i, /twitter\.com/i, /x\.com/i];
-    return blockedDomains.some(pattern => pattern.test(url));
+    const isYouTube = /youtube\.com|youtu\.be/i.test(url);
+    const otherSocials = [/instagram\.com/i, /tiktok\.com/i, /facebook\.com/i, /linkedin\.com/i, /twitter\.com/i, /x\.com/i];
+    
+    // Only YouTube is allowed. Others are blocked.
+    if (isYouTube) return false;
+    return otherSocials.some(pattern => pattern.test(url));
   };
 
   const handleExtractionError = (err: any) => {
@@ -318,7 +335,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     if (err.message === 'TIMEOUT') {
       showXeenapsAlert({ icon: 'error', title: 'PROCESS FAILED', text: 'The request took too long (max 30s).' });
     } else {
-      showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: 'Could not process automatically.' });
+      showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: err.message || 'Could not process automatically.' });
     }
   };
 
@@ -327,23 +344,32 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     const url = formData.url.trim();
     if (!url || !url.startsWith('http') || url === lastExtractedUrl.current || formData.addMethod !== 'LINK') return;
 
-    if (isSocialMediaBlocked(url) && !url.includes('youtube.com') && !url.includes('youtu.be')) {
-      showXeenapsAlert({ icon: 'error', title: 'LINK NON SUPPORTED', text: 'Social media links are not allowed.' });
+    if (isSocialMediaBlocked(url)) {
+      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'This platform is not supported. Only YouTube is allowed for social content.' });
       setFormData(prev => ({ ...prev, url: '' }));
       return;
     }
 
     const tid = setTimeout(() => {
       lastExtractedUrl.current = url;
-      resetMetadataFields(true); // Auto-reset when user paste a new link
+      resetMetadataFields(true); // Auto-reset metadata when pasting new link
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
           const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url }), signal });
           const data = await res.json();
           if (data.status === 'success' && data.extractedText) {
-            const ids = { doi: data.detectedDoi, isbn: data.detectedIsbn, pmid: data.detectedPmid, arxivId: data.detectedArxiv, imageView: data.imageView };
+            const ids = { 
+              doi: data.detectedDoi, 
+              isbn: data.detectedIsbn, 
+              pmid: data.detectedPmid, 
+              arxivId: data.detectedArxiv, 
+              imageView: data.imageView 
+            };
+            // TEXT-FIRST: Use extracted text to find identifiers and then fetch metadata
             await runExtractionWorkflow(data.extractedText, chunkifyText(data.extractedText), ids, {}, signal);
+          } else if (data.status === 'error') {
+            throw new Error(data.message);
           }
         },
         () => setExtractionStage('IDLE'),
@@ -353,24 +379,23 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     return () => clearTimeout(tid);
   }, [formData.url, formData.addMethod, workflow.execute]);
 
-  // REF Workflow Effect - Enhanced to support direct URLs in REF field
+  // REF Workflow Effect
   useEffect(() => {
     const idVal = formData.doi.trim(); 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
       const tid = setTimeout(() => {
         lastIdentifier.current = idVal;
-        resetMetadataFields(true); // Auto-reset when user enters a new identifier
+        resetMetadataFields(true); // Auto-reset metadata when typing new identifier
         workflow.execute(
           async (signal) => {
             let finalId = idVal;
             
-            // If the input is a URL, perform a "Pre-Scrape" to find the identifier in meta-tags
+            // If the input is a URL, perform a "Pre-Scrape" to find the identifier in meta-tags or content
             if (idVal.startsWith('http')) {
               setExtractionStage('READING');
               const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: idVal }), signal });
               const scrapeData = await scrapeRes.json();
               if (scrapeData.status === 'success') {
-                // Prioritize DOI found in meta-tags, fallback to PMID/Arxiv, then finally original URL
                 finalId = scrapeData.detectedDoi || scrapeData.detectedPmid || scrapeData.detectedArxiv || idVal;
               }
             }
@@ -378,7 +403,11 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             setExtractionStage('FETCHING_ID');
             const data = await callIdentifierSearch(finalId, signal);
             if (data) {
-              setFormData(prev => ({ ...prev, ...data }));
+              // Field Lock: Don't overwrite the DOI field if that's what user typed
+              const dataToApply = { ...data };
+              delete (dataToApply as any).doi;
+              setFormData(prev => ({ ...prev, ...dataToApply }));
+
               const targetUrl = data.url || (data.doi ? `https://doi.org/${data.doi}` : null);
               if (targetUrl && targetUrl.startsWith('http')) {
                 setExtractionStage('READING');
@@ -420,6 +449,8 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
           if (result.status === 'success' && result.extractedText) {
             const ids = { doi: result.detectedDoi, isbn: result.detectedIsbn, pmid: result.detectedPmid, arxivId: result.detectedArxiv };
             await runExtractionWorkflow(result.extractedText, chunkifyText(result.extractedText), ids, {}, signal);
+          } else if (result.status === 'error') {
+            throw new Error(result.message);
           }
         },
         () => setExtractionStage('IDLE'),
@@ -443,8 +474,29 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         const b64 = await new Promise<string>(r => { reader.onload = () => r((reader.result as string).split(',')[1]); reader.readAsDataURL(file); });
         fileUploadData = { fileName: file.name, mimeType: file.type, fileData: b64 };
       }
+      
       const generatedId = crypto.randomUUID();
-      const newItem: any = { ...formData, id: generatedId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), source: formData.addMethod === 'LINK' ? SourceType.LINK : SourceType.FILE, format: formData.addMethod === 'LINK' ? FileFormat.URL : detectedFormat, pubInfo: { journal: formData.journalName || "", vol: formData.volume || "", issue: formData.issue || "", pages: formData.pages || "" }, identifiers: { doi: formData.doi || "", issn: formData.issn || "", isbn: formData.isbn || "", pmid: formData.pmid || "", arxiv: formData.arxivId || "", bibcode: formData.bibcode || "" }, tags: { keywords: formData.keywords || [], labels: formData.labels || [] }, insightJsonId: '', mainInfo: formData.mainInfo };
+      
+      // PERSISTENCE LOGIC:
+      // For LINK: Use original URL from user input
+      // For REF: Use potentially resolved URL from metadata
+      const finalUrl = formData.addMethod === 'LINK' ? formData.url : (formData.url || `https://doi.org/${formData.doi}`);
+
+      const newItem: any = { 
+        ...formData, 
+        id: generatedId, 
+        url: finalUrl,
+        createdAt: new Date().toISOString(), 
+        updatedAt: new Date().toISOString(), 
+        source: formData.addMethod === 'LINK' ? SourceType.LINK : SourceType.FILE, 
+        format: formData.addMethod === 'LINK' ? FileFormat.URL : detectedFormat, 
+        pubInfo: { journal: formData.journalName || "", vol: formData.volume || "", issue: formData.issue || "", pages: formData.pages || "" }, 
+        identifiers: { doi: formData.doi || "", issn: formData.issn || "", isbn: formData.isbn || "", pmid: formData.pmid || "", arxiv: formData.arxivId || "", bibcode: formData.bibcode || "" }, 
+        tags: { keywords: formData.keywords || [], labels: formData.labels || [] }, 
+        insightJsonId: '', 
+        mainInfo: formData.mainInfo 
+      };
+
       const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'saveItem', item: newItem, file: fileUploadData, extractedText: formData.extractedText }) });
       const result = await res.json();
       Swal.close();

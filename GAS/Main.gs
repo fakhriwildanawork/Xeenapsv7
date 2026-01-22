@@ -156,6 +156,13 @@ function doPost(e) {
             try {
               const fileMeta = Drive.Files.get(driveId);
               detectedMime = fileMeta.mimeType;
+              
+              // REJECT AUDIO/VIDEO from Drive
+              const isAudioVideo = detectedMime.includes('audio/') || detectedMime.includes('video/');
+              if (isAudioVideo) {
+                return createJsonResponse({ status: 'error', message: 'Audio and Video files from Drive are not supported.' });
+              }
+
               if (detectedMime && detectedMime.toLowerCase().includes('image/')) imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
             } catch (e) {}
           }
