@@ -1,3 +1,4 @@
+
 import { LibraryItem } from "../types";
 import { callAiProxy } from "./gasService";
 // Fix: GAS_WEB_APP_URL must be imported from the constants file where it is exported
@@ -113,7 +114,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
         }
       });
 
-      // NEW: Fetch Supporting References from Crossref based on AI Keywords
+      // NEW: Fetch Supporting References from Crossref & YouTube based on AI Keywords
       if (merged.keywords && merged.keywords.length > 0) {
         try {
           const refRes = await fetch(GAS_WEB_APP_URL, {
@@ -129,7 +130,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
             merged.supportingReferences = refData.data;
           }
         } catch (e) {
-          console.warn("Failed to fetch supporting references:", e);
+          console.warn("Failed to fetch supporting data:", e);
         }
       }
 

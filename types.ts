@@ -51,6 +51,11 @@ export interface TagsData {
   labels: string[];
 }
 
+export interface SupportingData {
+  references: string[];
+  videoUrl?: string;
+}
+
 export interface LibraryItem {
   id: string;
   title: string;
@@ -100,7 +105,7 @@ export interface LibraryItem {
   strength?: string;
   weakness?: string;
   quickTipsForYou?: string;
-  supportingReferences?: string[]; // Updated to string array
+  supportingReferences?: SupportingData; // Updated to SupportingData object
 
   // Academic Citations
   inTextHarvard?: string;

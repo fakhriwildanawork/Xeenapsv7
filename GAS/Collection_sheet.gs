@@ -62,9 +62,11 @@ function getPaginatedItems(ssId, sheetName, page = 1, limit = 25, search = "", t
             let val = row[i];
             if (jsonFields.includes(h)) { 
               try { 
-                val = JSON.parse(row[i] || (h === 'authors' || h === 'supportingReferences' ? '[]' : '{}')); 
+                // Default value logic changed to handle objects for supportingReferences
+                const defaultVal = (h === 'authors') ? '[]' : '{}';
+                val = JSON.parse(row[i] || defaultVal); 
               } catch(e) { 
-                val = (h === 'authors' || h === 'supportingReferences') ? [] : {}; 
+                val = (h === 'authors') ? [] : {}; 
               } 
             }
             item[h] = val;
@@ -118,9 +120,10 @@ function getPaginatedItems(ssId, sheetName, page = 1, limit = 25, search = "", t
           let val = row[i];
           if (jsonFields.includes(h)) { 
             try { 
-              val = JSON.parse(row[i] || (h === 'authors' || h === 'supportingReferences' ? '[]' : '{}')); 
+              const defaultVal = (h === 'authors') ? '[]' : '{}';
+              val = JSON.parse(row[i] || defaultVal); 
             } catch(e) { 
-              val = (h === 'authors' || h === 'supportingReferences') ? [] : {}; 
+              val = (h === 'authors') ? [] : {}; 
             } 
           }
           item[h] = val;

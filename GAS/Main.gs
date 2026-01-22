@@ -278,9 +278,16 @@ function doPost(e) {
     
     // NEW ACTION: getSupportingReferences
     if (action === 'getSupportingReferences') {
+      const keywords = body.keywords || [];
+      const references = getSupportingReferencesFromCrossref(keywords);
+      const videoUrl = getYoutubeRecommendation(keywords);
+      
       return createJsonResponse({
         status: 'success',
-        data: getSupportingReferencesFromCrossref(body.keywords || [])
+        data: {
+          references: references,
+          videoUrl: videoUrl
+        }
       });
     }
     
@@ -305,9 +312,9 @@ function getViableStorageTarget(threshold) {
   // Jika Master hampir penuh, cari Slave di spreadsheet Registry
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
-    const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-    if (sheet) {
-      const values = sheet.getDataRange().getValues();
+    const ss_sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
+    if (ss_sheet) {
+      const values = ss_sheet.getDataRange().getValues();
       for (let i = 1; i < values.length; i++) {
         const nodeUrl = values[i][1];
         const folderId = values[i][2];

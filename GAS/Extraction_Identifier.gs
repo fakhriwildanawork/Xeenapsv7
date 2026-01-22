@@ -120,6 +120,31 @@ function getSupportingReferencesFromCrossref(keywords) {
 }
 
 /**
+ * NEW: YouTube Recommendation Logic
+ * Uses first 3 keywords to find 1 highly relevant video.
+ */
+function getYoutubeRecommendation(keywords) {
+  if (!keywords || keywords.length === 0) return null;
+  const query = keywords.slice(0, 3).join(" ");
+  try {
+    const results = YouTube.Search.list('id', {
+      q: query,
+      maxResults: 1,
+      type: 'video',
+      relevanceLanguage: 'en',
+      videoEmbeddable: 'true'
+    });
+    if (results.items && results.items.length > 0) {
+      const videoId = results.items[0].id.videoId;
+      return `https://www.youtube.com/embed/${videoId}`;
+    }
+  } catch (e) {
+    console.error("YouTube Search failed: " + e.toString());
+  }
+  return null;
+}
+
+/**
  * Helper to sanitize numeric fields (Volume, Issue, Pages)
  */
 function sanitizeNumericValue(val) {

@@ -11,7 +11,8 @@ import {
   ExclamationTriangleIcon,
   DocumentDuplicateIcon,
   LinkIcon,
-  ArrowTopRightOnSquareIcon
+  ArrowTopRightOnSquareIcon,
+  VideoCameraIcon
 } from '@heroicons/react/24/outline';
 
 interface LibraryDetailViewProps {
@@ -35,8 +36,10 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
     }
   };
 
-  // The backend now provides a parsed array directly
-  const supportingRefs = item.supportingReferences || [];
+  // Extract references and videoUrl from the new object structure
+  const supportingData = item.supportingReferences;
+  const supportingRefs = Array.isArray(supportingData) ? supportingData : (supportingData?.references || []);
+  const videoRecommendationUrl = !Array.isArray(supportingData) ? supportingData?.videoUrl : null;
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-end pointer-events-none">
@@ -100,7 +103,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
               </div>
               
               <div className="space-y-4">
-                {supportingRefs.map((ref, idx) => {
+                {supportingRefs.map((ref: string, idx: number) => {
                   // Extract DOI link from the reference string
                   const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
                   const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
@@ -136,6 +139,29 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
                     </div>
                   );
                 })}
+              </div>
+            </section>
+          )}
+
+          {/* Video Recommendation (New Section) */}
+          {videoRecommendationUrl && (
+            <section className="space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                  <VideoCameraIcon className="w-4 h-4" /> Video Recommendation
+                </h3>
+                <span className="text-[10px] font-black bg-[#FED400] text-[#004A74] px-3 py-1 rounded-full uppercase">Relevant Insight</span>
+              </div>
+              
+              <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden bg-gray-900 shadow-2xl border border-gray-100">
+                <iframe 
+                  className="absolute inset-0 w-full h-full"
+                  src={videoRecommendationUrl}
+                  title="Video Recommendation"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
               </div>
             </section>
           )}
