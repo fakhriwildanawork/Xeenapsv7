@@ -33,7 +33,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
        - KEYWORDS: You MUST provide EXACTLY 7 relevant keywords.
        - LABELS: You MUST provide EXACTLY 5 thematic labels.
        - TOPIC & SUBTOPIC: You MUST determine a high-level Topic and a specific Sub-Topic.
-       - CATEGORY: You HAVE TO choose ONLY ONE category from the APPROVED LIST provided below. CHOOSE BEST CATEGORY that match with abstract (IF AVAILABLE) data or this data string.
+       - CATEGORY: You MUST CHOOSE EXACTLY ONE CATEGORY FROM THE APPROVED LIST BELOW THAT IS MOST RELEVANCE TO THE CONTEXT. DO NOT CREATE NEW CATEGORIES.
     4. YOUTUBE SPECIAL HANDLING (CRITICAL):
        - If the TEXT SNIPPET contains "YOUTUBE_METADATA:", you MUST:
          * Set "publisher" to "Youtube" verbatim.
@@ -50,8 +50,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
        - Create a list of Technical Nouns, Scientific Terms, and Key Concepts.
        - STRICT FILTRATION: Remove all Verbs, Conjunctions, Irrelevant characters, Person Names, and general/common words.
        - LENGTH: Max 1000 characters of clean, space-separated terms. This is used for Smart Searching.
-    7. CITATION GENERATION: Accurately using Academic Harvard Citation style.
-    8. STRICT RESTRICTION: DO NOT fill "summary", "strength", "weakness", "researchMethodology", "unfamiliarTerminology", "supportingReferences", "videoRecommendation", or "quickTipsForYou".
+    7. STRICT RESTRICTION: DO NOT fill "summary", "strength", "weakness", "researchMethodology", "unfamiliarTerminology", "supportingReferences", "videoRecommendation", or "quickTipsForYou".
     --------------------------
 
     APPROVED CATEGORY LIST:
@@ -78,7 +77,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
       "volume": "Vol",
       "issue": "No",
       "pages": "pp-pp",
-      "category": "Must be from the Approved List. CHOOSE BEST CATEGORY that match with abstract (IF AVAILABLE) data or this data string.",
+      "category": "Must choose exactly from the Approved List provided above.",
       "topic": "General Topic",
       "subTopic": "Specific Sub-Topic",
       "abstract": "HTML formatted verbatim abstract",
@@ -104,8 +103,8 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
         const val = (existingData as any)[key];
         
         // Priority logic: Category and mainInfo are strictly AI territory.
-        // We do not allow external identifier API data to overwrite AI's intelligent classification/indexing.
-        if ((key === 'category' || key === 'mainInfo') && merged[key]) return;
+        // Identifier APIs often provide raw/generic categories that don't match Xeenaps PKM requirements.
+        if (key === 'category' || key === 'mainInfo') return;
 
         if (val && val !== "" && val !== "N/A" && (!Array.isArray(val) || val.length > 0)) {
           merged[key] = val;

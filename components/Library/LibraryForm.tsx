@@ -176,7 +176,42 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     allLabels: Array.from(new Set(items.flatMap(i => i.labels || []).filter(Boolean))),
   }), [items]);
 
+  const resetMetadataFields = (keepInput?: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      category: '',
+      topic: '',
+      subTopic: '',
+      title: '',
+      authors: [],
+      publisher: '',
+      journalName: '',
+      volume: '',
+      issue: '',
+      pages: '',
+      year: '',
+      fullDate: '',
+      // Only reset the input fields if they are not the active input mode
+      doi: keepInput && prev.addMethod === 'REF' ? prev.doi : '',
+      url: keepInput && prev.addMethod === 'LINK' ? prev.url : '',
+      issn: '',
+      isbn: '',
+      pmid: '',
+      arxivId: '',
+      bibcode: '',
+      abstract: '',
+      mainInfo: '',
+      keywords: [],
+      labels: [],
+      imageView: '',
+      extractedText: '',
+      chunks: []
+    }));
+    if (!keepInput) setFile(null);
+  };
+
   const setMode = (mode: 'FILE' | 'LINK' | 'REF') => {
+    resetMetadataFields(false);
     setFormData(prev => ({ ...prev, addMethod: mode }));
   };
 
@@ -235,12 +270,19 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     const isYouTube = extractedText.includes("YOUTUBE_METADATA") || (baseData.url && (baseData.url.includes('youtube.com') || baseData.url.includes('youtu.be')));
     if (isYouTube) {
       aiEnriched.publisher = "Youtube";
+      aiEnriched.category = "Video";
     }
 
+    // Robust Normalization for Category
     const normalizedCategory = (() => {
-      if (!aiEnriched.category) return null;
+      if (!aiEnriched.category) return '';
       const target = aiEnriched.category.trim().toLowerCase();
-      return CATEGORY_OPTIONS.find(opt => opt.toLowerCase() === target) || null;
+      // Precise match
+      const exact = CATEGORY_OPTIONS.find(opt => opt.toLowerCase() === target);
+      if (exact) return exact;
+      // Partial match (e.g. "Research Paper" matches "Original Research")
+      const fuzzy = CATEGORY_OPTIONS.find(opt => target.includes(opt.toLowerCase()) || opt.toLowerCase().includes(target));
+      return fuzzy || '';
     })();
 
     setFormData(prev => ({
@@ -249,7 +291,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       authors: (aiEnriched.authors && aiEnriched.authors.length > 0) ? aiEnriched.authors : prev.authors,
       keywords: (aiEnriched.keywords && aiEnriched.keywords.length > 0) ? aiEnriched.keywords : prev.keywords,
       labels: (aiEnriched.labels && aiEnriched.labels.length > 0) ? aiEnriched.labels : prev.labels,
-      category: normalizedCategory || prev.category,
+      category: normalizedCategory,
       topic: (aiEnriched.topic && aiEnriched.topic !== "") ? aiEnriched.topic : prev.topic,
       subTopic: (aiEnriched.subTopic && aiEnriched.subTopic !== "") ? aiEnriched.subTopic : prev.subTopic,
       mainInfo: aiEnriched.mainInfo || prev.mainInfo,
@@ -286,6 +328,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
 
     const tid = setTimeout(() => {
       lastExtractedUrl.current = url;
+      resetMetadataFields(true); // Auto-reset when user paste a new link
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
@@ -309,6 +352,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
       const tid = setTimeout(() => {
         lastIdentifier.current = idVal;
+        resetMetadataFields(true); // Auto-reset when user enters a new identifier
         workflow.execute(
           async (signal) => {
             let finalId = idVal;
@@ -355,6 +399,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
+      resetMetadataFields(false); // Auto-reset when user selects a new file
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
