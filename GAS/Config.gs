@@ -6,8 +6,13 @@ const CONFIG = {
   FOLDERS: {
     MAIN_LIBRARY: '1CUvptRGnncn0M-vZdLCb1XBUmAeM9G8B'
   },
+  // TOKEN INI HARUS SAMA DI SEMUA AKUN (MASTER & SLAVE)
+  // Ganti dengan string acak buatan Anda sendiri
+  SECURITY: {
+    INTERNAL_TOKEN: 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ' 
+  },
   STORAGE: {
-    THRESHOLD: 5 * 1024 * 1024 * 1024, // 5 GB in bytes
+    THRESHOLD: 5 * 1024 * 1024 * 1024, // 5 GB
     REGISTRY_SHEET: 'StorageNodes'
   },
   SPREADSHEETS: {
@@ -18,34 +23,11 @@ const CONFIG = {
   },
   SCHEMAS: {
     LIBRARY: [
-      'id', 
-      'title', 
-      'type', 
-      'category', 
-      'topic', 
-      'subTopic', 
-      'authors', // Merged JSON Array
-      'publisher', 
-      'year', 
-      'fullDate',
-      'pubInfo', // Merged JSON Object (journal, vol, issue, pages)
-      'identifiers', // Merged JSON Object (doi, issn, isbn, pmid, arxiv, bibcode)
-      'source', 
-      'format', 
-      'url', 
-      'fileId', 
-      'imageView', 
-      'youtubeId', 
-      'tags', // Merged JSON Object (keywords, labels)
-      'abstract', 
-      'mainInfo', // Search Indexer (Plain Text)
-      'extractedJsonId', 
-      'insightJsonId', 
-      'storageNodeUrl',
-      'isFavorite', 
-      'isBookmarked', 
-      'createdAt', 
-      'updatedAt'
+      'id', 'title', 'type', 'category', 'topic', 'subTopic', 'authors', 
+      'publisher', 'year', 'fullDate', 'pubInfo', 'identifiers', 'source', 
+      'format', 'url', 'fileId', 'imageView', 'youtubeId', 'tags', 'abstract', 
+      'mainInfo', 'extractedJsonId', 'insightJsonId', 'storageNodeUrl',
+      'isFavorite', 'isBookmarked', 'createdAt', 'updatedAt'
     ]
   }
 };

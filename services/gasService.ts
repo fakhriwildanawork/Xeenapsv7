@@ -3,20 +3,15 @@ import { LibraryItem, GASResponse, ExtractionResult } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import Swal from 'sweetalert2';
 
-const Toast = Swal.mixin({
-  toast: true,
-  position: 'top-end',
-  showConfirmButton: false,
-  timer: 3000,
-  timerProgressBar: true,
-});
+// Token rahasia yang sama dengan Config.gs
+const INTERNAL_TOKEN = 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ';
 
 export const initializeDatabase = async (): Promise<{ status: string; message: string }> => {
   try {
     if (!GAS_WEB_APP_URL) throw new Error('VITE_GAS_URL is missing.');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'setupDatabase' }),
+      body: JSON.stringify({ action: 'setupDatabase', token: INTERNAL_TOKEN }),
     });
     return await response.json();
   } catch (error: any) {
@@ -52,7 +47,7 @@ export const addStorageNode = async (nodeUrl: string, folderId: string, label: s
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'addStorageNode', nodeUrl, folderId, label }),
+      body: JSON.stringify({ action: 'addStorageNode', nodeUrl, folderId, label, token: INTERNAL_TOKEN }),
     });
     const result = await res.json();
     return result.status === 'success';
@@ -82,9 +77,6 @@ export const fetchLibraryPaginated = async (
       totalCount: result.totalCount || 0 
     };
   } catch (error: any) {
-    if (error.name === 'AbortError') {
-      console.log('Fetch aborted');
-    }
     return { items: [], totalCount: 0 };
   }
 };
@@ -94,7 +86,7 @@ export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, m
     if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL not configured');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride }),
+      body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride, token: INTERNAL_TOKEN }),
       signal
     });
     const result = await response.json();
@@ -132,7 +124,7 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'extractOnly', url }),
+      body: JSON.stringify({ action: 'extractOnly', url, token: INTERNAL_TOKEN }),
       signal
     });
     
@@ -154,7 +146,7 @@ export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'searchByIdentifier', idValue }),
+      body: JSON.stringify({ action: 'searchByIdentifier', idValue, token: INTERNAL_TOKEN }),
       signal: internalSignal
     });
     
@@ -162,9 +154,6 @@ export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal
     if (result.status === 'success') return result.data;
     throw new Error(result.message || 'No data found.');
   } catch (error: any) {
-    if (error.name === 'AbortError' || error.message === 'TIMEOUT') {
-      throw new Error('TIMEOUT');
-    }
     throw error;
   }
 };
@@ -184,7 +173,8 @@ export const uploadAndStoreFile = async (file: File, signal?: AbortSignal): Prom
       action: 'extractOnly', 
       fileData: base64Data, 
       fileName: file.name, 
-      mimeType: file.type 
+      mimeType: file.type,
+      token: INTERNAL_TOKEN
     }),
     signal
   });
@@ -200,7 +190,7 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'saveItem', item, file: fileContent }),
+      body: JSON.stringify({ action: 'saveItem', item, file: fileContent, token: INTERNAL_TOKEN }),
     });
     const result = await res.json();
     return result.status === 'success';
@@ -212,7 +202,7 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
 export const deleteLibraryItem = async (id: string): Promise<boolean> => {
   const res = await fetch(GAS_WEB_APP_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'deleteItem', id }),
+    body: JSON.stringify({ action: 'deleteItem', id, token: INTERNAL_TOKEN }),
   });
   const result = await res.json();
   return result.status === 'success';
