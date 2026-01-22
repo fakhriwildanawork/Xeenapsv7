@@ -3,24 +3,20 @@ import { LibraryItem, GASResponse, ExtractionResult } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import Swal from 'sweetalert2';
 
-// Token rahasia yang sama dengan Config.gs
-const INTERNAL_TOKEN = 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ';
-
-/**
- * PENTING: Jangan gunakan 'Content-Type': 'application/json'.
- * Google Apps Script Web App tidak mendukung CORS preflight (OPTIONS request).
- * Dengan menghapus header ini, browser melakukan "Simple Request" (text/plain) 
- * yang tidak memerlukan preflight dan tetap mengirimkan body JSON dengan benar.
- */
-const postHeaders = {};
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+});
 
 export const initializeDatabase = async (): Promise<{ status: string; message: string }> => {
   try {
     if (!GAS_WEB_APP_URL) throw new Error('VITE_GAS_URL is missing.');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      headers: postHeaders,
-      body: JSON.stringify({ action: 'setupDatabase', token: INTERNAL_TOKEN }),
+      body: JSON.stringify({ action: 'setupDatabase' }),
     });
     return await response.json();
   } catch (error: any) {
@@ -40,32 +36,9 @@ export const fetchLibrary = async (): Promise<LibraryItem[]> => {
   }
 };
 
-export const fetchStorageNodes = async (): Promise<any[]> => {
-  try {
-    if (!GAS_WEB_APP_URL) return [];
-    const response = await fetch(`${GAS_WEB_APP_URL}?action=getStorageNodes`);
-    const result = await response.json();
-    return result.data || [];
-  } catch (error) {
-    console.error("Fetch storage nodes error:", error);
-    return [];
-  }
-};
-
-export const addStorageNode = async (nodeUrl: string, folderId: string, label: string): Promise<boolean> => {
-  try {
-    const res = await fetch(GAS_WEB_APP_URL, {
-      method: 'POST',
-      headers: postHeaders,
-      body: JSON.stringify({ action: 'addStorageNode', nodeUrl, folderId, label, token: INTERNAL_TOKEN }),
-    });
-    const result = await res.json();
-    return result.status === 'success';
-  } catch (error) {
-    return false;
-  }
-};
-
+/**
+ * Server-side Paginated Fetch with AbortSignal and Sorting Support
+ */
 export const fetchLibraryPaginated = async (
   page: number = 1, 
   limit: number = 25, 
@@ -87,6 +60,9 @@ export const fetchLibraryPaginated = async (
       totalCount: result.totalCount || 0 
     };
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.log('Fetch aborted');
+    }
     return { items: [], totalCount: 0 };
   }
 };
@@ -96,8 +72,7 @@ export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, m
     if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL not configured');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      headers: postHeaders,
-      body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride, token: INTERNAL_TOKEN }),
+      body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride }),
       signal
     });
     const result = await response.json();
@@ -135,8 +110,7 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      headers: postHeaders,
-      body: JSON.stringify({ action: 'extractOnly', url, token: INTERNAL_TOKEN }),
+      body: JSON.stringify({ action: 'extractOnly', url }),
       signal
     });
     
@@ -153,13 +127,13 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
 export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal): Promise<Partial<LibraryItem> | null> => {
   if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL missing.');
   
+  // Use provided signal or create a local one with 15s timeout as fallback
   const internalSignal = signal || AbortSignal.timeout(15000);
 
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      headers: postHeaders,
-      body: JSON.stringify({ action: 'searchByIdentifier', idValue, token: INTERNAL_TOKEN }),
+      body: JSON.stringify({ action: 'searchByIdentifier', idValue }),
       signal: internalSignal
     });
     
@@ -167,6 +141,9 @@ export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal
     if (result.status === 'success') return result.data;
     throw new Error(result.message || 'No data found.');
   } catch (error: any) {
+    if (error.name === 'AbortError' || error.message === 'TIMEOUT') {
+      throw new Error('TIMEOUT');
+    }
     throw error;
   }
 };
@@ -182,13 +159,11 @@ export const uploadAndStoreFile = async (file: File, signal?: AbortSignal): Prom
 
   const response = await fetch(GAS_WEB_APP_URL, { 
     method: 'POST', 
-    headers: postHeaders,
     body: JSON.stringify({ 
       action: 'extractOnly', 
       fileData: base64Data, 
       fileName: file.name, 
-      mimeType: file.type,
-      token: INTERNAL_TOKEN
+      mimeType: file.type 
     }),
     signal
   });
@@ -204,8 +179,7 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      headers: postHeaders,
-      body: JSON.stringify({ action: 'saveItem', item, file: fileContent, token: INTERNAL_TOKEN }),
+      body: JSON.stringify({ action: 'saveItem', item, file: fileContent }),
     });
     const result = await res.json();
     return result.status === 'success';
@@ -217,8 +191,7 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
 export const deleteLibraryItem = async (id: string): Promise<boolean> => {
   const res = await fetch(GAS_WEB_APP_URL, {
     method: 'POST',
-    headers: postHeaders,
-    body: JSON.stringify({ action: 'deleteItem', id, token: INTERNAL_TOKEN }),
+    body: JSON.stringify({ action: 'deleteItem', id }),
   });
   const result = await res.json();
   return result.status === 'success';

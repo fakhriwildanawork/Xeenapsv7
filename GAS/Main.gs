@@ -1,16 +1,17 @@
 
 /**
- * XEENAPS PKM - MAIN ROUTER (STABLE VERSION)
+ * XEENAPS PKM - MAIN ROUTER
  */
 
 function doGet(e) {
   try {
     const action = e.parameter.action;
-    const token = (e.parameter.token || "").trim();
     
-    // Verifikasi Token untuk aksi sistem internal
-    if (action === 'checkQuota' && token !== CONFIG.SECURITY.INTERNAL_TOKEN.trim()) {
-      return createJsonResponse({ status: 'error', message: 'Unauthorized (GET)' });
+    // ACTION: checkQuota (GET support for easy pinging/monitoring)
+    if (action === 'checkQuota') {
+      const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
+      const remaining = parseInt(quota.limit) - parseInt(quota.usage);
+      return createJsonResponse({ status: 'success', remaining: remaining });
     }
 
     if (action === 'getLibrary') {
@@ -21,33 +22,12 @@ function doGet(e) {
       const path = e.parameter.path || "";
       const sortKey = e.parameter.sortKey || "createdAt";
       const sortDir = e.parameter.sortDir || "desc";
+      
       const result = getPaginatedItems(CONFIG.SPREADSHEETS.LIBRARY, "Collections", page, limit, search, type, path, sortKey, sortDir);
       return createJsonResponse({ status: 'success', data: result.items, totalCount: result.totalCount });
     }
-    
-    if (action === 'getStorageNodes') {
-      return createJsonResponse({ status: 'success', data: getStorageNodesList() });
-    }
-
-    if (action === 'checkQuota') {
-      let total = 15 * 1024 * 1024 * 1024;
-      try {
-        const driveLimit = DriveApp.getStorageLimit();
-        if (driveLimit > 0) total = driveLimit;
-      } catch(e) {}
-      const used = DriveApp.getStorageUsed();
-      const remaining = Number(total) - Number(used);
-      return createJsonResponse({ 
-        status: 'success', 
-        remaining: remaining, 
-        used: used, 
-        total: total,
-        percent: ((used / total) * 100).toFixed(2)
-      });
-    }
-
     if (action === 'getAiConfig') return createJsonResponse({ status: 'success', data: getProviderModel('GEMINI') });
-    return createJsonResponse({ status: 'error', message: 'Invalid GET action' });
+    return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
     return createJsonResponse({ status: 'error', message: err.toString() });
   }
@@ -56,22 +36,9 @@ function doGet(e) {
 function doPost(e) {
   let body;
   try {
-    const rawContent = e.postData.contents;
-    body = JSON.parse(rawContent);
-    
-    const clientToken = (body.token || "").trim();
-    const serverToken = CONFIG.SECURITY.INTERNAL_TOKEN.trim();
-
-    // VALIDASI KEAMANAN: Memastikan request memiliki token yang valid
-    if (clientToken !== serverToken) {
-      console.error(`Token Mismatch! Received: "${clientToken}", Expected: "${serverToken}"`);
-      return createJsonResponse({ 
-        status: 'error', 
-        message: 'Unauthorized access (Token Mismatch). Received token length: ' + clientToken.length 
-      });
-    }
-  } catch(err) {
-    return createJsonResponse({ status: 'error', message: 'Bad request format or missing security token.' });
+    body = JSON.parse(e.postData.contents);
+  } catch(e) {
+    return createJsonResponse({ status: 'error', message: 'Malformed JSON request' });
   }
   
   const action = body.action;
@@ -79,14 +46,14 @@ function doPost(e) {
   try {
     if (action === 'setupDatabase') return createJsonResponse(setupDatabase());
     
-    if (action === 'addStorageNode') {
-      const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
-      let sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-      if (!sheet) { setupDatabase(); sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET); }
-      sheet.appendRow([body.label, body.nodeUrl, body.folderId, new Date().toISOString()]);
-      return createJsonResponse({ status: 'success' });
+    // ACTION: checkQuota (POST support for Master-Slave communication)
+    if (action === 'checkQuota') {
+      const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
+      const remaining = parseInt(quota.limit) - parseInt(quota.usage);
+      return createJsonResponse({ status: 'success', remaining: remaining });
     }
 
+    // ACTION: saveJsonFile
     if (action === 'saveJsonFile') {
       const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
       const folder = DriveApp.getFolderById(folderId);
@@ -95,12 +62,22 @@ function doPost(e) {
       return createJsonResponse({ status: 'success', fileId: file.getId() });
     }
 
+    // ACTION: saveFileDirect
     if (action === 'saveFileDirect') {
       const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
       const folder = DriveApp.getFolderById(folderId);
       const blob = Utilities.newBlob(Utilities.base64Decode(body.fileData), body.mimeType, body.fileName);
       const file = folder.createFile(blob);
       return createJsonResponse({ status: 'success', fileId: file.getId() });
+    }
+
+    // ACTION: deleteRemoteFiles (Support for Sharding Deletion)
+    if (action === 'deleteRemoteFiles') {
+      const fileIds = body.fileIds || [];
+      fileIds.forEach(id => {
+        if (id) permanentlyDeleteFile(id);
+      });
+      return createJsonResponse({ status: 'success' });
     }
     
     if (action === 'saveItem') {
@@ -109,30 +86,72 @@ function doPost(e) {
       const storageTarget = getViableStorageTarget();
       item.storageNodeUrl = storageTarget.url;
 
+      // 1. SHARDING: Extracted Content JSON
       if (extractedText) {
         const jsonFileName = `extracted_${item.id}.json`;
         const jsonContent = JSON.stringify({ id: item.id, fullText: extractedText });
         if (storageTarget.isLocal) {
-          const file = DriveApp.getFolderById(storageTarget.folderId).createFile(Utilities.newBlob(jsonContent, 'application/json', jsonFileName));
+          const folder = DriveApp.getFolderById(storageTarget.folderId);
+          const file = folder.createFile(Utilities.newBlob(jsonContent, 'application/json', jsonFileName));
           item.extractedJsonId = file.getId();
         } else {
-          const res = callSlave(storageTarget.url, { action: 'saveJsonFile', fileName: jsonFileName, content: jsonContent, folderId: storageTarget.folderId });
-          if (res && res.status === 'success') item.extractedJsonId = res.fileId;
+          const res = UrlFetchApp.fetch(storageTarget.url, {
+            method: 'post',
+            contentType: 'application/json',
+            payload: JSON.stringify({ action: 'saveJsonFile', fileName: jsonFileName, content: jsonContent, folderId: storageTarget.folderId }),
+            muteHttpExceptions: true
+          });
+          const resJson = JSON.parse(res.getContentText());
+          if (resJson.status === 'success') item.extractedJsonId = resJson.fileId;
         }
       }
 
+      // 2. SHARDING: Insight Data JSON
+      if (!item.insightJsonId) {
+        const insightFileName = `insight_${item.id}.json`;
+        const insightContent = JSON.stringify({});
+        if (storageTarget.isLocal) {
+          const folder = DriveApp.getFolderById(storageTarget.folderId);
+          const file = folder.createFile(Utilities.newBlob(insightContent, 'application/json', insightFileName));
+          item.insightJsonId = file.getId();
+        } else {
+          const res = UrlFetchApp.fetch(storageTarget.url, {
+            method: 'post',
+            contentType: 'application/json',
+            payload: JSON.stringify({ action: 'saveJsonFile', fileName: insightFileName, content: insightContent, folderId: storageTarget.folderId }),
+            muteHttpExceptions: true
+          });
+          const resJson = JSON.parse(res.getContentText());
+          if (resJson.status === 'success') item.insightJsonId = resJson.fileId;
+        }
+      }
+
+      // 3. SHARDING: Original File / Binary Data
       if (body.file && body.file.fileData) {
         const mimeType = body.file.mimeType || 'application/octet-stream';
         if (storageTarget.isLocal) {
-          const file = DriveApp.getFolderById(storageTarget.folderId).createFile(Utilities.newBlob(Utilities.base64Decode(body.file.fileData), mimeType, body.file.fileName));
+          const folder = DriveApp.getFolderById(storageTarget.folderId);
+          const blob = Utilities.newBlob(Utilities.base64Decode(body.file.fileData), mimeType, body.file.fileName);
+          const file = folder.createFile(blob);
           item.fileId = file.getId();
         } else {
-          const res = callSlave(storageTarget.url, { action: 'saveFileDirect', fileName: body.file.fileName, mimeType: mimeType, fileData: body.file.fileData, folderId: storageTarget.folderId });
-          if (res && res.status === 'success') {
-            item.fileId = res.fileId;
-            if (mimeType.toLowerCase().includes('image/')) item.imageView = 'https://lh3.googleusercontent.com/d/' + res.fileId;
+          const res = UrlFetchApp.fetch(storageTarget.url, {
+            method: 'post',
+            contentType: 'application/json',
+            payload: JSON.stringify({ action: 'saveFileDirect', fileName: body.file.fileName, mimeType: mimeType, fileData: body.file.fileData, folderId: storageTarget.folderId }),
+            muteHttpExceptions: true
+          });
+          const resJson = JSON.parse(res.getContentText());
+          if (resJson.status === 'success') {
+            item.fileId = resJson.fileId;
+            if (mimeType.toLowerCase().includes('image/')) item.imageView = 'https://lh3.googleusercontent.com/d/' + resJson.fileId;
           }
         }
+      }
+
+      if (item.url && (item.url.includes('youtube.com') || item.url.includes('youtu.be'))) {
+        const ytid = extractYoutubeId(item.url);
+        if (ytid) item.youtubeId = 'https://www.youtube.com/embed/' + ytid;
       }
       
       saveToSheet(CONFIG.SPREADSHEETS.LIBRARY, "Collections", item);
@@ -149,20 +168,74 @@ function doPost(e) {
       let fileName = body.fileName || "Extracted Content";
       let imageView = null;
       let detectedMime = null;
+      let primaryDoiFromMeta = null;
       
+      // STRICT REGEX Patterns - Ensure no cross-contamination
       const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]{5,}/i;
-      const snippetLimit = 15000;
+      const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
+      const issnPattern = /ISSN:?\s*([0-9]{4}-?[0-9]{3}[0-9X])/i;
+      const pmidPattern = /PMID:?\s*(\d{4,11})/i;
+      const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
 
-      if (body.url) {
-        extractedText = routerUrlExtraction(body.url);
-        fileName = body.url.split('/').pop() || "Webpage";
-      } else if (body.fileData) {
-        extractedText = handleFileExtraction(body.fileData, body.mimeType, fileName);
-        detectedMime = body.mimeType;
+      let detectedDoi = null;
+      let detectedIsbn = null;
+      let detectedIssn = null;
+      let detectedPmid = null;
+      let detectedArxiv = null;
+
+      try {
+        if (body.url) {
+          // STEP 1: SNIFF URL STRING (Strict checking)
+          const urlDoiMatch = body.url.match(doiPattern);
+          if (urlDoiMatch) detectedDoi = urlDoiMatch[0];
+          
+          const urlPmidMatch = body.url.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+          if (urlPmidMatch) detectedPmid = urlPmidMatch[1];
+
+          const urlArxivMatch = body.url.match(/arxiv\.org\/(?:pdf|abs)\/(\d{4}\.\d{4,5})/i);
+          if (urlArxivMatch) detectedArxiv = urlArxivMatch[1];
+
+          const driveId = getFileIdFromUrl(body.url);
+          if (driveId && (body.url.includes('drive.google.com') || body.url.includes('docs.google.com'))) {
+            try {
+              const fileMeta = Drive.Files.get(driveId);
+              detectedMime = fileMeta.mimeType;
+              const isAudioVideo = detectedMime.includes('audio/') || detectedMime.includes('video/');
+              if (isAudioVideo) {
+                return createJsonResponse({ status: 'error', message: 'Audio/Video from Drive not supported.' });
+              }
+              if (detectedMime && detectedMime.toLowerCase().includes('image/')) imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
+            } catch (e) {}
+          }
+          
+          extractedText = routerUrlExtraction(body.url);
+          const doiMetaMatch = extractedText.match(/PRIMARY_DOI:\s*([^\n]+)/);
+          if (doiMetaMatch) primaryDoiFromMeta = doiMetaMatch[1].trim();
+        } else if (body.fileData) {
+          extractedText = handleFileExtraction(body.fileData, body.mimeType, fileName);
+          detectedMime = body.mimeType;
+        }
+      } catch (err) {
+        extractedText = "Extraction failed: " + err.toString();
       }
 
-      const snippet = extractedText.substring(0, snippetLimit);
-      const detectedDoi = snippet.match(doiPattern) ? snippet.match(doiPattern)[0] : null;
+      const snippet = extractedText.substring(0, 15000);
+      
+      // STEP 2: Content Scanning (Fallback)
+      if (!detectedDoi) detectedDoi = primaryDoiFromMeta || (snippet.match(doiPattern) ? snippet.match(doiPattern)[0] : null);
+      if (!detectedIsbn) detectedIsbn = snippet.match(isbnPattern) ? snippet.match(isbnPattern)[1] : null;
+      if (!detectedIssn) detectedIssn = snippet.match(issnPattern) ? snippet.match(issnPattern)[1] : null;
+      if (!detectedPmid) detectedPmid = snippet.match(pmidPattern) ? snippet.match(pmidPattern)[1] : null;
+      if (!detectedArxiv) detectedArxiv = snippet.match(arxivPattern) ? (snippet.match(arxivPattern)[1] || snippet.match(arxivPattern)[0]) : null;
+
+      // DOI CLEANUP
+      if (detectedDoi && !primaryDoiFromMeta) {
+        detectedDoi = detectedDoi.replace(/[.,;)]+$/, '');
+        if (/[0-9][A-Z]{3,}$/.test(detectedDoi)) {
+          const cleaned = detectedDoi.replace(/[A-Z]{3,}$/, '');
+          if (cleaned.length > 7) detectedDoi = cleaned;
+        }
+      }
 
       return createJsonResponse({ 
         status: 'success', 
@@ -170,133 +243,69 @@ function doPost(e) {
         fileName: fileName,
         mimeType: detectedMime,
         detectedDoi: detectedDoi,
+        detectedIsbn: detectedIsbn,
+        detectedIssn: detectedIssn,
+        detectedPmid: detectedPmid,
+        detectedArxiv: detectedArxiv,
         imageView: imageView
       });
     }
 
-    if (action === 'searchByIdentifier') {
-      return createJsonResponse(handleIdentifierSearch(body.idValue));
-    }
-
-    if (action === 'aiProxy') {
-      return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
-    }
-
-    return createJsonResponse({ status: 'error', message: 'Invalid POST action' });
+    if (action === 'searchByIdentifier') return createJsonResponse(handleIdentifierSearch(body.idValue));
+    if (action === 'aiProxy') return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
+    return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
     return createJsonResponse({ status: 'error', message: err.toString() });
   }
 }
 
-function callSlave(url, payload) {
-  payload.token = CONFIG.SECURITY.INTERNAL_TOKEN.trim();
-  try {
-    const res = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-    return JSON.parse(res.getContentText());
-  } catch(e) { return null; }
-}
-
 function getViableStorageTarget() {
-  const THRESHOLD = Number(CONFIG.STORAGE.THRESHOLD);
-  const localLimit = DriveApp.getStorageLimit() > 0 ? DriveApp.getStorageLimit() : 15 * 1024 * 1024 * 1024;
-  const localUsed = DriveApp.getStorageUsed();
-  const localRemaining = Number(localLimit) - Number(localUsed);
+  const THRESHOLD = CONFIG.STORAGE.THRESHOLD;
   
-  if (localRemaining < THRESHOLD) {
-    try {
-      const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
-      const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-      if (sheet) {
-        const values = sheet.getDataRange().getValues();
-        const requests = [];
-        const nodeInfo = [];
+  // Gunakan Drive API v3 untuk akurasi kuota total (Gmail + Drive + Photos)
+  const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
+  const localRemaining = parseInt(quota.limit) - parseInt(quota.usage);
 
-        for (let i = 1; i < values.length; i++) {
-          const nodeUrl = (values[i][1] || "").toString().trim();
-          if (nodeUrl.startsWith('http')) {
-            const separator = nodeUrl.includes('?') ? '&' : '?';
-            requests.push({
-              url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN.trim(),
-              method: 'get',
-              muteHttpExceptions: true
-            });
-            nodeInfo.push({ label: values[i][0], url: nodeUrl, folderId: values[i][2] });
-          }
-        }
-
-        if (requests.length > 0) {
-          const responses = UrlFetchApp.fetchAll(requests);
-          for (let i = 0; i < responses.length; i++) {
-            try {
-              const resJson = JSON.parse(responses[i].getContentText());
-              if (resJson.status === 'success' && Number(resJson.remaining) > THRESHOLD) {
-                return { isLocal: false, url: nodeInfo[i].url, folderId: nodeInfo[i].folderId };
-              }
-            } catch(e) {}
-          }
-        }
-      }
-    } catch (e) {}
+  // Jika Master masih punya ruang > 5GB, simpan secara lokal
+  if (localRemaining > THRESHOLD) {
+    return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
   }
-  return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
-}
 
-function getStorageNodesList() {
-  const localTotal = DriveApp.getStorageLimit() > 0 ? DriveApp.getStorageLimit() : 15 * 1024 * 1024 * 1024;
-  const localUsed = DriveApp.getStorageUsed();
-  const nodes = [{
-    label: 'Master Account (Local)',
-    url: ScriptApp.getService().getUrl(),
-    folderId: CONFIG.FOLDERS.MAIN_LIBRARY,
-    total: localTotal,
-    used: localUsed,
-    remaining: Number(localTotal) - Number(localUsed),
-    percent: ((localUsed / localTotal) * 100).toFixed(2),
-    status: 'online'
-  }];
-
+  // Jika Master hampir penuh, cari Slave di spreadsheet Registry
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
     const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
     if (sheet) {
       const values = sheet.getDataRange().getValues();
-      const requests = [];
-      const nodeMeta = [];
-
       for (let i = 1; i < values.length; i++) {
-        const nodeUrl = (values[i][1] || "").toString().trim();
-        if (nodeUrl) {
-          const separator = nodeUrl.includes('?') ? '&' : '?';
-          requests.push({
-            url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN.trim(),
-            method: 'get',
-            muteHttpExceptions: true
+        const nodeUrl = values[i][1];
+        const folderId = values[i][2];
+        if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
+        try {
+          // Cek kuota Slave tanpa menggunakan token
+          const response = UrlFetchApp.fetch(nodeUrl, { 
+            method: 'post', 
+            contentType: 'application/json', 
+            payload: JSON.stringify({ action: 'checkQuota' }), 
+            muteHttpExceptions: true 
           });
-          nodeMeta.push({ label: values[i][0], url: nodeUrl, folderId: values[i][2] });
-        }
-      }
-
-      if (requests.length > 0) {
-        const responses = UrlFetchApp.fetchAll(requests);
-        for (let i = 0; i < responses.length; i++) {
-          let nodeData = { label: nodeMeta[i].label, url: nodeMeta[i].url, folderId: nodeMeta[i].folderId, status: 'offline', total: 0, used: 0, remaining: 0, percent: 0 };
-          try {
-            const resJson = JSON.parse(responses[i].getContentText());
-            if (resJson.status === 'success') {
-              nodeData = { ...nodeData, status: 'online', total: resJson.total, used: resJson.used, remaining: resJson.remaining, percent: resJson.percent };
-            }
-          } catch(e) {}
-          nodes.push(nodeData);
-        }
+          const resJson = JSON.parse(response.getContentText());
+          if (resJson.status === 'success' && resJson.remaining > THRESHOLD) {
+            return { isLocal: false, url: nodeUrl, folderId: folderId };
+          }
+        } catch (nodeErr) {}
       }
     }
-  } catch(e) {}
-  return nodes;
+  } catch (e) {}
+
+  // Fallback ke Master jika tidak ada Slave yang tersedia
+  return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
+}
+
+function extractYoutubeId(url) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
 }
 
 function routerUrlExtraction(url) {

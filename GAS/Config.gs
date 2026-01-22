@@ -4,30 +4,48 @@
  */
 const CONFIG = {
   FOLDERS: {
-    MAIN_LIBRARY: '1CUvptRGnncn0M-vZdLCb1XBUmAeM9G8B'
-  },
-  // TOKEN INI HARUS SAMA DI SEMUA AKUN (MASTER & SLAVE)
-  // Ganti dengan string acak buatan Anda sendiri
-  SECURITY: {
-    INTERNAL_TOKEN: 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ' 
+    MAIN_LIBRARY: '1WG5W6KHHLhKVK-eCq1bIQYif0ZoSxh9t'
   },
   STORAGE: {
-    THRESHOLD: 5 * 1024 * 1024 * 1024, // 5 GB
+    THRESHOLD: 5 * 1024 * 1024 * 1024, // 5 GB in bytes
     REGISTRY_SHEET: 'StorageNodes'
   },
   SPREADSHEETS: {
-    LIBRARY: '1ROW4iyHN10DfDWaXL7O54mZi6Da9Xx70vU6oE-YW-I8',
-    KEYS: '1Ji8XL2ceTprNa1dYvhfTnMDkWwzC937kpfyP19D7NvI',
+    LIBRARY: '1NSofMlK1eENfucu2_aF-A3JRwAwTXi7QzTsuPGyFk8w',
+    KEYS: '1QRzqKe42ck2HhkA-_yAGS-UHppp96go3s5oJmlrwpc0',
     AI_CONFIG: '1RVYM2-U5LRb8S8JElRSEv2ICHdlOp9pnulcAM8Nd44s',
-    STORAGE_REGISTRY: '1qBzgjhUv_aAFh5cLb8SqIt83bOdUFRfRXZz4TxyEZDw'
+    STORAGE_REGISTRY: '1F7ayViIAcqY2sSNSA4xB2rms1gDGAc7sI5LEQu6OiHY'
   },
   SCHEMAS: {
     LIBRARY: [
-      'id', 'title', 'type', 'category', 'topic', 'subTopic', 'authors', 
-      'publisher', 'year', 'fullDate', 'pubInfo', 'identifiers', 'source', 
-      'format', 'url', 'fileId', 'imageView', 'youtubeId', 'tags', 'abstract', 
-      'mainInfo', 'extractedJsonId', 'insightJsonId', 'storageNodeUrl',
-      'isFavorite', 'isBookmarked', 'createdAt', 'updatedAt'
+      'id', 
+      'title', 
+      'type', 
+      'category', 
+      'topic', 
+      'subTopic', 
+      'authors', // Merged JSON Array
+      'publisher', 
+      'year', 
+      'fullDate',
+      'pubInfo', // Merged JSON Object (journal, vol, issue, pages)
+      'identifiers', // Merged JSON Object (doi, issn, isbn, pmid, arxiv, bibcode)
+      'source', 
+      'format', 
+      'url', 
+      'fileId', 
+      'imageView', 
+      'youtubeId', 
+      'tags', // Merged JSON Object (keywords, labels)
+      'abstract', 
+      'mainInfo', // Search Indexer (Plain Text)
+      'extractedJsonId', 
+      'insightJsonId', 
+      'storageNodeUrl',
+      'isFavorite', 
+      'isBookmarked', 
+      'createdAt', 
+      'updatedAt'
     ]
   }
 };
