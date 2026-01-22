@@ -1,16 +1,16 @@
 
 /**
- * XEENAPS PKM - MAIN ROUTER (FULL VERSION WITH CLUSTER SECURITY)
+ * XEENAPS PKM - MAIN ROUTER (RELIABLE CLUSTER VERSION)
  */
 
 function doGet(e) {
   try {
     const action = e.parameter.action;
+    const token = (e.parameter.token || "").trim();
     
     // Verifikasi Token untuk aksi sistem internal (seperti checkQuota)
-    const token = e.parameter.token;
-    if (action === 'checkQuota' && token !== CONFIG.SECURITY.INTERNAL_TOKEN) {
-      return createJsonResponse({ status: 'error', message: 'Unauthorized' });
+    if (action === 'checkQuota' && token !== CONFIG.SECURITY.INTERNAL_TOKEN.trim()) {
+      return createJsonResponse({ status: 'error', message: 'Unauthorized (GET)' });
     }
 
     if (action === 'getLibrary') {
@@ -56,21 +56,29 @@ function doGet(e) {
 function doPost(e) {
   let body;
   try {
-    body = JSON.parse(e.postData.contents);
+    // Parsing body dengan logging untuk debugging
+    const rawContent = e.postData.contents;
+    body = JSON.parse(rawContent);
     
+    const clientToken = (body.token || "").trim();
+    const serverToken = CONFIG.SECURITY.INTERNAL_TOKEN.trim();
+
     // VALIDASI KEAMANAN: Memastikan request memiliki token yang valid
-    if (body.token !== CONFIG.SECURITY.INTERNAL_TOKEN) {
-      console.error("Unauthorized attempt to access action: " + (body.action || "unknown"));
-      return createJsonResponse({ status: 'error', message: 'Unauthorized access' });
+    if (clientToken !== serverToken) {
+      console.error(`Unauthorized POST: Received [${clientToken}], Expected [${serverToken}]`);
+      return createJsonResponse({ 
+        status: 'error', 
+        message: 'Unauthorized access (Token Mismatch). Please re-deploy GAS and check your INTERNAL_TOKEN.' 
+      });
     }
   } catch(err) {
-    return createJsonResponse({ status: 'error', message: 'Bad request format' });
+    return createJsonResponse({ status: 'error', message: 'Bad request format or missing POST body.' });
   }
   
   const action = body.action;
   
   try {
-    // 1. DATABASE & CLUSTER OPS
+    // --- 1. CORE SYSTEM ACTIONS ---
     if (action === 'setupDatabase') return createJsonResponse(setupDatabase());
     
     if (action === 'addStorageNode') {
@@ -81,7 +89,7 @@ function doPost(e) {
       return createJsonResponse({ status: 'success' });
     }
 
-    // 2. REMOTE STORAGE ACTIONS (Called by Master to Slave)
+    // --- 2. CLUSTER STORAGE OPERATIONS ---
     if (action === 'saveJsonFile') {
       const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
       const folder = DriveApp.getFolderById(folderId);
@@ -98,7 +106,7 @@ function doPost(e) {
       return createJsonResponse({ status: 'success', fileId: file.getId() });
     }
     
-    // 3. MAIN COLLECTION ACTIONS
+    // --- 3. LIBRARY MANAGEMENT ---
     if (action === 'saveItem') {
       const item = body.item;
       const extractedText = body.extractedText || "";
@@ -140,7 +148,7 @@ function doPost(e) {
       return createJsonResponse({ status: 'success' });
     }
     
-    // 4. EXTRACTION & AI PROXY (RESTORED)
+    // --- 4. EXTRACTION & AI PROXY (RESTORED & VERIFIED) ---
     if (action === 'extractOnly') {
       let extractedText = "";
       let fileName = body.fileName || "Extracted Content";
@@ -187,10 +195,10 @@ function doPost(e) {
 }
 
 /**
- * HELPER: Memanggil Slave (POST Internal)
+ * HELPER: Memanggil Slave (Internal Cluster Communication)
  */
 function callSlave(url, payload) {
-  payload.token = CONFIG.SECURITY.INTERNAL_TOKEN;
+  payload.token = CONFIG.SECURITY.INTERNAL_TOKEN.trim();
   try {
     const res = UrlFetchApp.fetch(url, {
       method: 'post',
@@ -226,7 +234,7 @@ function getViableStorageTarget() {
           if (nodeUrl.startsWith('http')) {
             const separator = nodeUrl.includes('?') ? '&' : '?';
             requests.push({
-              url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN,
+              url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN.trim(),
               method: 'get',
               muteHttpExceptions: true,
               followRedirects: true
@@ -279,7 +287,7 @@ function getStorageNodesList() {
         if (nodeUrl) {
           const separator = nodeUrl.includes('?') ? '&' : '?';
           requests.push({
-            url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN,
+            url: nodeUrl + separator + "action=checkQuota&token=" + CONFIG.SECURITY.INTERNAL_TOKEN.trim(),
             method: 'get',
             muteHttpExceptions: true,
             followRedirects: true

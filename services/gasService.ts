@@ -6,11 +6,17 @@ import Swal from 'sweetalert2';
 // Token rahasia yang sama dengan Config.gs
 const INTERNAL_TOKEN = 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ';
 
+// Header standar untuk semua request POST ke GAS
+const postHeaders = {
+  'Content-Type': 'application/json'
+};
+
 export const initializeDatabase = async (): Promise<{ status: string; message: string }> => {
   try {
     if (!GAS_WEB_APP_URL) throw new Error('VITE_GAS_URL is missing.');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      headers: postHeaders,
       body: JSON.stringify({ action: 'setupDatabase', token: INTERNAL_TOKEN }),
     });
     return await response.json();
@@ -47,6 +53,7 @@ export const addStorageNode = async (nodeUrl: string, folderId: string, label: s
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      headers: postHeaders,
       body: JSON.stringify({ action: 'addStorageNode', nodeUrl, folderId, label, token: INTERNAL_TOKEN }),
     });
     const result = await res.json();
@@ -86,6 +93,7 @@ export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, m
     if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL not configured');
     const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      headers: postHeaders,
       body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride, token: INTERNAL_TOKEN }),
       signal
     });
@@ -124,6 +132,7 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      headers: postHeaders,
       body: JSON.stringify({ action: 'extractOnly', url, token: INTERNAL_TOKEN }),
       signal
     });
@@ -146,6 +155,7 @@ export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      headers: postHeaders,
       body: JSON.stringify({ action: 'searchByIdentifier', idValue, token: INTERNAL_TOKEN }),
       signal: internalSignal
     });
@@ -169,6 +179,7 @@ export const uploadAndStoreFile = async (file: File, signal?: AbortSignal): Prom
 
   const response = await fetch(GAS_WEB_APP_URL, { 
     method: 'POST', 
+    headers: postHeaders,
     body: JSON.stringify({ 
       action: 'extractOnly', 
       fileData: base64Data, 
@@ -190,6 +201,7 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
   try {
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
+      headers: postHeaders,
       body: JSON.stringify({ action: 'saveItem', item, file: fileContent, token: INTERNAL_TOKEN }),
     });
     const result = await res.json();
@@ -202,6 +214,7 @@ export const saveLibraryItem = async (item: LibraryItem, fileContent?: any): Pro
 export const deleteLibraryItem = async (id: string): Promise<boolean> => {
   const res = await fetch(GAS_WEB_APP_URL, {
     method: 'POST',
+    headers: postHeaders,
     body: JSON.stringify({ action: 'deleteItem', id, token: INTERNAL_TOKEN }),
   });
   const result = await res.json();
