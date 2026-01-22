@@ -149,20 +149,22 @@ function doPost(e) {
       let detectedMime = null;
       let primaryDoiFromMeta = null;
       
-      // REGEX Patterns - Academic Standards
+      // STRICT REGEX Patterns - Ensure no cross-contamination
       const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]{5,}/i;
       const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
-      const pmidPattern = /PMID:?\s*(\d{4,10})/i;
+      const issnPattern = /ISSN:?\s*([0-9]{4}-?[0-9]{3}[0-9X])/i;
+      const pmidPattern = /PMID:?\s*(\d{4,11})/i;
       const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
 
       let detectedDoi = null;
       let detectedIsbn = null;
+      let detectedIssn = null;
       let detectedPmid = null;
       let detectedArxiv = null;
 
       try {
         if (body.url) {
-          // STEP 1: SNIFF URL STRING FIRST (Highly reliable for Journal URLs)
+          // STEP 1: SNIFF URL STRING (Strict checking)
           const urlDoiMatch = body.url.match(doiPattern);
           if (urlDoiMatch) detectedDoi = urlDoiMatch[0];
           
@@ -179,7 +181,7 @@ function doPost(e) {
               detectedMime = fileMeta.mimeType;
               const isAudioVideo = detectedMime.includes('audio/') || detectedMime.includes('video/');
               if (isAudioVideo) {
-                return createJsonResponse({ status: 'error', message: 'Audio and Video files from Google Drive are not allowed.' });
+                return createJsonResponse({ status: 'error', message: 'Audio/Video from Drive not supported.' });
               }
               if (detectedMime && detectedMime.toLowerCase().includes('image/')) imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
             } catch (e) {}
@@ -198,15 +200,14 @@ function doPost(e) {
 
       const snippet = extractedText.substring(0, 15000);
       
-      // STEP 2: Content Scanning (Fallback if URL Sniffing failed or to confirm)
-      if (!detectedDoi) {
-        detectedDoi = primaryDoiFromMeta || (snippet.match(doiPattern) ? snippet.match(doiPattern)[0] : null);
-      }
+      // STEP 2: Content Scanning (Fallback)
+      if (!detectedDoi) detectedDoi = primaryDoiFromMeta || (snippet.match(doiPattern) ? snippet.match(doiPattern)[0] : null);
       if (!detectedIsbn) detectedIsbn = snippet.match(isbnPattern) ? snippet.match(isbnPattern)[1] : null;
+      if (!detectedIssn) detectedIssn = snippet.match(issnPattern) ? snippet.match(issnPattern)[1] : null;
       if (!detectedPmid) detectedPmid = snippet.match(pmidPattern) ? snippet.match(pmidPattern)[1] : null;
       if (!detectedArxiv) detectedArxiv = snippet.match(arxivPattern) ? (snippet.match(arxivPattern)[1] || snippet.match(arxivPattern)[0]) : null;
 
-      // CLEANUP logic for DOI
+      // DOI CLEANUP
       if (detectedDoi && !primaryDoiFromMeta) {
         detectedDoi = detectedDoi.replace(/[.,;)]+$/, '');
         if (/[0-9][A-Z]{3,}$/.test(detectedDoi)) {
@@ -222,6 +223,7 @@ function doPost(e) {
         mimeType: detectedMime,
         detectedDoi: detectedDoi,
         detectedIsbn: detectedIsbn,
+        detectedIssn: detectedIssn,
         detectedPmid: detectedPmid,
         detectedArxiv: detectedArxiv,
         imageView: imageView

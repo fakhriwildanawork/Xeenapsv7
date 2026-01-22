@@ -191,7 +191,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       pages: '',
       year: '',
       fullDate: '',
-      // Field Lock: Preserve current user input box values
+      // Field Lock: Preserve primary input box values
       doi: keepInput && prev.addMethod === 'REF' ? prev.doi : '',
       url: keepInput && prev.addMethod === 'LINK' ? prev.url : '',
       issn: '',
@@ -207,6 +207,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       extractedText: '',
       chunks: []
     }));
+    // Fix: Only clear file if NOT keeping input (manual reset)
     if (!keepInput) setFile(null);
   };
 
@@ -234,7 +235,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const runExtractionWorkflow = async (
     extractedText: string, 
     chunks: string[], 
-    identifiers: { doi?: string, isbn?: string, pmid?: string, arxivId?: string, imageView?: string } = {},
+    identifiers: { doi?: string, isbn?: string, issn?: string, pmid?: string, arxivId?: string, imageView?: string } = {},
     initialMetadata: Partial<LibraryItem> = {},
     signal?: AbortSignal
   ) => {
@@ -242,8 +243,8 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     delete (baseData as any).chunks;
     delete (baseData as any).extractedText;
 
-    // STEP 1: Search Official Metadata if identifier found (from URL Sniffing or Content Scanning)
-    const targetId = identifiers.doi || identifiers.isbn || identifiers.pmid || identifiers.arxivId;
+    // STEP 1: Search Official Metadata if identifier found
+    const targetId = identifiers.doi || identifiers.isbn || identifiers.issn || identifiers.pmid || identifiers.arxivId;
     if (!initialMetadata.title && targetId) {
       setExtractionStage('FETCHING_ID');
       try {
@@ -251,7 +252,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         if (officialData) {
           baseData = { ...baseData, ...officialData };
           
-          // Field Lock: Do NOT overwrite visual input box
+          // Field Lock: Preserve user input box values
           const dataToApply = { ...officialData };
           if (formData.addMethod === 'LINK') delete (dataToApply as any).url;
           if (formData.addMethod === 'REF') delete (dataToApply as any).doi;
@@ -259,7 +260,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
           setFormData(prev => ({ ...prev, ...dataToApply }));
         }
       } catch (e) {
-        console.warn("Identifier lookup failed, falling back to AI:", e);
+        console.warn("Identifier lookup failed:", e);
       }
     }
 
@@ -290,14 +291,22 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     })();
 
     setFormData(prev => {
-      // Merge logic with Field Lock preservation
       const finalEnriched = { ...aiEnriched };
+      
+      // Preserve User Inputs (Field Lock)
       if (prev.addMethod === 'LINK') delete (finalEnriched as any).url;
       if (prev.addMethod === 'REF') delete (finalEnriched as any).doi;
 
       return {
         ...prev,
         ...finalEnriched,
+        // Precise identifier mapping
+        doi: identifiers.doi || finalEnriched.doi || prev.doi,
+        isbn: identifiers.isbn || finalEnriched.isbn || prev.isbn,
+        issn: identifiers.issn || finalEnriched.issn || prev.issn,
+        pmid: identifiers.pmid || finalEnriched.pmid || prev.pmid,
+        arxivId: identifiers.arxivId || finalEnriched.arxivId || prev.arxivId,
+        
         authors: (aiEnriched.authors && aiEnriched.authors.length > 0) ? aiEnriched.authors : prev.authors,
         keywords: (aiEnriched.keywords && aiEnriched.keywords.length > 0) ? aiEnriched.keywords : prev.keywords,
         labels: (aiEnriched.labels && aiEnriched.labels.length > 0) ? aiEnriched.labels : prev.labels,
@@ -322,19 +331,19 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const handleExtractionError = (err: any) => {
     setExtractionStage('IDLE');
     if (err.message === 'TIMEOUT') {
-      showXeenapsAlert({ icon: 'error', title: 'PROCESS FAILED', text: 'The request took too long (max 30s).' });
+      showXeenapsAlert({ icon: 'error', title: 'PROCESS FAILED', text: 'Timeout (30s).' });
     } else {
-      showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: err.message || 'Could not process automatically.' });
+      showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: err.message || 'Error occurred.' });
     }
   };
 
-  // URL Extraction Effect (Save Link)
+  // LINK Workflow
   useEffect(() => {
     const url = formData.url.trim();
     if (!url || !url.startsWith('http') || url === lastExtractedUrl.current || formData.addMethod !== 'LINK') return;
 
     if (isSocialMediaBlocked(url)) {
-      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'This platform is not supported. Only YouTube is allowed.' });
+      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'Platform not supported. Only YouTube allowed.' });
       setFormData(prev => ({ ...prev, url: '' }));
       return;
     }
@@ -351,11 +360,11 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             const ids = { 
               doi: data.detectedDoi, 
               isbn: data.detectedIsbn, 
+              issn: data.detectedIssn,
               pmid: data.detectedPmid, 
               arxivId: data.detectedArxiv, 
               imageView: data.imageView 
             };
-            // The Sniffing-First workflow is now handled by extractOnly backend
             await runExtractionWorkflow(data.extractedText, chunkifyText(data.extractedText), ids, {}, signal);
           } else if (data.status === 'error') {
             throw new Error(data.message);
@@ -368,7 +377,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     return () => clearTimeout(tid);
   }, [formData.url, formData.addMethod, workflow.execute]);
 
-  // REF Workflow Effect (Identifier)
+  // REF Workflow
   useEffect(() => {
     const idVal = formData.doi.trim(); 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
@@ -415,11 +424,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     }
   }, [formData.doi, formData.addMethod, workflow.execute]);
 
+  // FILE Workflow
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      resetMetadataFields(false);
+      // Fix: Call with true to keep the file box visual
+      resetMetadataFields(true);
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
@@ -431,7 +442,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
           const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', fileData: base64Data, fileName: selectedFile.name, mimeType: selectedFile.type }), signal });
           const result = await response.json();
           if (result.status === 'success' && result.extractedText) {
-            const ids = { doi: result.detectedDoi, isbn: result.detectedIsbn, pmid: result.detectedPmid, arxivId: result.detectedArxiv };
+            const ids = { 
+              doi: result.detectedDoi, 
+              isbn: result.detectedIsbn, 
+              issn: result.detectedIssn,
+              pmid: result.detectedPmid, 
+              arxivId: result.detectedArxiv 
+            };
             await runExtractionWorkflow(result.extractedText, chunkifyText(result.extractedText), ids, {}, signal);
           } else if (result.status === 'error') {
             throw new Error(result.message);
