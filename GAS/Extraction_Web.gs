@@ -47,25 +47,32 @@ function extractWebMetadata(html) {
   // Basic Title/Author/Publisher
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (titleMatch) metaInfo += `WEBSITE_TITLE: ${titleMatch[1].trim()}\n`;
-  const authorMatch = html.match(/<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i);
-  if (authorMatch) metaInfo += `WEBSITE_AUTHOR: ${authorMatch[1].trim()}\n`;
-  const siteMatch = html.match(/<meta[^>]*property=["']og:site_name["'][^>]*content=["']([^"']+)["']/i);
-  if (siteMatch) metaInfo += `WEBSITE_PUBLISHER: ${siteMatch[1].trim()}\n`;
 
-  // PRIMARY DOI DETECTION (Meta Tags) - Critical to ignore reference list DOIs
-  // Priority: citation_doi, dc.identifier, prism.doi, then generic doi
-  const doiPatterns = [
-    /<meta[^>]*name=["'](?:citation_doi|dc.identifier|prism.doi|doi)["'][^>]*content=["']([^"']+)["']/i,
-    /<meta[^>]*content=["']([^"']+)["'][^>]*name=["'](?:citation_doi|dc.identifier|prism.doi|doi)["']/i
+  // Robust Metadata Mapping for Academic & General Web
+  const metaMappings = [
+    { name: 'citation_doi', label: 'PRIMARY_DOI' },
+    { name: 'dc.identifier', label: 'PRIMARY_DOI' },
+    { name: 'prism.doi', label: 'PRIMARY_DOI' },
+    { name: 'doi', label: 'PRIMARY_DOI' },
+    { name: 'citation_title', label: 'WEBSITE_TITLE' },
+    { name: 'citation_author', label: 'WEBSITE_AUTHOR' },
+    { name: 'citation_publisher', label: 'WEBSITE_PUBLISHER' },
+    { name: 'og:title', label: 'WEBSITE_TITLE' },
+    { name: 'og:site_name', label: 'WEBSITE_PUBLISHER' },
+    { property: 'og:title', label: 'WEBSITE_TITLE' },
+    { property: 'og:site_name', label: 'WEBSITE_PUBLISHER' }
   ];
 
-  for (const pattern of doiPatterns) {
-    const match = html.match(pattern);
-    if (match) {
-      metaInfo += `PRIMARY_DOI: ${match[1].trim()}\n`;
-      break;
+  metaMappings.forEach(map => {
+    const attr = map.name ? `name=["']${map.name}["']` : `property=["']${map.property}["']`;
+    const regex1 = new RegExp(`<meta[^>]*${attr}[^>]*content=["']([^"']+)["']`, 'i');
+    const regex2 = new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*${attr}`, 'i');
+    
+    const match = html.match(regex1) || html.match(regex2);
+    if (match && !metaInfo.includes(map.label)) {
+      metaInfo += `${map.label}: ${match[1].trim()}\n`;
     }
-  }
+  });
 
   return metaInfo;
 }

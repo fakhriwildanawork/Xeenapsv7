@@ -276,13 +276,20 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     // Robust Normalization for Category
     const normalizedCategory = (() => {
       if (!aiEnriched.category) return '';
-      const target = aiEnriched.category.trim().toLowerCase();
-      // Precise match
-      const exact = CATEGORY_OPTIONS.find(opt => opt.toLowerCase() === target);
+      const target = aiEnriched.category.trim();
+      
+      // 1. Precise case-insensitive match
+      const exact = CATEGORY_OPTIONS.find(opt => opt.toLowerCase() === target.toLowerCase());
       if (exact) return exact;
-      // Partial match (e.g. "Research Paper" matches "Original Research")
-      const fuzzy = CATEGORY_OPTIONS.find(opt => target.includes(opt.toLowerCase()) || opt.toLowerCase().includes(target));
-      return fuzzy || '';
+      
+      // 2. Fuzzy match (either contains the other)
+      const fuzzy = CATEGORY_OPTIONS.find(opt => 
+        target.toLowerCase().includes(opt.toLowerCase()) || 
+        opt.toLowerCase().includes(target.toLowerCase())
+      );
+      
+      // 3. Fallback to raw AI string to ensure the field is not blank if AI provided something
+      return fuzzy || target;
     })();
 
     setFormData(prev => ({

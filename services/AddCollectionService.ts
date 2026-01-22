@@ -33,7 +33,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
        - KEYWORDS: You MUST provide EXACTLY 7 relevant keywords.
        - LABELS: You MUST provide EXACTLY 5 thematic labels.
        - TOPIC & SUBTOPIC: You MUST determine a high-level Topic and a specific Sub-Topic.
-       - CATEGORY: You MUST CHOOSE EXACTLY ONE CATEGORY FROM THE APPROVED LIST BELOW WITH VERBATIM TECHNIC THAT IS MOST RELEVANCE TO THE CONTEXT. DO NOT CREATE NEW CATEGORIES.
+       - CATEGORY: You MUST analyze the content and CHOOSE EXACTLY ONE CATEGORY FROM THE APPROVED LIST BELOW. YOU MUST PICK THE ONE THAT BEST DESCRIBES THE CONTENT. DO NOT CREATE NEW CATEGORIES.
     4. YOUTUBE SPECIAL HANDLING (CRITICAL):
        - If the TEXT SNIPPET contains "YOUTUBE_METADATA:", you MUST:
          * Set "publisher" to "Youtube" verbatim.
@@ -50,7 +50,8 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
        - Create a list of Technical Nouns, Scientific Terms, and Key Concepts.
        - STRICT FILTRATION: Remove all Verbs, Conjunctions, Irrelevant characters, Person Names, and general/common words.
        - LENGTH: Max 1000 characters of clean, space-separated terms. This is used for Smart Searching.
-    7. STRICT RESTRICTION: DO NOT fill "summary", "strength", "weakness", "researchMethodology", "unfamiliarTerminology", "supportingReferences", "videoRecommendation", or "quickTipsForYou".
+    7. CITATION GENERATION: Accurately using Academic Harvard Citation style.
+    8. STRICT RESTRICTION: DO NOT fill "summary", "strength", "weakness", "researchMethodology", "unfamiliarTerminology", "supportingReferences", "videoRecommendation", or "quickTipsForYou".
     --------------------------
 
     APPROVED CATEGORY LIST:
@@ -77,7 +78,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
       "volume": "Vol",
       "issue": "No",
       "pages": "pp-pp",
-      "category": "Must choose exactly from the Approved List provided above with verbatim technic.",
+      "category": "Must choose exactly from the Approved List provided above.",
       "topic": "General Topic",
       "subTopic": "Specific Sub-Topic",
       "abstract": "HTML formatted verbatim abstract",
