@@ -149,25 +149,43 @@ function doPost(e) {
       let detectedMime = null;
       let primaryDoiFromMeta = null;
       
+      // REGEX Patterns - Academic Standards
+      const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]{5,}/i;
+      const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
+      const pmidPattern = /PMID:?\s*(\d{4,10})/i;
+      const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
+
+      let detectedDoi = null;
+      let detectedIsbn = null;
+      let detectedPmid = null;
+      let detectedArxiv = null;
+
       try {
         if (body.url) {
+          // STEP 1: SNIFF URL STRING FIRST (Highly reliable for Journal URLs)
+          const urlDoiMatch = body.url.match(doiPattern);
+          if (urlDoiMatch) detectedDoi = urlDoiMatch[0];
+          
+          const urlPmidMatch = body.url.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+          if (urlPmidMatch) detectedPmid = urlPmidMatch[1];
+
+          const urlArxivMatch = body.url.match(/arxiv\.org\/(?:pdf|abs)\/(\d{4}\.\d{4,5})/i);
+          if (urlArxivMatch) detectedArxiv = urlArxivMatch[1];
+
           const driveId = getFileIdFromUrl(body.url);
           if (driveId && (body.url.includes('drive.google.com') || body.url.includes('docs.google.com'))) {
             try {
               const fileMeta = Drive.Files.get(driveId);
               detectedMime = fileMeta.mimeType;
-              
-              // REJECT AUDIO/VIDEO from Drive
               const isAudioVideo = detectedMime.includes('audio/') || detectedMime.includes('video/');
               if (isAudioVideo) {
-                return createJsonResponse({ status: 'error', message: 'Audio and Video files from Google Drive are not allowed. Xeenaps only supports documents, images, and slides.' });
+                return createJsonResponse({ status: 'error', message: 'Audio and Video files from Google Drive are not allowed.' });
               }
-
               if (detectedMime && detectedMime.toLowerCase().includes('image/')) imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
             } catch (e) {}
           }
+          
           extractedText = routerUrlExtraction(body.url);
-          // Look for PRIMARY_DOI tag in the resulting metadata block
           const doiMetaMatch = extractedText.match(/PRIMARY_DOI:\s*([^\n]+)/);
           if (doiMetaMatch) primaryDoiFromMeta = doiMetaMatch[1].trim();
         } else if (body.fileData) {
@@ -180,32 +198,20 @@ function doPost(e) {
 
       const snippet = extractedText.substring(0, 15000);
       
-      // REGEX Patterns - Improved for complex academic formats (like Taylor & Francis)
-      // Capture 10.xxxx/ suffix, and allow dots, dashes, and X throughout the suffix
-      const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]{5,}/i;
-      const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
-      const pmidPattern = /PMID:?\s*(\d{4,10})/i;
-      const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
-
-      // PRIORITIZE meta-tag DOI if it exists
-      let finalDoi = primaryDoiFromMeta;
-      if (!finalDoi) {
-        const doiMatch = snippet.match(doiPattern);
-        finalDoi = doiMatch ? doiMatch[0] : null;
+      // STEP 2: Content Scanning (Fallback if URL Sniffing failed or to confirm)
+      if (!detectedDoi) {
+        detectedDoi = primaryDoiFromMeta || (snippet.match(doiPattern) ? snippet.match(doiPattern)[0] : null);
       }
+      if (!detectedIsbn) detectedIsbn = snippet.match(isbnPattern) ? snippet.match(isbnPattern)[1] : null;
+      if (!detectedPmid) detectedPmid = snippet.match(pmidPattern) ? snippet.match(pmidPattern)[1] : null;
+      if (!detectedArxiv) detectedArxiv = snippet.match(arxivPattern) ? (snippet.match(arxivPattern)[1] || snippet.match(arxivPattern)[0]) : null;
 
-      const isbnMatch = snippet.match(isbnPattern);
-      const pmidMatch = snippet.match(pmidPattern);
-      const arxivMatch = snippet.match(arxivPattern);
-
-      // CLEANUP LOGIC for greedily matched Regex
-      if (finalDoi && !primaryDoiFromMeta) {
-        // Remove trailing punctuation that isn't part of DOI
-        finalDoi = finalDoi.replace(/[.,;)]+$/, '');
-        // Special case: if it ends in long uppercase letters, it might be text fused with DOI
-        if (/[0-9][A-Z]{3,}$/.test(finalDoi)) {
-          const cleaned = finalDoi.replace(/[A-Z]{3,}$/, '');
-          if (cleaned.length > 7) finalDoi = cleaned;
+      // CLEANUP logic for DOI
+      if (detectedDoi && !primaryDoiFromMeta) {
+        detectedDoi = detectedDoi.replace(/[.,;)]+$/, '');
+        if (/[0-9][A-Z]{3,}$/.test(detectedDoi)) {
+          const cleaned = detectedDoi.replace(/[A-Z]{3,}$/, '');
+          if (cleaned.length > 7) detectedDoi = cleaned;
         }
       }
 
@@ -214,10 +220,10 @@ function doPost(e) {
         extractedText: extractedText,
         fileName: fileName,
         mimeType: detectedMime,
-        detectedDoi: finalDoi,
-        detectedIsbn: isbnMatch ? isbnMatch[1] : null,
-        detectedPmid: pmidMatch ? pmidMatch[1] : null,
-        detectedArxiv: arxivMatch ? (arxivMatch[1] || arxivMatch[0]) : null,
+        detectedDoi: detectedDoi,
+        detectedIsbn: detectedIsbn,
+        detectedPmid: detectedPmid,
+        detectedArxiv: detectedArxiv,
         imageView: imageView
       });
     }

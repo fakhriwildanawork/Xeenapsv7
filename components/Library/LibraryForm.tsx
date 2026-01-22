@@ -191,7 +191,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       pages: '',
       year: '',
       fullDate: '',
-      // Only reset the input fields if they are not the active input mode
+      // Field Lock: Preserve current user input box values
       doi: keepInput && prev.addMethod === 'REF' ? prev.doi : '',
       url: keepInput && prev.addMethod === 'LINK' ? prev.url : '',
       issn: '',
@@ -242,7 +242,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     delete (baseData as any).chunks;
     delete (baseData as any).extractedText;
 
-    // STEP 1: Search Official Metadata if identifier found
+    // STEP 1: Search Official Metadata if identifier found (from URL Sniffing or Content Scanning)
     const targetId = identifiers.doi || identifiers.isbn || identifiers.pmid || identifiers.arxivId;
     if (!initialMetadata.title && targetId) {
       setExtractionStage('FETCHING_ID');
@@ -251,7 +251,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         if (officialData) {
           baseData = { ...baseData, ...officialData };
           
-          // Field Lock: Preserve current input box values
+          // Field Lock: Do NOT overwrite visual input box
           const dataToApply = { ...officialData };
           if (formData.addMethod === 'LINK') delete (dataToApply as any).url;
           if (formData.addMethod === 'REF') delete (dataToApply as any).doi;
@@ -283,18 +283,9 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     const normalizedCategory = (() => {
       if (!aiEnriched.category) return '';
       const target = aiEnriched.category.trim();
-      
-      // 1. Precise case-insensitive match
       const exact = CATEGORY_OPTIONS.find(opt => opt.toLowerCase() === target.toLowerCase());
       if (exact) return exact;
-      
-      // 2. Fuzzy match (either contains the other)
-      const fuzzy = CATEGORY_OPTIONS.find(opt => 
-        target.toLowerCase().includes(opt.toLowerCase()) || 
-        opt.toLowerCase().includes(target.toLowerCase())
-      );
-      
-      // 3. Fallback to raw AI string to ensure the field is not blank if AI provided something
+      const fuzzy = CATEGORY_OPTIONS.find(opt => target.toLowerCase().includes(opt.toLowerCase()) || opt.toLowerCase().includes(target.toLowerCase()));
       return fuzzy || target;
     })();
 
@@ -324,8 +315,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const isSocialMediaBlocked = (url: string) => {
     const isYouTube = /youtube\.com|youtu\.be/i.test(url);
     const otherSocials = [/instagram\.com/i, /tiktok\.com/i, /facebook\.com/i, /linkedin\.com/i, /twitter\.com/i, /x\.com/i];
-    
-    // Only YouTube is allowed. Others are blocked.
     if (isYouTube) return false;
     return otherSocials.some(pattern => pattern.test(url));
   };
@@ -345,14 +334,14 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     if (!url || !url.startsWith('http') || url === lastExtractedUrl.current || formData.addMethod !== 'LINK') return;
 
     if (isSocialMediaBlocked(url)) {
-      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'This social media platform is not supported. Only YouTube is allowed for social content.' });
+      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'This platform is not supported. Only YouTube is allowed.' });
       setFormData(prev => ({ ...prev, url: '' }));
       return;
     }
 
     const tid = setTimeout(() => {
       lastExtractedUrl.current = url;
-      resetMetadataFields(true); // Auto-reset metadata but keep URL
+      resetMetadataFields(true);
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
@@ -366,7 +355,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               arxivId: data.detectedArxiv, 
               imageView: data.imageView 
             };
-            // TEXT-FIRST: Use extracted text to find identifiers first
+            // The Sniffing-First workflow is now handled by extractOnly backend
             await runExtractionWorkflow(data.extractedText, chunkifyText(data.extractedText), ids, {}, signal);
           } else if (data.status === 'error') {
             throw new Error(data.message);
@@ -385,12 +374,10 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
       const tid = setTimeout(() => {
         lastIdentifier.current = idVal;
-        resetMetadataFields(true); // Auto-reset metadata but keep DOI field
+        resetMetadataFields(true);
         workflow.execute(
           async (signal) => {
             let finalId = idVal;
-            
-            // If the input is a URL, perform a "Pre-Scrape"
             if (idVal.startsWith('http')) {
               setExtractionStage('READING');
               const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: idVal }), signal });
@@ -399,15 +386,12 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
                 finalId = scrapeData.detectedDoi || scrapeData.detectedPmid || scrapeData.detectedArxiv || idVal;
               }
             }
-
             setExtractionStage('FETCHING_ID');
             const data = await callIdentifierSearch(finalId, signal);
             if (data) {
-              // Field Lock: Preserve user input in the REF box
               const dataToApply = { ...data };
               delete (dataToApply as any).doi;
               setFormData(prev => ({ ...prev, ...dataToApply }));
-
               const targetUrl = data.url || (data.doi ? `https://doi.org/${data.doi}` : null);
               if (targetUrl && targetUrl.startsWith('http')) {
                 setExtractionStage('READING');
@@ -462,7 +446,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    Swal.fire({ title: 'Registering Item...', text: 'Please wait...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
+    Swal.fire({ title: 'Registering...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
     try {
       let detectedFormat = FileFormat.PDF;
       let fileUploadData = undefined;
@@ -474,16 +458,8 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         const b64 = await new Promise<string>(r => { reader.onload = () => r((reader.result as string).split(',')[1]); reader.readAsDataURL(file); });
         fileUploadData = { fileName: file.name, mimeType: file.type, fileData: b64 };
       }
-      
       const generatedId = crypto.randomUUID();
-      
-      /**
-       * PERSISTENCE RULES:
-       * 1. If LINK method: Use the original URL from user input (Save as is).
-       * 2. If REF method: Use the resolved URL (e.g. doi.org/...) if user didn't paste a URL.
-       */
       const finalUrl = formData.addMethod === 'LINK' ? formData.url : (formData.url || (formData.doi ? `https://doi.org/${formData.doi}` : ''));
-
       const newItem: any = { 
         ...formData, 
         id: generatedId, 
@@ -498,14 +474,13 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         insightJsonId: '', 
         mainInfo: formData.mainInfo 
       };
-
       const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'saveItem', item: newItem, file: fileUploadData, extractedText: formData.extractedText }) });
       const result = await res.json();
       Swal.close();
       if (result.status === 'success') { onComplete(); navigate('/'); }
     } catch (err) {
       Swal.close();
-      showXeenapsAlert({ icon: 'error', title: 'Save Failed', text: 'Could not register item.' });
+      showXeenapsAlert({ icon: 'error', title: 'Save Failed' });
     } finally {
       setIsSubmitting(false);
     }
