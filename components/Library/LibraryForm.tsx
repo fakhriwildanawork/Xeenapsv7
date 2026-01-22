@@ -339,20 +339,20 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     }
   };
 
-  // URL Extraction Effect
+  // URL Extraction Effect (Save Link)
   useEffect(() => {
     const url = formData.url.trim();
     if (!url || !url.startsWith('http') || url === lastExtractedUrl.current || formData.addMethod !== 'LINK') return;
 
     if (isSocialMediaBlocked(url)) {
-      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'This platform is not supported. Only YouTube is allowed for social content.' });
+      showXeenapsAlert({ icon: 'error', title: 'LINK BLOCKED', text: 'This social media platform is not supported. Only YouTube is allowed for social content.' });
       setFormData(prev => ({ ...prev, url: '' }));
       return;
     }
 
     const tid = setTimeout(() => {
       lastExtractedUrl.current = url;
-      resetMetadataFields(true); // Auto-reset metadata when pasting new link
+      resetMetadataFields(true); // Auto-reset metadata but keep URL
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
@@ -366,7 +366,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               arxivId: data.detectedArxiv, 
               imageView: data.imageView 
             };
-            // TEXT-FIRST: Use extracted text to find identifiers and then fetch metadata
+            // TEXT-FIRST: Use extracted text to find identifiers first
             await runExtractionWorkflow(data.extractedText, chunkifyText(data.extractedText), ids, {}, signal);
           } else if (data.status === 'error') {
             throw new Error(data.message);
@@ -379,18 +379,18 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     return () => clearTimeout(tid);
   }, [formData.url, formData.addMethod, workflow.execute]);
 
-  // REF Workflow Effect
+  // REF Workflow Effect (Identifier)
   useEffect(() => {
     const idVal = formData.doi.trim(); 
     if (idVal && idVal !== lastIdentifier.current && formData.addMethod === 'REF') {
       const tid = setTimeout(() => {
         lastIdentifier.current = idVal;
-        resetMetadataFields(true); // Auto-reset metadata when typing new identifier
+        resetMetadataFields(true); // Auto-reset metadata but keep DOI field
         workflow.execute(
           async (signal) => {
             let finalId = idVal;
             
-            // If the input is a URL, perform a "Pre-Scrape" to find the identifier in meta-tags or content
+            // If the input is a URL, perform a "Pre-Scrape"
             if (idVal.startsWith('http')) {
               setExtractionStage('READING');
               const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: idVal }), signal });
@@ -403,7 +403,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             setExtractionStage('FETCHING_ID');
             const data = await callIdentifierSearch(finalId, signal);
             if (data) {
-              // Field Lock: Don't overwrite the DOI field if that's what user typed
+              // Field Lock: Preserve user input in the REF box
               const dataToApply = { ...data };
               delete (dataToApply as any).doi;
               setFormData(prev => ({ ...prev, ...dataToApply }));
@@ -435,7 +435,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      resetMetadataFields(false); // Auto-reset when user selects a new file
+      resetMetadataFields(false);
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
@@ -477,10 +477,12 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       
       const generatedId = crypto.randomUUID();
       
-      // PERSISTENCE LOGIC:
-      // For LINK: Use original URL from user input
-      // For REF: Use potentially resolved URL from metadata
-      const finalUrl = formData.addMethod === 'LINK' ? formData.url : (formData.url || `https://doi.org/${formData.doi}`);
+      /**
+       * PERSISTENCE RULES:
+       * 1. If LINK method: Use the original URL from user input (Save as is).
+       * 2. If REF method: Use the resolved URL (e.g. doi.org/...) if user didn't paste a URL.
+       */
+      const finalUrl = formData.addMethod === 'LINK' ? formData.url : (formData.url || (formData.doi ? `https://doi.org/${formData.doi}` : ''));
 
       const newItem: any = { 
         ...formData, 

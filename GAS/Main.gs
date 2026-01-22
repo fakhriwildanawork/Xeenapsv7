@@ -160,7 +160,7 @@ function doPost(e) {
               // REJECT AUDIO/VIDEO from Drive
               const isAudioVideo = detectedMime.includes('audio/') || detectedMime.includes('video/');
               if (isAudioVideo) {
-                return createJsonResponse({ status: 'error', message: 'Audio and Video files from Drive are not supported.' });
+                return createJsonResponse({ status: 'error', message: 'Audio and Video files from Google Drive are not allowed. Xeenaps only supports documents, images, and slides.' });
               }
 
               if (detectedMime && detectedMime.toLowerCase().includes('image/')) imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
@@ -180,8 +180,9 @@ function doPost(e) {
 
       const snippet = extractedText.substring(0, 15000);
       
-      // REGEX Patterns
-      const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+(?![a-z])/i;
+      // REGEX Patterns - Improved for complex academic formats (like Taylor & Francis)
+      // Capture 10.xxxx/ suffix, and allow dots, dashes, and X throughout the suffix
+      const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]{5,}/i;
       const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
       const pmidPattern = /PMID:?\s*(\d{4,10})/i;
       const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
@@ -199,8 +200,10 @@ function doPost(e) {
 
       // CLEANUP LOGIC for greedily matched Regex
       if (finalDoi && !primaryDoiFromMeta) {
+        // Remove trailing punctuation that isn't part of DOI
         finalDoi = finalDoi.replace(/[.,;)]+$/, '');
-        if (/[0-9][A-Z]{2,}$/.test(finalDoi)) {
+        // Special case: if it ends in long uppercase letters, it might be text fused with DOI
+        if (/[0-9][A-Z]{3,}$/.test(finalDoi)) {
           const cleaned = finalDoi.replace(/[A-Z]{3,}$/, '');
           if (cleaned.length > 7) finalDoi = cleaned;
         }
