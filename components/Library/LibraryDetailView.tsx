@@ -10,7 +10,8 @@ import {
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
   DocumentDuplicateIcon,
-  LinkIcon
+  LinkIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 
 interface LibraryDetailViewProps {
@@ -19,9 +20,18 @@ interface LibraryDetailViewProps {
 }
 
 const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) => {
-  const handleCopy = (text?: string) => {
+  const handleCopy = (e: React.MouseEvent, text?: string) => {
+    e.stopPropagation(); // Prevent card click when clicking copy button
     if (text) {
       navigator.clipboard.writeText(text);
+    }
+  };
+
+  const handleOpenLink = (url: string | null) => {
+    if (url) {
+      // iOS / WebKit safe window.open
+      const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+      if (newWindow) newWindow.opener = null;
     }
   };
 
@@ -54,12 +64,12 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
               <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 relative group">
                 <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase">In-Text Citation</p>
                 <code className="text-xs font-mono font-bold text-[#004A74] block bg-white p-3 rounded-xl border border-gray-100">{item.inTextHarvard || 'Not Available'}</code>
-                <button onClick={() => handleCopy(item.inTextHarvard)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"><DocumentDuplicateIcon className="w-4 h-4 text-gray-400" /></button>
+                <button onClick={(e) => handleCopy(e, item.inTextHarvard)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"><DocumentDuplicateIcon className="w-4 h-4 text-gray-400" /></button>
               </div>
               <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 relative group">
                 <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase">Bibliographic Entry</p>
                 <code className="text-xs font-mono font-bold text-[#004A74] block bg-white p-3 rounded-xl border border-gray-100 leading-relaxed">{item.bibHarvard || 'Not Available'}</code>
-                <button onClick={() => handleCopy(item.bibHarvard)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"><DocumentDuplicateIcon className="w-4 h-4 text-gray-400" /></button>
+                <button onClick={(e) => handleCopy(e, item.bibHarvard)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"><DocumentDuplicateIcon className="w-4 h-4 text-gray-400" /></button>
               </div>
             </div>
           </section>
@@ -90,25 +100,42 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
               </div>
               
               <div className="space-y-4">
-                {supportingRefs.map((ref, idx) => (
-                  <div key={idx} className="group relative bg-white border border-gray-100 p-6 rounded-[2rem] hover:border-[#004A74]/30 hover:shadow-xl transition-all duration-500">
-                    <div className="flex items-start gap-4">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0 text-[10px] font-black text-gray-300 group-hover:bg-[#004A74] group-hover:text-[#FED400] transition-colors">
-                        0{idx + 1}
+                {supportingRefs.map((ref, idx) => {
+                  // Extract DOI link from the reference string
+                  const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
+                  const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
+
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => handleOpenLink(url)}
+                      className={`group relative bg-white border border-gray-100 p-6 rounded-[2rem] transition-all duration-500 shadow-sm ${url ? 'cursor-pointer hover:border-[#004A74]/30 hover:shadow-xl hover:bg-gray-50/50' : ''}`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="mt-1 w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0 text-[10px] font-black text-gray-300 group-hover:bg-[#004A74] group-hover:text-[#FED400] transition-colors">
+                          0{idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: ref }} />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button 
+                            onClick={(e) => handleCopy(e, ref.replace(/<[^>]*>/g, ''))}
+                            className="p-2.5 bg-gray-50 text-gray-400 hover:text-[#004A74] hover:bg-[#FED400]/20 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+                            title="Copy Reference"
+                          >
+                            <DocumentDuplicateIcon className="w-4 h-4" />
+                          </button>
+                          {url && (
+                            <div className="p-2.5 bg-[#004A74]/5 text-[#004A74] rounded-xl opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center shadow-sm">
+                              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: ref }} />
-                      </div>
-                      <button 
-                        onClick={() => handleCopy(ref.replace(/<[^>]*>/g, ''))}
-                        className="p-2.5 bg-gray-50 text-gray-400 hover:text-[#004A74] hover:bg-[#FED400]/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                        title="Copy Reference"
-                      >
-                        <DocumentDuplicateIcon className="w-4 h-4" />
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
