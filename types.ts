@@ -100,6 +100,7 @@ export interface LibraryItem {
   strength?: string;
   weakness?: string;
   quickTipsForYou?: string;
+  supportingReferences?: string; // New: JSON string of Harvard citations
 
   // Academic Citations
   inTextHarvard?: string;

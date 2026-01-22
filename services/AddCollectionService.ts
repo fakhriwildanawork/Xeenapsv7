@@ -1,6 +1,7 @@
-
 import { LibraryItem } from "../types";
 import { callAiProxy } from "./gasService";
+// Fix: GAS_WEB_APP_URL must be imported from the constants file where it is exported
+import { GAS_WEB_APP_URL } from "../constants";
 
 /**
  * AddCollectionService - Metadata Extraction via AI Proxy (GROQ).
@@ -100,18 +101,38 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
 
     try {
       const parsed = JSON.parse(cleanJson);
-      const merged = { ...parsed };
+      const merged: any = { ...parsed };
       Object.keys(existingData).forEach(key => {
         const val = (existingData as any)[key];
         
         // Priority logic: Category and mainInfo are strictly AI territory.
-        // Identifier APIs often provide raw/generic categories that don't match Xeenaps PKM requirements.
         if (key === 'category' || key === 'mainInfo') return;
 
         if (val && val !== "" && val !== "N/A" && (!Array.isArray(val) || val.length > 0)) {
           merged[key] = val;
         }
       });
+
+      // NEW: Fetch Supporting References from Crossref based on AI Keywords
+      if (merged.keywords && merged.keywords.length > 0) {
+        try {
+          const refRes = await fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({ 
+              action: 'getSupportingReferences', 
+              keywords: merged.keywords 
+            }),
+            signal
+          });
+          const refData = await refRes.json();
+          if (refData.status === 'success') {
+            merged.supportingReferences = refData.data;
+          }
+        } catch (e) {
+          console.warn("Failed to fetch supporting references:", e);
+        }
+      }
+
       return merged;
     } catch (e) {
       console.error('JSON Parse Error:', e);

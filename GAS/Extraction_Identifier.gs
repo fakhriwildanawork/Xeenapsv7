@@ -71,6 +71,54 @@ function handleIdentifierSearch(idValue) {
 }
 
 /**
+ * NEW: Supporting References Logic
+ * Fetches 3 related citations from Crossref and formats them as Harvard Bibliographic Entry.
+ */
+function getSupportingReferencesFromCrossref(keywords) {
+  if (!keywords || keywords.length === 0) return "[]";
+  
+  const query = keywords.slice(0, 3).join(" ");
+  try {
+    const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=3&filter=type:journal-article`;
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (response.getResponseCode() !== 200) return "[]";
+    
+    const data = JSON.parse(response.getContentText());
+    const items = data.message.items || [];
+    
+    const citations = items.map(item => {
+      // Format Authors: Last, F.
+      const authors = (item.author || []).map(a => {
+        const last = a.family || "";
+        const first = a.given ? a.given.charAt(0) + "." : "";
+        return last + (first ? ", " + first : "");
+      });
+      
+      let authorStr = authors.length > 2 
+        ? authors[0] + " et al." 
+        : (authors.join(" and ") || "Anon.");
+        
+      const year = item.issued?.["date-parts"]?.[0]?.[0] || "n.d.";
+      const title = (item.title && item.title[0]) || "Untitled";
+      const journal = (item["container-title"] && item["container-title"][0]) || "";
+      const vol = item.volume ? "vol. " + item.volume : "";
+      const issue = item.issue ? "(" + item.issue + ")" : "";
+      const pages = item.page ? "pp. " + item.page : "";
+      const doi = item.DOI ? "https://doi.org/" + item.DOI : "";
+
+      // Assemble Harvard Citation
+      let bib = `${authorStr} (${year}). ${title}. <i>${journal}</i>, ${vol}${issue}, ${pages}. Available at: ${doi}`;
+      return bib.replace(/, ,/g, ',').replace(/\.\./g, '.').trim();
+    });
+    
+    return JSON.stringify(citations);
+  } catch (e) {
+    console.error("Crossref search failed: " + e.toString());
+    return "[]";
+  }
+}
+
+/**
  * Helper to sanitize numeric fields (Volume, Issue, Pages)
  */
 function sanitizeNumericValue(val) {

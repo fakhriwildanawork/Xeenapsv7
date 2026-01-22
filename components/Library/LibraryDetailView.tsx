@@ -9,7 +9,8 @@ import {
   LightBulbIcon,
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
-  DocumentDuplicateIcon
+  DocumentDuplicateIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline';
 
 interface LibraryDetailViewProps {
@@ -23,6 +24,14 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
       navigator.clipboard.writeText(text);
     }
   };
+
+  const supportingRefs: string[] = React.useMemo(() => {
+    try {
+      return JSON.parse(item.supportingReferences || "[]");
+    } catch (e) {
+      return [];
+    }
+  }, [item.supportingReferences]);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-end pointer-events-none">
@@ -74,6 +83,40 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
               <div className="bg-[#004A74]/5 border border-[#004A74]/10 p-6 rounded-[2.5rem] font-medium text-sm text-[#004A74] leading-relaxed">{item.summary || 'N/A'}</div>
             </section>
           </div>
+
+          {/* Supporting References (New Modern Layout) */}
+          {supportingRefs.length > 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4" /> Supporting References
+                </h3>
+                <span className="text-[10px] font-black bg-[#FED400] text-[#004A74] px-3 py-1 rounded-full uppercase">Powered by Crossref</span>
+              </div>
+              
+              <div className="space-y-4">
+                {supportingRefs.map((ref, idx) => (
+                  <div key={idx} className="group relative bg-white border border-gray-100 p-6 rounded-[2rem] hover:border-[#004A74]/30 hover:shadow-xl transition-all duration-500">
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1 w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0 text-[10px] font-black text-gray-300 group-hover:bg-[#004A74] group-hover:text-[#FED400] transition-colors">
+                        0{idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: ref }} />
+                      </div>
+                      <button 
+                        onClick={() => handleCopy(ref.replace(/<[^>]*>/g, ''))}
+                        className="p-2.5 bg-gray-50 text-gray-400 hover:text-[#004A74] hover:bg-[#FED400]/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        title="Copy Reference"
+                      >
+                        <DocumentDuplicateIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <section className="space-y-4">

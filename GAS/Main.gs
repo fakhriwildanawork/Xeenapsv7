@@ -275,6 +275,15 @@ function doPost(e) {
 
     if (action === 'searchByIdentifier') return createJsonResponse(handleIdentifierSearch(body.idValue));
     if (action === 'aiProxy') return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
+    
+    // NEW ACTION: getSupportingReferences
+    if (action === 'getSupportingReferences') {
+      return createJsonResponse({
+        status: 'success',
+        data: getSupportingReferencesFromCrossref(body.keywords || [])
+      });
+    }
+    
     return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
     return createJsonResponse({ status: 'error', message: err.toString() });
