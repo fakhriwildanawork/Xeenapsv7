@@ -1,188 +1,306 @@
 
-import React from 'react';
-import { LibraryItem } from '../../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { LibraryItem, LibraryType } from '../../types';
 import { 
   XMarkIcon, 
-  BookOpenIcon, 
+  ArrowLeftIcon,
+  EyeIcon,
+  BookmarkIcon,
+  StarIcon,
+  EllipsisVerticalIcon,
+  PresentationChartBarIcon,
+  ClipboardDocumentListIcon,
   ChatBubbleBottomCenterTextIcon,
+  ShareIcon,
   AcademicCapIcon,
+  LinkIcon,
+  VideoCameraIcon,
+  ArrowTopRightOnSquareIcon,
+  DocumentDuplicateIcon,
+  SparklesIcon,
   LightBulbIcon,
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
-  DocumentDuplicateIcon,
-  LinkIcon,
-  ArrowTopRightOnSquareIcon,
-  VideoCameraIcon
+  BookOpenIcon
 } from '@heroicons/react/24/outline';
+import { 
+  BookmarkIcon as BookmarkSolid, 
+  StarIcon as StarSolid,
+  Bold,
+  Italic
+} from 'lucide-react';
 
 interface LibraryDetailViewProps {
   item: LibraryItem;
   onClose: () => void;
 }
 
-const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) => {
-  const handleCopy = (e: React.MouseEvent, text?: string) => {
-    e.stopPropagation(); // Prevent card click when clicking copy button
-    if (text) {
-      navigator.clipboard.writeText(text);
-    }
-  };
+/**
+ * Reusable Rich Text Editor Component for Inline Editing
+ */
+const RichTextEditor: React.FC<{ 
+  value: string; 
+  onChange: (val: string) => void; 
+  placeholder?: string;
+  isList?: boolean;
+}> = ({ value, onChange, placeholder, isList }) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
 
-  const handleOpenLink = (url: string | null) => {
-    if (url) {
-      // iOS / WebKit safe window.open
-      const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-      if (newWindow) newWindow.opener = null;
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value || '';
     }
-  };
+  }, [value]);
 
-  // Extract references and videoUrl from the new object structure
-  const supportingData = item.supportingReferences;
-  const supportingRefs = Array.isArray(supportingData) ? supportingData : (supportingData?.references || []);
-  const videoRecommendationUrl = !Array.isArray(supportingData) ? supportingData?.videoUrl : null;
+  const execCommand = (command: string) => {
+    document.execCommand(command, false);
+    setIsBold(document.queryCommandState('bold'));
+    setIsItalic(document.queryCommandState('italic'));
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
+  };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-end pointer-events-none">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
-      <div className="relative w-full max-w-4xl h-full bg-white md:rounded-l-[3rem] shadow-2xl flex flex-col overflow-hidden pointer-events-auto animate-in slide-in-from-right duration-500">
-        
-        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex-1 min-w-0 pr-8">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#FED400] mb-1">{item.type} • {item.topic}</p>
-            <h2 className="text-xl md:text-2xl font-black text-[#004A74] truncate">{item.title}</h2>
-          </div>
-          <button onClick={onClose} className="p-2 bg-gray-50 text-gray-400 hover:text-[#004A74] rounded-full transition-all"><XMarkIcon className="w-6 h-6" /></button>
-        </div>
+    <div className="flex flex-col rounded-3xl border border-gray-100 bg-gray-50/30 overflow-hidden focus-within:border-[#004A74]/30 focus-within:ring-4 focus-within:ring-[#004A74]/5 transition-all">
+      <div className="flex items-center gap-1 p-2 border-b border-gray-100 bg-white/50">
+        <button type="button" onClick={() => execCommand('bold')} className={`p-1.5 rounded-lg ${isBold ? 'bg-[#004A74] text-white' : 'hover:bg-gray-100 text-[#004A74]'}`}><Bold className="w-3.5 h-3.5" /></button>
+        <button type="button" onClick={() => execCommand('italic')} className={`p-1.5 rounded-lg ${isItalic ? 'bg-[#004A74] text-white' : 'hover:bg-gray-100 text-[#004A74]'}`}><Italic className="w-3.5 h-3.5" /></button>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={(e) => onChange(e.currentTarget.innerHTML)}
+        className={`p-5 text-sm outline-none min-h-[100px] leading-relaxed text-gray-700 font-medium ${isList ? 'prose-ol:list-decimal prose-ol:ml-4' : ''}`}
+        dangerouslySetInnerHTML={{ __html: value || '' }}
+      />
+    </div>
+  );
+};
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-10 pb-20">
-          {/* Citation Section */}
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                <AcademicCapIcon className="w-4 h-4" /> Academic Citation (Harvard Style)
-              </h3>
+const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showTips, setShowTips] = useState(false);
+  
+  // Local states for editable fields
+  const [abstract, setAbstract] = useState(item.abstract || '');
+  const [summary, setSummary] = useState(item.summary || '');
+  const [methodology, setMethodology] = useState(''); // Initial methodology if exists
+  const [strengths, setStrengths] = useState(item.strength || '');
+  const [weaknesses, setWeaknesses] = useState(item.weakness || '');
+  const [terminology, setTerminology] = useState('');
+
+  const supportingData = item.supportingReferences;
+  const supportingRefs = Array.isArray(supportingData) ? supportingData : (supportingData?.references || []);
+  const videoUrl = !Array.isArray(supportingData) ? supportingData?.videoUrl : null;
+
+  const handleOpenLink = (url: string | null) => {
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-white flex flex-col animate-in fade-in duration-300 overflow-hidden">
+      
+      {/* 1. BLOK TOMBOL (Navigation Bar) */}
+      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 py-4 flex items-center justify-between">
+        <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] bg-gray-50 px-4 py-2.5 rounded-2xl hover:bg-[#FED400]/20 transition-all">
+          <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button className="p-2.5 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EyeIcon className="w-5 h-5" /></button>
+          <button className="p-2.5 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
+            {item.isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
+          </button>
+          <button className="p-2.5 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
+            {item.isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
+          </button>
+          
+          <div className="relative">
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 z-[60] animate-in fade-in zoom-in-95">
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-2xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-2xl transition-all"><ClipboardDocumentListIcon className="w-4 h-4" /> To-Do List</button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-2xl transition-all"><AcademicCapIcon className="w-4 h-4" /> Generate Citation</button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-2xl transition-all"><ShareIcon className="w-4 h-4" /> Share Entry</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="max-w-6xl mx-auto px-6 md:px-12 py-10 space-y-12">
+          
+          {/* 2. BLOK HEADER */}
+          <header className="space-y-6">
+            <div className="flex flex-wrap gap-2">
+              <span className="px-4 py-1.5 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-full">{item.type}</span>
+              <span className="px-4 py-1.5 bg-[#004A74]/10 text-[#004A74] text-[9px] font-black uppercase tracking-widest rounded-full">{item.category}</span>
+              <span className="px-4 py-1.5 bg-[#FED400] text-[#004A74] text-[9px] font-black uppercase tracking-widest rounded-full">{item.topic}</span>
+              <span className="px-4 py-1.5 bg-[#004A74]/5 text-[#004A74] text-[9px] font-black uppercase tracking-widest rounded-full">{item.subTopic}</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 relative group">
-                <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase">In-Text Citation</p>
-                <code className="text-xs font-mono font-bold text-[#004A74] block bg-white p-3 rounded-xl border border-gray-100">{item.inTextHarvard || 'Not Available'}</code>
-                <button onClick={(e) => handleCopy(e, item.inTextHarvard)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"><DocumentDuplicateIcon className="w-4 h-4 text-gray-400" /></button>
+            <h1 className="text-3xl md:text-5xl font-black text-[#004A74] leading-[1.1] break-words uppercase">{item.title}</h1>
+            
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">{item.fullDate || item.year || 'N/A'}</p>
+              <p className="text-base font-bold text-[#004A74]">{item.authors?.join(', ') || 'Unknown Authors'}</p>
+            </div>
+
+            <div className="space-y-2 pt-4 border-t border-gray-100">
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{item.publisher || 'N/A'}</p>
+              <p className="text-xs font-bold text-[#004A74]">{item.journalName || 'N/A'} {item.volume ? `• Vol. ${item.volume}` : ''} {item.issue ? `• No. ${item.issue}` : ''} {item.pages ? `• pp. ${item.pages}` : ''}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-mono font-bold text-gray-400 italic">DOI: {item.doi || 'Not Available'}</p>
+                <button className="px-6 py-2.5 bg-[#004A74] text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-[#004A74]/20 hover:scale-105 active:scale-95 transition-all">Cite Entry</button>
               </div>
-              <div className="p-5 bg-gray-50 rounded-3xl border border-gray-100 relative group">
-                <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase">Bibliographic Entry</p>
-                <code className="text-xs font-mono font-bold text-[#004A74] block bg-white p-3 rounded-xl border border-gray-100 leading-relaxed">{item.bibHarvard || 'Not Available'}</code>
-                <button onClick={(e) => handleCopy(e, item.bibHarvard)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"><DocumentDuplicateIcon className="w-4 h-4 text-gray-400" /></button>
+            </div>
+          </header>
+
+          {/* 3. BLOK TAGS */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><AcademicCapIcon className="w-3.5 h-3.5" /> Keywords</h3>
+              <div className="flex flex-wrap gap-2">
+                {item.tags?.keywords?.map(k => <span key={k} className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-bold text-[#004A74]">{k}</span>)}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookmarkIcon className="w-3.5 h-3.5" /> Labels</h3>
+              <div className="flex flex-wrap gap-2">
+                {item.tags?.labels?.map(l => <span key={l} className="px-3 py-1.5 bg-[#FED400]/10 border border-[#FED400]/20 rounded-xl text-[10px] font-bold text-[#004A74]">{l}</span>)}
               </div>
             </div>
           </section>
 
-          {/* Insights */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookOpenIcon className="w-4 h-4" /> Abstract</h3>
-              <div 
-                className="bg-white border border-gray-100 p-6 rounded-[2.5rem] shadow-sm italic text-sm text-gray-600 leading-relaxed overflow-hidden"
-                dangerouslySetInnerHTML={{ __html: item.abstract || 'N/A' }}
-              />
-            </section>
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ChatBubbleBottomCenterTextIcon className="w-4 h-4" /> Summary</h3>
-              <div className="bg-[#004A74]/5 border border-[#004A74]/10 p-6 rounded-[2.5rem] font-medium text-sm text-[#004A74] leading-relaxed">{item.summary || 'N/A'}</div>
-            </section>
-          </div>
+          {/* 4. BLOK ABSTRACT */}
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookOpenIcon className="w-3.5 h-3.5" /> Abstract</h3>
+            <RichTextEditor value={abstract} onChange={setAbstract} />
+          </section>
 
-          {/* Supporting References (New Modern Layout) */}
-          {supportingRefs.length > 0 && (
-            <section className="space-y-6">
-              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
-                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                  <LinkIcon className="w-4 h-4" /> Supporting References
-                </h3>
-                <span className="text-[10px] font-black bg-[#FED400] text-[#004A74] px-3 py-1 rounded-full uppercase">Powered by Crossref</span>
+          {/* 5. BLOK INSIGHT */}
+          <section className="space-y-8 relative">
+            <div className="flex items-center justify-between sticky top-20 z-30 bg-white/80 backdrop-blur-md py-4 border-b border-gray-50">
+              <h2 className="text-xl font-black text-[#004A74] flex items-center gap-3">
+                <SparklesIcon className="w-6 h-6 text-[#FED400]" /> AI INSIGHTS
+              </h2>
+              <div className="flex items-center gap-3">
+                <button className="flex items-center gap-2 px-6 py-3 bg-[#004A74] text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-[#004A74]/20 hover:scale-105 transition-all">
+                  <SparklesIcon className="w-4 h-4" /> Generate Insight
+                </button>
+                <button onClick={() => setShowTips(true)} className="p-3 bg-[#FED400] text-[#004A74] rounded-2xl shadow-lg shadow-[#FED400]/20 hover:rotate-12 transition-all">
+                  <LightBulbIcon className="w-5 h-5 stroke-[2.5]" />
+                </button>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              {item.category === 'Original Research' && (
+                <div className="space-y-3 md:col-span-2">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Research Methodology</h3>
+                  <RichTextEditor value={methodology} onChange={setMethodology} />
+                </div>
+              )}
               
+              <div className="space-y-3 md:col-span-2">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Summary</h3>
+                <RichTextEditor value={summary} onChange={setSummary} />
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-green-500 flex items-center gap-2">
+                  <ClipboardDocumentCheckIcon className="w-4 h-4" /> Strengths
+                </h3>
+                <RichTextEditor value={strengths} onChange={setStrengths} isList />
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-red-500 flex items-center gap-2">
+                  <ExclamationTriangleIcon className="w-4 h-4" /> Weaknesses
+                </h3>
+                <RichTextEditor value={weaknesses} onChange={setWeaknesses} isList />
+              </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
+                  <ChatBubbleBottomCenterTextIcon className="w-4 h-4" /> Unfamiliar Terminology
+                </h3>
+                <RichTextEditor value={terminology} onChange={setTerminology} isList />
+              </div>
+            </div>
+          </section>
+
+          {/* 6. BLOK SUPPORTING REFERENCE */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-10 border-t border-gray-100">
+            <div className="space-y-6">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                <LinkIcon className="w-3.5 h-3.5" /> Supporting References
+              </h3>
               <div className="space-y-4">
                 {supportingRefs.map((ref: string, idx: number) => {
-                  // Extract DOI link from the reference string
                   const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
                   const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
-
                   return (
-                    <div 
-                      key={idx} 
-                      onClick={() => handleOpenLink(url)}
-                      className={`group relative bg-white border border-gray-100 p-6 rounded-[2rem] transition-all duration-500 shadow-sm ${url ? 'cursor-pointer hover:border-[#004A74]/30 hover:shadow-xl hover:bg-gray-50/50' : ''}`}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="mt-1 w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0 text-[10px] font-black text-gray-300 group-hover:bg-[#004A74] group-hover:text-[#FED400] transition-colors">
-                          0{idx + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: ref }} />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <button 
-                            onClick={(e) => handleCopy(e, ref.replace(/<[^>]*>/g, ''))}
-                            className="p-2.5 bg-gray-50 text-gray-400 hover:text-[#004A74] hover:bg-[#FED400]/20 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm"
-                            title="Copy Reference"
-                          >
-                            <DocumentDuplicateIcon className="w-4 h-4" />
-                          </button>
-                          {url && (
-                            <div className="p-2.5 bg-[#004A74]/5 text-[#004A74] rounded-xl opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center shadow-sm">
-                              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-                            </div>
-                          )}
-                        </div>
+                    <div key={idx} onClick={() => handleOpenLink(url)} className={`group bg-gray-50/50 p-6 rounded-[2.5rem] border border-gray-100 transition-all ${url ? 'cursor-pointer hover:bg-white hover:shadow-xl hover:border-[#004A74]/20' : ''}`}>
+                      <div className="flex gap-4">
+                        <span className="shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-[10px] font-black text-[#004A74] shadow-sm">{idx + 1}</span>
+                        <p className="text-xs font-medium text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: ref }} />
+                        {url && <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-300 group-hover:text-[#004A74] shrink-0" />}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </section>
-          )}
+            </div>
 
-          {/* Video Recommendation (New Section) */}
-          {videoRecommendationUrl && (
-            <section className="space-y-6">
-              <div className="flex items-center justify-between border-b border-gray-50 pb-4">
-                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                  <VideoCameraIcon className="w-4 h-4" /> Video Recommendation
-                </h3>
-                <span className="text-[10px] font-black bg-[#FED400] text-[#004A74] px-3 py-1 rounded-full uppercase">Relevant Insight</span>
-              </div>
-              
-              <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden bg-gray-900 shadow-2xl border border-gray-100">
-                <iframe 
-                  className="absolute inset-0 w-full h-full"
-                  src={videoRecommendationUrl}
-                  title="Video Recommendation"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                ></iframe>
-              </div>
-            </section>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-green-500 flex items-center gap-2"><ClipboardDocumentCheckIcon className="w-4 h-4" /> Strengths</h3>
-              <div className="bg-green-50/50 border border-green-100 p-6 rounded-[2.5rem] text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.strength || 'N/A'}</div>
-            </section>
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-red-500 flex items-center gap-2"><ExclamationTriangleIcon className="w-4 h-4" /> Weaknesses</h3>
-              <div className="bg-red-50/50 border border-red-100 p-6 rounded-[2.5rem] text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.weakness || 'N/A'}</div>
-            </section>
-          </div>
-
-          <section className="space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><LightBulbIcon className="w-4 h-4" /> Quick Tips</h3>
-            <div className="bg-[#004A74] p-8 rounded-[3rem] text-white shadow-xl italic text-sm leading-relaxed">"{item.quickTipsForYou || 'Reference registered successfully.'}"</div>
+            <div className="space-y-6">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                <VideoCameraIcon className="w-3.5 h-3.5" /> Video Recommendation
+              </h3>
+              {videoUrl ? (
+                <div className="aspect-video rounded-[3rem] overflow-hidden bg-gray-900 shadow-2xl border-8 border-white">
+                  <iframe className="w-full h-full" src={videoUrl} frameBorder="0" allowFullScreen></iframe>
+                </div>
+              ) : (
+                <div className="aspect-video rounded-[3rem] bg-gray-50 flex flex-col items-center justify-center border-2 border-dashed border-gray-200">
+                   <VideoCameraIcon className="w-12 h-12 text-gray-200 mb-2" />
+                   <p className="text-[10px] font-black text-gray-400 uppercase">No Video Found</p>
+                </div>
+              )}
+            </div>
           </section>
+
+          <div className="py-20 text-center">
+             <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.5em]">XEENAPS INTELLIGENCE SYSTEM</p>
+          </div>
         </div>
       </div>
+
+      {/* Quick Tips Modal Overlay */}
+      {showTips && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-[#004A74] text-white p-10 rounded-[3rem] max-w-lg shadow-2xl relative">
+            <button onClick={() => setShowTips(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all"><XMarkIcon className="w-6 h-6" /></button>
+            <LightBulbIcon className="w-12 h-12 text-[#FED400] mb-6" />
+            <h3 className="text-xl font-black mb-4 uppercase tracking-widest">Quick Tips for You</h3>
+            <p className="text-sm font-medium italic leading-relaxed opacity-90">"{item.quickTipsForYou || 'No specific tips generated for this reference yet. Use Generate Insight to get smarter recommendations.'}"</p>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #004A7420; border-radius: 10px; }
+        [contenteditable]:empty:before {
+          content: 'No content yet. Click Generate Insight to fill this area...';
+          color: #9CA3AF;
+          font-style: italic;
+        }
+      `}</style>
     </div>
   );
 };
