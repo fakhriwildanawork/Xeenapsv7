@@ -463,7 +463,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    Swal.fire({ title: 'Registering Item...', text: 'Checking storage and processing your data.', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
+    Swal.fire({ title: 'Registering Item...', text: 'Processing larger data may take more time...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
     try {
       let detectedFormat = FileFormat.PDF;
       let fileUploadData = undefined;

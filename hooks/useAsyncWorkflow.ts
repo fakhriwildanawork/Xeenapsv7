@@ -8,7 +8,7 @@ import { useCallback, useRef, useEffect } from 'react';
  * 2. Timeout otomatis (default 30 detik).
  * 3. Pembersihan (cleanup) saat komponen unmount.
  */
-export const useAsyncWorkflow = (timeoutMs: number = 30000) => {
+export const useAsyncWorkflow = (timeoutMs: number = 45000) => {
   const controllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef<number>(0);
 
