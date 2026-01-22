@@ -33,7 +33,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
        - KEYWORDS: You MUST provide EXACTLY 7 relevant keywords.
        - LABELS: You MUST provide EXACTLY 5 thematic labels.
        - TOPIC & SUBTOPIC: You MUST determine a high-level Topic and a specific Sub-Topic.
-       - CATEGORY: You MUST CHOOSE EXACTLY ONE CATEGORY FROM THE APPROVED LIST BELOW THAT IS MOST RELEVANCE TO THE CONTEXT. DO NOT CREATE NEW CATEGORIES.
+       - CATEGORY: You MUST CHOOSE EXACTLY ONE CATEGORY FROM THE APPROVED LIST BELOW WITH VERBATIM TECHNIC THAT IS MOST RELEVANCE TO THE CONTEXT. DO NOT CREATE NEW CATEGORIES.
     4. YOUTUBE SPECIAL HANDLING (CRITICAL):
        - If the TEXT SNIPPET contains "YOUTUBE_METADATA:", you MUST:
          * Set "publisher" to "Youtube" verbatim.
@@ -77,7 +77,7 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
       "volume": "Vol",
       "issue": "No",
       "pages": "pp-pp",
-      "category": "Must choose exactly from the Approved List provided above.",
+      "category": "Must choose exactly from the Approved List provided above with verbatim technic.",
       "topic": "General Topic",
       "subTopic": "Specific Sub-Topic",
       "abstract": "HTML formatted verbatim abstract",
