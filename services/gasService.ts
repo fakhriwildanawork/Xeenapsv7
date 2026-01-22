@@ -6,10 +6,13 @@ import Swal from 'sweetalert2';
 // Token rahasia yang sama dengan Config.gs
 const INTERNAL_TOKEN = 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ';
 
-// Header standar untuk semua request POST ke GAS
-const postHeaders = {
-  'Content-Type': 'application/json'
-};
+/**
+ * PENTING: Jangan gunakan 'Content-Type': 'application/json'.
+ * Google Apps Script Web App tidak mendukung CORS preflight (OPTIONS request).
+ * Dengan menghapus header ini, browser melakukan "Simple Request" (text/plain) 
+ * yang tidak memerlukan preflight dan tetap mengirimkan body JSON dengan benar.
+ */
+const postHeaders = {};
 
 export const initializeDatabase = async (): Promise<{ status: string; message: string }> => {
   try {

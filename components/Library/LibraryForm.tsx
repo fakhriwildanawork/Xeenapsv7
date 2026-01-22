@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
@@ -28,7 +29,8 @@ import {
 
 // Security Token Sync
 const INTERNAL_TOKEN = 'XEENAPS_SECURE_CLUSTER_2025_TOKEN_XYZ';
-const postHeaders = { 'Content-Type': 'application/json' };
+// REMOVED Content-Type to avoid CORS preflight
+const postHeaders = {};
 
 /**
  * Rich Text Abstract Editor Component
@@ -337,7 +339,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
-          // FIX: Include Token and Header
+          // FIX: Removed Content-Type to avoid preflight
           const res = await fetch(GAS_WEB_APP_URL, { 
             method: 'POST', 
             headers: postHeaders,
@@ -377,7 +379,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             let finalId = idVal;
             if (idVal.startsWith('http')) {
               setExtractionStage('READING');
-              // FIX: Include Token and Header
+              // FIX: Removed Content-Type to avoid preflight
               const scrapeRes = await fetch(GAS_WEB_APP_URL, { 
                 method: 'POST', 
                 headers: postHeaders,
@@ -398,7 +400,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               const targetUrl = data.url || (data.doi ? `https://doi.org/${data.doi}` : null);
               if (targetUrl && targetUrl.startsWith('http')) {
                 setExtractionStage('READING');
-                // FIX: Include Token and Header
+                // FIX: Removed Content-Type to avoid preflight
                 const scrapeRes = await fetch(GAS_WEB_APP_URL, { 
                   method: 'POST', 
                   headers: postHeaders,
@@ -437,7 +439,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             reader.onload = () => resolve((reader.result as string).split(',')[1]);
             reader.readAsDataURL(selectedFile);
           });
-          // FIX: Include Token and Header
+          // FIX: Removed Content-Type to avoid preflight
           const response = await fetch(GAS_WEB_APP_URL, { 
             method: 'POST', 
             headers: postHeaders,
@@ -502,7 +504,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         mainInfo: formData.mainInfo 
       };
       
-      // FIX: Include Token and Header
+      // FIX: Removed Content-Type to avoid preflight
       const res = await fetch(GAS_WEB_APP_URL, { 
         method: 'POST', 
         headers: postHeaders,
