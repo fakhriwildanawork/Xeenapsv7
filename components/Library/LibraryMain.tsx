@@ -47,7 +47,7 @@ import {
   StandardPrimaryButton, 
   StandardFilterButton 
 } from '../Common/ButtonComponents';
-import { TableSkeletonRows, CardGridSkeleton, GlobalAppLoader } from '../Common/LoadingComponents';
+import { TableSkeletonRows, CardGridSkeleton } from '../Common/LoadingComponents';
 import LibraryDetailView from './LibraryDetailView';
 import { showXeenapsAlert } from '../../utils/swalUtils';
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
@@ -122,10 +122,9 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
   }, []);
 
   const itemsPerPage = isMobile ? 20 : 25;
+  const totalPages = Math.ceil(totalItemsServer / itemsPerPage);
   const filters: ('All' | LibraryType)[] = ['All', LibraryType.LITERATURE, LibraryType.TASK, LibraryType.PERSONAL, LibraryType.OTHER];
   
-  const totalPages = Math.ceil(totalItemsServer / itemsPerPage);
-
   useEffect(() => {
     if (globalSearch && !appliedSearch) {
       setLocalSearch(globalSearch);
@@ -221,11 +220,11 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
     { key: 'createdAt', label: 'Created At', width: '150px' },
   ];
 
+  // Combined loading state for data areas
+  const isDataLoading = isInternalLoading || isGlobalLoading;
+
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden relative pr-1">
-      {/* 
-        Fix: Render DetailView as a persistent flexible absolute overlay within this container 
-      */}
       {selectedItem && (
         <LibraryDetailView 
           item={selectedItem} 
@@ -233,11 +232,6 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
           isLoading={isGlobalLoading}
         />
       )}
-
-      {/* 
-        If global sync is on but NO detail view is open, show the global loader skeleton 
-      */}
-      {isGlobalLoading && !selectedItem && <GlobalAppLoader />}
 
       <div className="flex flex-col lg:flex-row gap-4 items-center justify-between shrink-0">
         <SmartSearchBox value={localSearch} onChange={setLocalSearch} onSearch={handleSearchTrigger} />
@@ -283,7 +277,7 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {isInternalLoading ? <TableSkeletonRows count={5} /> : serverItems.length === 0 ? <tr><td colSpan={tableColumns.length + 1} className="px-6 py-24 text-center"><div className="flex flex-col items-center justify-center space-y-2"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div></td></tr> : serverItems.map((item) => (
+              {isDataLoading ? <TableSkeletonRows count={5} /> : serverItems.length === 0 ? <tr><td colSpan={tableColumns.length + 1} className="px-6 py-24 text-center"><div className="flex flex-col items-center justify-center space-y-2"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div></td></tr> : serverItems.map((item) => (
                 <StandardTr key={item.id} className="cursor-pointer" onClick={() => setSelectedItem(item)}>
                   <td className="px-6 py-4 sticky left-0 z-20 border-r border-gray-100/50 bg-white group-hover:bg-[#f0f7fa] shadow-sm text-center" onClick={(e) => e.stopPropagation()}><StandardCheckbox checked={selectedIds.includes(item.id)} onChange={() => toggleSelectItem(item.id)} /></td>
                   <StandardTd isActiveSort={sortConfig.key === 'title'} className="sticky left-12 z-20 border-r border-gray-100/50 bg-white group-hover:bg-[#f0f7fa] shadow-sm"><ElegantTooltip text={item.title}><div className="flex items-start gap-2 group/title w-full"><div className="flex-1 min-w-0"><div className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}><span className="inline-flex items-center gap-1 mr-1.5 align-middle shrink-0">{item.isBookmarked && <BookmarkSolid className="w-3.5 h-3.5 text-[#004A74]" />}{item.isFavorite && <StarSolid className="w-3.5 h-3.5 text-[#FED400]" />}</span><span className="text-sm font-bold text-[#004A74] group-hover/title:underline leading-tight transition-all">{item.title}</span></div></div><EyeIcon className="w-3.5 h-3.5 text-gray-300 group-hover/title:text-[#004A74] opacity-0 group-hover/title:opacity-100 transition-all shrink-0 mt-1" /></div></ElegantTooltip></StandardTd>
@@ -303,7 +297,7 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
       </div>
 
       <div className="lg:hidden flex-none pb-10 mt-4 overflow-y-auto">
-        {isInternalLoading ? <CardGridSkeleton count={6} /> : serverItems.length === 0 ? <div className="py-24 text-center flex flex-col items-center justify-center space-y-2 bg-white border border-gray-100/50 rounded-[2rem] shadow-sm mx-1"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div> : (
+        {isDataLoading ? <CardGridSkeleton count={6} /> : serverItems.length === 0 ? <div className="py-24 text-center flex flex-col items-center justify-center space-y-2 bg-white border border-gray-100/50 rounded-[2rem] shadow-sm mx-1"><div className="p-4 bg-gray-50 rounded-full"><PlusIcon className="w-8 h-8 text-gray-300" /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Collection Found</p></div> : (
           <StandardGridContainer>
             {serverItems.map((item) => (
               <StandardItemCard key={item.id} isSelected={selectedIds.includes(item.id)} onClick={() => setSelectedItem(item)}>

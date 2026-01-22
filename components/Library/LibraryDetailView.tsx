@@ -221,13 +221,14 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   {item.subTopic && <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.subTopic}</span>}
                 </div>
 
-                <h1 className="text-xl md:text-3xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{item.title}</h1>
+                <h1 className="text-xl md:text-2xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{item.title}</h1>
                 
                 <div className="flex flex-col gap-1">
                   {displayDate && <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{displayDate}</p>}
                   <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
 
+                {/* Metadata Created/Updated at bottom-right */}
                 <div className="absolute bottom-4 right-8 flex flex-col items-end gap-0.5 opacity-60">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />
