@@ -235,7 +235,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       aiEnriched.publisher = "Youtube";
     }
 
-    // Fix: Normalize category matching to handle minor casing or whitespace differences from AI response.
+    // Normalize category matching
     const normalizedCategory = (() => {
       if (!aiEnriched.category) return null;
       const target = aiEnriched.category.trim().toLowerCase();
@@ -356,7 +356,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             }
           },
           () => setExtractionStage('IDLE'),
-          // Fix: Corrected error handler name from 'handleIdentifierSearch' to 'handleExtractionError'
           handleExtractionError
         );
       }, 1500);
@@ -383,7 +382,12 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
           });
           const result = await response.json();
           if (result.status === 'success' && result.extractedText) {
-            const ids = { doi: result.detectedDoi, isbn: result.detectedIsbn, pmid: result.detectedPmid, arxivId: result.detectedArxiv };
+            const ids = { 
+              doi: result.detectedDoi, 
+              isbn: result.detectedIsbn, 
+              pmid: result.detectedPmid, 
+              arxivId: result.detectedArxiv 
+            };
             await runExtractionWorkflow(result.extractedText, chunkifyText(result.extractedText), ids, {}, signal);
           }
         },
@@ -410,7 +414,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       }
       const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
       
-      // SHARDING IMPLEMENTATION: Explicitly assemble structured JSON fields
       const newItem: any = { 
         ...formData, 
         id: generatedId, 
@@ -418,7 +421,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         updatedAt: new Date().toISOString(), 
         source: formData.addMethod === 'LINK' ? SourceType.LINK : SourceType.FILE, 
         format: formData.addMethod === 'LINK' ? FileFormat.URL : detectedFormat,
-        // Assemble Sharded Metadata Objects
         pubInfo: {
           journal: formData.journalName || "",
           vol: formData.volume || "",
@@ -437,17 +439,15 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
           keywords: formData.keywords || [],
           labels: formData.labels || []
         },
-        // Sharding IDs: Insight is empty for now, extractedText will be wrapped in GAS
         insightJsonId: '',
-        mainInfo: formData.mainInfo // Plain text indexing
+        mainInfo: formData.mainInfo
       };
 
-      // Ensure the extractedText is sent so GAS can handle the file creation for extractedJsonId
       const finalPayload = { 
         action: 'saveItem', 
         item: newItem, 
         file: fileUploadData,
-        extractedText: formData.extractedText // Explicitly send for .json sharding in backend
+        extractedText: formData.extractedText 
       };
 
       const res = await fetch(GAS_WEB_APP_URL, {

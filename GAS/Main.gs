@@ -68,7 +68,7 @@ function doPost(e) {
       
       // DETERMINING STORAGE TARGET (Smart Switch Logic)
       const storageTarget = getViableStorageTarget();
-      item.storageNodeUrl = storageTarget.url; // Main app URL if local, otherwise Node URL
+      item.storageNodeUrl = storageTarget.url;
 
       // 1. Handle Sharding: Create extractedJsonId file
       if (extractedText) {
@@ -80,7 +80,6 @@ function doPost(e) {
           const file = folder.createFile(Utilities.newBlob(jsonContent, 'application/json', jsonFileName));
           item.extractedJsonId = file.getId();
         } else {
-          // Send to Node
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
@@ -107,7 +106,6 @@ function doPost(e) {
           const file = folder.createFile(Utilities.newBlob(insightContent, 'application/json', insightFileName));
           item.insightJsonId = file.getId();
         } else {
-          // Send to Node
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
@@ -156,12 +154,9 @@ function doPost(e) {
         }
       }
 
-      // 4. Handle YouTube ID Logic
       if (item.url && (item.url.includes('youtube.com') || item.url.includes('youtu.be'))) {
         const ytid = extractYoutubeId(item.url);
-        if (ytid) {
-          item.youtubeId = 'https://www.youtube.com/embed/' + ytid;
-        }
+        if (ytid) item.youtubeId = 'https://www.youtube.com/embed/' + ytid;
       }
       
       saveToSheet(CONFIG.SPREADSHEETS.LIBRARY, "Collections", item);
@@ -201,7 +196,6 @@ function doPost(e) {
       }
 
       const snippet = extractedText.substring(0, 7500);
-
       const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
       const isbnPattern = /(?:ISBN(?:-1[03])?:?\s*)?(?=[0-9X\s-]{10,17}$)(?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X]/i;
       const pmidPattern = /PMID:?\s*(\d{4,10})/i;
@@ -219,6 +213,7 @@ function doPost(e) {
         mimeType: detectedMime,
         detectedDoi: doiMatch ? doiMatch[0] : null,
         detectedIsbn: isbnMatch ? isbnMatch[0] : null,
+        detectedPmid: pmidMatch ? pmidMatch[1] : null,
         detectedArxiv: arxivMatch ? (arxivMatch[1] || arxivMatch[0]) : null,
         imageView: imageView
       });
@@ -241,13 +236,11 @@ function doPost(e) {
 
 /**
  * SMART STORAGE NODE SELECTOR
- * Implements the 5GB threshold and sequential node checking.
  */
 function getViableStorageTarget() {
   const THRESHOLD = CONFIG.STORAGE.THRESHOLD;
   const localRemaining = DriveApp.getStorageLimit() - DriveApp.getStorageUsed();
   
-  // 1. Check Local Primary Account
   if (localRemaining > THRESHOLD) {
     return { 
       isLocal: true, 
@@ -256,40 +249,31 @@ function getViableStorageTarget() {
     };
   }
   
-  // 2. Iterate through Registry Nodes
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
     const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-    if (!sheet) throw new Error("Registry missing");
-    
-    const values = sheet.getDataRange().getValues();
-    for (let i = 1; i < values.length; i++) {
-      const nodeUrl = values[i][1];
-      const folderId = values[i][2]; // Column C: Folder ID
-      
-      if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
-      
-      try {
-        const response = UrlFetchApp.fetch(nodeUrl, {
-          method: 'post',
-          contentType: 'application/json',
-          payload: JSON.stringify({ action: 'checkQuota' }),
-          muteHttpExceptions: true
-        });
-        const resJson = JSON.parse(response.getContentText());
-        
-        if (resJson.status === 'success' && resJson.remaining > THRESHOLD) {
-          return { isLocal: false, url: nodeUrl, folderId: folderId };
-        }
-      } catch (nodeErr) {
-        console.warn(`Node ${nodeUrl} unreachable or error: ${nodeErr.message}`);
+    if (sheet) {
+      const values = sheet.getDataRange().getValues();
+      for (let i = 1; i < values.length; i++) {
+        const nodeUrl = values[i][1];
+        const folderId = values[i][2];
+        if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
+        try {
+          const response = UrlFetchApp.fetch(nodeUrl, {
+            method: 'post',
+            contentType: 'application/json',
+            payload: JSON.stringify({ action: 'checkQuota' }),
+            muteHttpExceptions: true
+          });
+          const resJson = JSON.parse(response.getContentText());
+          if (resJson.status === 'success' && resJson.remaining > THRESHOLD) {
+            return { isLocal: false, url: nodeUrl, folderId: folderId };
+          }
+        } catch (nodeErr) {}
       }
     }
-  } catch (e) {
-    console.error("Critical Registry Failure: " + e.message);
-  }
+  } catch (e) {}
   
-  // 3. Absolute Fallback: Main Library (Better full than lost)
   return { 
     isLocal: true, 
     url: ScriptApp.getService().getUrl(), 
