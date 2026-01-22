@@ -23,6 +23,25 @@ function doGet(e) {
       return createJsonResponse({ status: 'success', data: getStorageNodesList() });
     }
 
+    if (action === 'checkQuota') {
+      let total = 15 * 1024 * 1024 * 1024; // Default 15GB
+      try {
+        const driveLimit = DriveApp.getStorageLimit();
+        if (driveLimit > 0) total = driveLimit;
+      } catch(e) {}
+      
+      const used = DriveApp.getStorageUsed();
+      const remaining = total - used;
+      
+      return createJsonResponse({ 
+        status: 'success', 
+        remaining: Number(remaining), 
+        used: used, 
+        total: total,
+        percent: ((used / total) * 100).toFixed(2)
+      });
+    }
+
     if (action === 'getAiConfig') return createJsonResponse({ status: 'success', data: getProviderModel('GEMINI') });
     return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
@@ -43,7 +62,7 @@ function doPost(e) {
   try {
     if (action === 'setupDatabase') return createJsonResponse(setupDatabase());
     
-    // ACTION: checkQuota
+    // BACKUP POST handler for checkQuota
     if (action === 'checkQuota') {
       const total = DriveApp.getStorageLimit();
       const used = DriveApp.getStorageUsed();
@@ -88,6 +107,7 @@ function doPost(e) {
       const item = body.item;
       const extractedText = body.extractedText || "";
       const storageTarget = getViableStorageTarget();
+      
       item.storageNodeUrl = storageTarget.url;
 
       if (extractedText) {
@@ -98,14 +118,17 @@ function doPost(e) {
           const file = folder.createFile(Utilities.newBlob(jsonContent, 'application/json', jsonFileName));
           item.extractedJsonId = file.getId();
         } else {
-          const res = UrlFetchApp.fetch(storageTarget.url, {
-            method: 'post',
-            contentType: 'application/json',
-            payload: JSON.stringify({ action: 'saveJsonFile', fileName: jsonFileName, content: jsonContent, folderId: storageTarget.folderId }),
-            muteHttpExceptions: true
-          });
-          const resJson = JSON.parse(res.getContentText());
-          if (resJson.status === 'success') item.extractedJsonId = resJson.fileId;
+          try {
+            const res = UrlFetchApp.fetch(storageTarget.url, {
+              method: 'post',
+              contentType: 'application/json',
+              payload: JSON.stringify({ action: 'saveJsonFile', fileName: jsonFileName, content: jsonContent, folderId: storageTarget.folderId }),
+              muteHttpExceptions: true,
+              followRedirects: true
+            });
+            const resJson = JSON.parse(res.getContentText());
+            if (resJson.status === 'success') item.extractedJsonId = resJson.fileId;
+          } catch(e) { console.error("Slave saveJsonFile error: " + e.message); }
         }
       }
 
@@ -117,14 +140,17 @@ function doPost(e) {
           const file = folder.createFile(Utilities.newBlob(insightContent, 'application/json', insightFileName));
           item.insightJsonId = file.getId();
         } else {
-          const res = UrlFetchApp.fetch(storageTarget.url, {
-            method: 'post',
-            contentType: 'application/json',
-            payload: JSON.stringify({ action: 'saveJsonFile', fileName: insightFileName, content: insightContent, folderId: storageTarget.folderId }),
-            muteHttpExceptions: true
-          });
-          const resJson = JSON.parse(res.getContentText());
-          if (resJson.status === 'success') item.insightJsonId = resJson.fileId;
+          try {
+            const res = UrlFetchApp.fetch(storageTarget.url, {
+              method: 'post',
+              contentType: 'application/json',
+              payload: JSON.stringify({ action: 'saveJsonFile', fileName: insightFileName, content: insightContent, folderId: storageTarget.folderId }),
+              muteHttpExceptions: true,
+              followRedirects: true
+            });
+            const resJson = JSON.parse(res.getContentText());
+            if (resJson.status === 'success') item.insightJsonId = resJson.fileId;
+          } catch(e) { console.error("Slave insightJsonId error: " + e.message); }
         }
       }
 
@@ -136,17 +162,20 @@ function doPost(e) {
           const file = folder.createFile(blob);
           item.fileId = file.getId();
         } else {
-          const res = UrlFetchApp.fetch(storageTarget.url, {
-            method: 'post',
-            contentType: 'application/json',
-            payload: JSON.stringify({ action: 'saveFileDirect', fileName: body.file.fileName, mimeType: mimeType, fileData: body.file.fileData, folderId: storageTarget.folderId }),
-            muteHttpExceptions: true
-          });
-          const resJson = JSON.parse(res.getContentText());
-          if (resJson.status === 'success') {
-            item.fileId = resJson.fileId;
-            if (mimeType.toLowerCase().includes('image/')) item.imageView = 'https://lh3.googleusercontent.com/d/' + resJson.fileId;
-          }
+          try {
+            const res = UrlFetchApp.fetch(storageTarget.url, {
+              method: 'post',
+              contentType: 'application/json',
+              payload: JSON.stringify({ action: 'saveFileDirect', fileName: body.file.fileName, mimeType: mimeType, fileData: body.file.fileData, folderId: storageTarget.folderId }),
+              muteHttpExceptions: true,
+              followRedirects: true
+            });
+            const resJson = JSON.parse(res.getContentText());
+            if (resJson.status === 'success') {
+              item.fileId = resJson.fileId;
+              if (mimeType.toLowerCase().includes('image/')) item.imageView = 'https://lh3.googleusercontent.com/d/' + resJson.fileId;
+            }
+          } catch(e) { console.error("Slave saveFileDirect error: " + e.message); }
         }
       }
 
@@ -249,7 +278,7 @@ function doPost(e) {
     }
 
     if (action === 'searchByIdentifier') return createJsonResponse(handleIdentifierSearch(body.idValue));
-    if (action === 'aiProxy') return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
+    if (action === 'aiProxy') return createJsonResponse(handleAiRequest(provider, prompt, modelOverride));
     return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
     return createJsonResponse({ status: 'error', message: err.toString() });
@@ -257,31 +286,54 @@ function doPost(e) {
 }
 
 function getViableStorageTarget() {
-  const THRESHOLD = CONFIG.STORAGE.THRESHOLD;
-  const localRemaining = DriveApp.getStorageLimit() - DriveApp.getStorageUsed();
-  if (localRemaining > THRESHOLD) return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
-    const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-    if (sheet) {
-      const values = sheet.getDataRange().getValues();
-      for (let i = 1; i < values.length; i++) {
-        const nodeUrl = values[i][1];
-        const folderId = values[i][2];
-        if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
-        try {
-          const response = UrlFetchApp.fetch(nodeUrl, { method: 'post', contentType: 'application/json', payload: JSON.stringify({ action: 'checkQuota' }), muteHttpExceptions: true });
-          const resJson = JSON.parse(response.getContentText());
-          if (resJson.status === 'success' && resJson.remaining > THRESHOLD) return { isLocal: false, url: nodeUrl, folderId: folderId };
-        } catch (nodeErr) {}
+  const THRESHOLD = Number(CONFIG.STORAGE.THRESHOLD);
+  
+  // Ambil sisa ruang Master dengan pertimbangan akun Workspace/Personal
+  let localLimit = DriveApp.getStorageLimit();
+  if (localLimit <= 0) localLimit = 15 * 1024 * 1024 * 1024; // Safety 15GB jika API limit fail
+  const localRemaining = localLimit - DriveApp.getStorageUsed();
+  
+  console.log("Master Space Left: " + (localRemaining / (1024*1024*1024)).toFixed(2) + " GB");
+
+  // Jika Master kritis (di bawah 5GB), cari Slave
+  if (localRemaining < THRESHOLD) {
+    try {
+      const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
+      const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
+      if (sheet) {
+        const values = sheet.getDataRange().getValues();
+        // Cek semua Slave di Registry
+        for (let i = 1; i < values.length; i++) {
+          const nodeUrl = (values[i][1] || "").toString().trim();
+          const folderId = (values[i][2] || "").toString().trim();
+          if (!nodeUrl.startsWith('http')) continue;
+          
+          try {
+            const separator = nodeUrl.includes('?') ? '&' : '?';
+            const response = UrlFetchApp.fetch(nodeUrl + separator + "action=checkQuota", { 
+              method: 'get', 
+              muteHttpExceptions: true,
+              followRedirects: true,
+              timeout: 10000 
+            });
+            
+            const resJson = JSON.parse(response.getContentText());
+            if (resJson.status === 'success' && Number(resJson.remaining) > THRESHOLD) {
+              console.log("Switching to Slave: " + values[i][0]);
+              return { isLocal: false, url: nodeUrl, folderId: folderId };
+            }
+          } catch (e) { console.log("Slave check failed: " + nodeUrl); }
+        }
       }
-    }
-  } catch (e) {}
+    } catch (e) { console.error("Registry access error: " + e.message); }
+  }
+  
+  // Default kembali ke Master
   return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
 }
 
 function getStorageNodesList() {
-  const localTotal = DriveApp.getStorageLimit();
+  const localTotal = DriveApp.getStorageLimit() > 0 ? DriveApp.getStorageLimit() : 15 * 1024 * 1024 * 1024;
   const localUsed = DriveApp.getStorageUsed();
   
   const nodes = [{
@@ -302,13 +354,20 @@ function getStorageNodesList() {
       const values = sheet.getDataRange().getValues();
       for (let i = 1; i < values.length; i++) {
         const label = values[i][0];
-        const nodeUrl = values[i][1];
-        const folderId = values[i][2];
+        const nodeUrl = (values[i][1] || "").toString().trim();
+        const folderId = (values[i][2] || "").toString().trim();
         if (!nodeUrl) continue;
         
         let nodeData = { label, url: nodeUrl, folderId, status: 'offline', total: 0, used: 0, remaining: 0, percent: 0 };
         try {
-          const response = UrlFetchApp.fetch(nodeUrl, { method: 'post', contentType: 'application/json', payload: JSON.stringify({ action: 'checkQuota' }), muteHttpExceptions: true, timeout: 5000 });
+          const separator = nodeUrl.includes('?') ? '&' : '?';
+          const response = UrlFetchApp.fetch(nodeUrl + separator + "action=checkQuota", { 
+            method: 'get', 
+            muteHttpExceptions: true,
+            followRedirects: true,
+            timeout: 8000 
+          });
+          
           const resJson = JSON.parse(response.getContentText());
           if (resJson.status === 'success') {
             nodeData = { ...nodeData, status: 'online', total: resJson.total, used: resJson.used, remaining: resJson.remaining, percent: resJson.percent };
