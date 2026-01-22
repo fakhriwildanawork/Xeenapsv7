@@ -18,8 +18,6 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Fix: Wrap loadData with useCallback to prevent child components (LibraryMain) 
-  // from re-triggering effects/skeletons when App re-renders (e.g. during sidebar toggle).
   const loadData = useCallback(async () => {
     setIsLoading(true);
     const data = await fetchLibrary();
@@ -31,10 +29,6 @@ const App: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Enhanced Fix: iOS Stability Handler
-  // Uses focus, blur, visibilitychange, and pageshow for maximum reliability on iOS/WebKit.
-  // This ensures the sidebar is forced to a closed state whenever the app loses focus (navigation start)
-  // or gains it back (navigation return), preventing "stuck" UI layers.
   useEffect(() => {
     const forceCloseSidebar = () => {
       setIsMobileSidebarOpen(false);
@@ -49,7 +43,7 @@ const App: React.FC = () => {
     window.addEventListener('visibilitychange', handleReentry);
     window.addEventListener('pageshow', handleReentry);
     window.addEventListener('focus', handleReentry);
-    window.addEventListener('blur', forceCloseSidebar); // Force state reset on exit
+    window.addEventListener('blur', forceCloseSidebar); 
     
     return () => {
       window.removeEventListener('visibilitychange', handleReentry);
@@ -81,22 +75,22 @@ const App: React.FC = () => {
             onRefresh={loadData}
           />
 
-          <div className="mt-4 lg:mt-6 flex-1 pb-10 overflow-hidden">
-            {isLoading ? (
-              <GlobalAppLoader />
-            ) : (
-              <Routes>
-                <Route path="/" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-                <Route path="/favorite" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-                <Route path="/bookmark" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-                <Route path="/research" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-                
-                <Route path="/add" element={<LibraryForm onComplete={loadData} items={items} />} />
-                <Route path="/settings" element={<SettingsView />} />
-                
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            )}
+          <div className="mt-4 lg:mt-6 flex-1 pb-10 overflow-hidden relative">
+            {/* 
+              Fix: Keep Routes mounted during sync to allow persistent DetailView,
+              but show GlobalLoader if we are on a list view (handled inside LibraryMain).
+            */}
+            <Routes>
+              <Route path="/" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
+              <Route path="/favorite" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
+              <Route path="/bookmark" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
+              <Route path="/research" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
+              
+              <Route path="/add" element={isLoading ? <GlobalAppLoader /> : <LibraryForm onComplete={loadData} items={items} />} />
+              <Route path="/settings" element={isLoading ? <GlobalAppLoader /> : <SettingsView />} />
+              
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
         </main>
 

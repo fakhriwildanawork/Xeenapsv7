@@ -24,28 +24,30 @@ import {
   BookOpenIcon,
   HashtagIcon,
   TagIcon,
-  BeakerIcon
+  BeakerIcon,
+  ClockIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { 
   BookmarkIcon as BookmarkSolid, 
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
+import { showXeenapsToast } from '../../utils/toastUtils';
 
 interface LibraryDetailViewProps {
   item: LibraryItem;
   onClose: () => void;
+  isLoading?: boolean;
 }
 
 /**
  * Helper to safely format dates from ISO or raw strings.
- * Returns null if data is invalid to trigger auto-collapse.
  */
 const formatDate = (dateStr: any) => {
   if (!dateStr || dateStr === 'N/A' || dateStr === 'Unknown') return null;
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) {
-      // If it's just a year string, return it
       if (/^\d{4}$/.test(String(dateStr).trim())) return dateStr;
       return null;
     }
@@ -53,7 +55,6 @@ const formatDate = (dateStr: any) => {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const month = months[d.getMonth()];
     const year = d.getFullYear();
-    // Logic for ISO strings that might not contain full date
     if (String(dateStr).includes('T00:00:00') || String(dateStr).length < 10) return year.toString();
     return `${day} ${month} ${year}`;
   } catch (e) {
@@ -62,7 +63,27 @@ const formatDate = (dateStr: any) => {
 };
 
 /**
- * Helper to parse dynamic JSON fields from the database
+ * Helper to format creation/update time in "DD Mmm YYYY hh:mm"
+ */
+const formatTimeMeta = (dateStr: string) => {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "-";
+    const day = d.getDate().toString().padStart(2, '0');
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${day} ${month} ${year} ${hours}:${minutes}`;
+  } catch {
+    return "-";
+  }
+};
+
+/**
+ * Helper to parse dynamic JSON fields
  */
 const parseJsonField = (field: any, defaultValue: any = {}) => {
   if (!field) return defaultValue;
@@ -78,10 +99,22 @@ const parseJsonField = (field: any, defaultValue: any = {}) => {
 /**
  * Enhanced List Component with Primary Circle and Yellow Text
  */
-const ElegantList: React.FC<{ text?: string; className?: string }> = ({ text, className = "" }) => {
+const ElegantList: React.FC<{ text?: string; className?: string; isLoading?: boolean }> = ({ text, className = "", isLoading }) => {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="flex gap-3 items-center">
+            <div className="w-6 h-6 rounded-full skeleton shrink-0" />
+            <div className="h-4 w-full skeleton rounded-lg" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (!text || text === 'N/A' || text.trim() === '') return null;
   
-  // Split by common list delimiters
   const items = text.split(/\n|(?=\d+\.)|(?=•)/)
     .map(i => i.replace(/^\d+\.\s*|•\s*/, '').trim())
     .filter(Boolean);
@@ -106,11 +139,10 @@ const ElegantList: React.FC<{ text?: string; className?: string }> = ({ text, cl
   );
 };
 
-const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) => {
+const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, isLoading }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
 
-  // Parse Metadata Objects with safety
   const pubInfo: PubInfo = useMemo(() => parseJsonField(item.pubInfo), [item.pubInfo]);
   const identifiers: Identifiers = useMemo(() => parseJsonField(item.identifiers), [item.identifiers]);
   const tags = useMemo(() => parseJsonField(item.tags, { keywords: [], labels: [] }), [item.tags]);
@@ -126,19 +158,19 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
   const handleCopy = (e: React.MouseEvent, text: string) => {
     e.stopPropagation();
     navigator.clipboard.writeText(text);
+    showXeenapsToast('success', 'Reference Copied!');
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-[72px] md:top-[100px] lg:left-16 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden shadow-2xl">
+    <div className="absolute inset-0 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden library-detail-overlay">
       
       {/* 1. BLOK TOMBOL (Navigation Bar) */}
-      <nav className="shrink-0 bg-white/95 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between">
+      <nav className="shrink-0 bg-white/95 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between z-50 sticky top-0">
         <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 px-3 py-2 rounded-xl transition-all">
           <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
         </button>
 
         <div className="flex items-center gap-2">
-          {/* Cite Button is now always visible left of the Eye Icon */}
           <button className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all">
             Cite
           </button>
@@ -166,76 +198,112 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
       </nav>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
-        <div className="max-w-6xl mx-auto px-5 md:px-10 py-6 space-y-6">
+        <div className="max-w-6xl mx-auto px-5 md:px-10 py-6 space-y-4">
           
           {/* 2. BLOK HEADER */}
-          <header className="bg-gray-50/50 p-6 md:p-10 rounded-[2.5rem] border border-gray-100 space-y-5">
-            <div className="flex flex-wrap gap-1.5">
-              <span className="px-3 py-1 bg-[#004A74] text-white text-[8px] font-black uppercase tracking-widest rounded-full">{item.type}</span>
-              {item.category && <span className="px-3 py-1 bg-[#004A74]/10 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.category}</span>}
-              <span className="px-3 py-1 bg-[#FED400] text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.topic}</span>
-              {item.subTopic && <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.subTopic}</span>}
-            </div>
-
-            <h1 className="text-2xl md:text-4xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{item.title}</h1>
-            
-            <div className="flex flex-col gap-1">
-              {displayDate && <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{displayDate}</p>}
-              <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
-            </div>
-
-            <div className="space-y-3 pt-5 border-t border-gray-100">
-              {item.publisher && (
-                <div className="flex items-start gap-2">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publisher</span>
-                  <p className="text-[11px] font-bold text-gray-600">{item.publisher}</p>
+          <header className="bg-gray-50/50 p-6 md:p-10 rounded-[2.5rem] border border-gray-100 space-y-4 relative overflow-hidden">
+            {isLoading ? (
+              <div className="space-y-4">
+                <div className="flex gap-2"><div className="h-6 w-20 skeleton rounded-full"/><div className="h-6 w-20 skeleton rounded-full"/></div>
+                <div className="h-10 w-full skeleton rounded-2xl"/>
+                <div className="h-4 w-1/2 skeleton rounded-lg"/>
+                <div className="pt-4 border-t border-gray-100 flex flex-col gap-2">
+                   <div className="h-3 w-1/4 skeleton rounded-md"/>
+                   <div className="h-3 w-1/3 skeleton rounded-md"/>
                 </div>
-              )}
-              
-              {(pubInfo.journal || pubInfo.vol || pubInfo.issue || pubInfo.pages) && (
-                <div className="flex items-start gap-2">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publication</span>
-                  <p className="text-[11px] font-bold text-[#004A74]">
-                    {[pubInfo.journal, pubInfo.vol ? `Vol. ${pubInfo.vol}` : '', pubInfo.issue ? `No. ${pubInfo.issue}` : '', pubInfo.pages ? `pp. ${pubInfo.pages}` : ''].filter(Boolean).join(' • ')}
-                  </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="px-3 py-1 bg-[#004A74] text-white text-[8px] font-black uppercase tracking-widest rounded-full">{item.type}</span>
+                  {item.category && <span className="px-3 py-1 bg-[#004A74]/10 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.category}</span>}
+                  <span className="px-3 py-1 bg-[#FED400] text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.topic}</span>
+                  {item.subTopic && <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.subTopic}</span>}
                 </div>
-              )}
 
-              {Object.values(identifiers).some(v => v) && (
-                <div className="flex items-start gap-2">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Identifiers</span>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                    {identifiers.doi && <p className="text-[9px] font-mono font-bold text-gray-400 italic">DOI: {identifiers.doi}</p>}
-                    {identifiers.issn && <p className="text-[9px] font-mono font-bold text-gray-400 italic">ISSN: {identifiers.issn}</p>}
-                    {identifiers.isbn && <p className="text-[9px] font-mono font-bold text-gray-400 italic">ISBN: {identifiers.isbn}</p>}
-                    {identifiers.pmid && <p className="text-[9px] font-mono font-bold text-gray-400 italic">PMID: {identifiers.pmid}</p>}
-                    {identifiers.arxiv && <p className="text-[9px] font-mono font-bold text-gray-400 italic">arXiv: {identifiers.arxiv}</p>}
-                  </div>
+                <h1 className="text-xl md:text-3xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{item.title}</h1>
+                
+                <div className="flex flex-col gap-1">
+                  {displayDate && <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{displayDate}</p>}
+                  <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
-              )}
-            </div>
+
+                {/* 
+                  Fix: CreatedAt and UpdatedAt metadata bottom-right 
+                */}
+                <div className="absolute bottom-4 right-8 flex flex-col items-end gap-0.5 opacity-60">
+                   <div className="flex items-center gap-1.5">
+                      <ClockIcon className="w-2.5 h-2.5" />
+                      <span className="text-[7px] font-black uppercase tracking-tighter">Created: {formatTimeMeta(item.createdAt)}</span>
+                   </div>
+                   <div className="flex items-center gap-1.5">
+                      <ArrowPathIcon className="w-2.5 h-2.5" />
+                      <span className="text-[7px] font-black uppercase tracking-tighter">Updated: {formatTimeMeta(item.updatedAt)}</span>
+                   </div>
+                </div>
+
+                <div className="space-y-2 pt-4 border-t border-gray-100">
+                  {item.publisher && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publisher</span>
+                      <p className="text-[11px] font-bold text-gray-600">{item.publisher}</p>
+                    </div>
+                  )}
+                  
+                  {(pubInfo.journal || pubInfo.vol || pubInfo.issue || pubInfo.pages) && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publication</span>
+                      <p className="text-[11px] font-bold text-[#004A74]">
+                        {[pubInfo.journal, pubInfo.vol ? `Vol. ${pubInfo.vol}` : '', pubInfo.issue ? `No. ${pubInfo.issue}` : '', pubInfo.pages ? `pp. ${pubInfo.pages}` : ''].filter(Boolean).join(' • ')}
+                      </p>
+                    </div>
+                  )}
+
+                  {Object.values(identifiers).some(v => v) && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Identifiers</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {identifiers.doi && <p className="text-[9px] font-mono font-bold text-gray-400 italic">DOI: {identifiers.doi}</p>}
+                        {identifiers.issn && <p className="text-[9px] font-mono font-bold text-gray-400 italic">ISSN: {identifiers.issn}</p>}
+                        {identifiers.isbn && <p className="text-[9px] font-mono font-bold text-gray-400 italic">ISBN: {identifiers.isbn}</p>}
+                        {identifiers.pmid && <p className="text-[9px] font-mono font-bold text-gray-400 italic">PMID: {identifiers.pmid}</p>}
+                        {identifiers.arxiv && <p className="text-[9px] font-mono font-bold text-gray-400 italic">arXiv: {identifiers.arxiv}</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </header>
 
           {/* 3. BLOK TAGS */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><HashtagIcon className="w-3 h-3" /> Keywords</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {tags.keywords?.length > 0 ? tags.keywords.map((k: string) => <span key={k} className="px-2.5 py-1 bg-[#004A74]/5 border border-[#004A74]/10 rounded-lg text-[9px] font-bold text-[#004A74]">{k}</span>) : <p className="text-[9px] text-gray-300 italic">No keywords.</p>}
-              </div>
+              {isLoading ? <div className="h-10 w-full skeleton rounded-xl" /> : (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.keywords?.length > 0 ? tags.keywords.map((k: string) => <span key={k} className="px-2.5 py-1 bg-[#004A74]/5 border border-[#004A74]/10 rounded-lg text-[9px] font-bold text-[#004A74]">{k}</span>) : <p className="text-[9px] text-gray-300 italic">No keywords.</p>}
+                </div>
+              )}
             </div>
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><TagIcon className="w-3 h-3" /> Labels</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {tags.labels?.length > 0 ? tags.labels.map((l: string) => <span key={l} className="px-2.5 py-1 bg-[#FED400]/10 border border-[#FED400]/20 rounded-lg text-[9px] font-bold text-[#004A74]">{l}</span>) : <p className="text-[9px] text-gray-300 italic">No labels.</p>}
-              </div>
+              {isLoading ? <div className="h-10 w-full skeleton rounded-xl" /> : (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.labels?.length > 0 ? tags.labels.map((l: string) => <span key={l} className="px-2.5 py-1 bg-[#FED400]/10 border border-[#FED400]/20 rounded-lg text-[9px] font-bold text-[#004A74]">{l}</span>) : <p className="text-[9px] text-gray-300 italic">No labels.</p>}
+                </div>
+              )}
             </div>
           </section>
 
           {/* 4. BLOK ABSTRACT */}
           <section className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
             <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookOpenIcon className="w-3.5 h-3.5" /> Abstract</h3>
-            <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: item.abstract || 'No abstract content found.' }} />
+            {isLoading ? (
+               <div className="space-y-2"><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-3/4 skeleton rounded-md"/></div>
+            ) : (
+              <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: item.abstract || 'No abstract content found.' }} />
+            )}
           </section>
 
           {/* 5. BLOK INSIGHT */}
@@ -254,79 +322,85 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {item.category === 'Original Research' && (
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                   <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><BeakerIcon className="w-3.5 h-3.5" /> Research Methodology</h3>
-                  <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: item.summary || 'Methodology pending analysis.' }} />
+                  {isLoading ? <div className="h-12 w-full skeleton rounded-xl" /> : (
+                    <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: item.summary || 'Methodology pending analysis.' }} />
+                  )}
                 </div>
               )}
               
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardDocumentListIcon className="w-3.5 h-3.5" /> Summary</h3>
-                <div className="text-sm leading-relaxed text-[#004A74] font-medium" dangerouslySetInnerHTML={{ __html: item.summary || 'Summary pending analysis.' }} />
+                {isLoading ? <div className="h-24 w-full skeleton rounded-xl" /> : (
+                  <div className="text-sm leading-relaxed text-[#004A74] font-medium" dangerouslySetInnerHTML={{ __html: item.summary || 'Summary pending analysis.' }} />
+                )}
               </div>
 
               <div className="bg-green-50/20 p-6 rounded-[2rem] border border-green-100/50 shadow-sm space-y-3">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2">
                   <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths
                 </h3>
-                <ElegantList text={item.strength} />
+                <ElegantList text={item.strength} isLoading={isLoading} />
               </div>
 
               <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
                   <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses
                 </h3>
-                <ElegantList text={item.weakness} />
+                <ElegantList text={item.weakness} isLoading={isLoading} />
               </div>
 
               <div className="bg-[#004A74]/5 p-6 rounded-[2rem] border border-[#004A74]/10 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
                   <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
                 </h3>
-                <ElegantList text={item.quickTipsForYou} />
+                <ElegantList text={item.quickTipsForYou} isLoading={isLoading} />
               </div>
             </div>
           </section>
 
           {/* 6. BLOK SUPPORTING REFERENCE */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-50">
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
             <div className="space-y-4">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
                 <LinkIcon className="w-3.5 h-3.5" /> Supporting References
               </h3>
               <div className="space-y-3">
-                {supportingData.references?.length > 0 ? supportingData.references.map((ref: string, idx: number) => {
-                  const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
-                  const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
-                  return (
-                    <div key={idx} className="bg-gray-50/50 p-4 rounded-3xl border border-gray-100 flex flex-col gap-3">
-                      <div className="flex gap-3">
-                        <span className="shrink-0 w-6 h-6 rounded-full bg-[#004A74] text-[#FED400] text-[10px] font-black flex items-center justify-center shadow-sm">
-                          {idx + 1}
-                        </span>
-                        <p className="text-xs font-semibold text-[#004A74]/80 leading-relaxed flex-1" dangerouslySetInnerHTML={{ __html: ref }} />
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={(e) => handleCopy(e, ref.replace(/<[^>]*>/g, ''))}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-[#004A74] rounded-lg border border-gray-100 text-[9px] font-black uppercase tracking-tight shadow-sm hover:bg-[#FED400] transition-all"
-                        >
-                          <DocumentDuplicateIcon className="w-3 h-3" /> Copy
-                        </button>
-                        {url && (
+                {isLoading ? [...Array(2)].map((_, i) => <div key={i} className="h-20 w-full skeleton rounded-3xl" />) : (
+                  supportingData.references?.length > 0 ? supportingData.references.map((ref: string, idx: number) => {
+                    const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
+                    const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
+                    return (
+                      <div key={idx} className="bg-gray-50/50 p-4 rounded-3xl border border-gray-100 flex flex-col gap-3 transition-all hover:scale-[1.02] hover:shadow-md hover:bg-white group">
+                        <div className="flex gap-3">
+                          <span className="shrink-0 w-6 h-6 rounded-full bg-[#004A74] text-[#FED400] text-[10px] font-black flex items-center justify-center shadow-sm">
+                            {idx + 1}
+                          </span>
+                          <p className="text-xs font-semibold text-[#004A74]/80 leading-relaxed flex-1" dangerouslySetInnerHTML={{ __html: ref }} />
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
                           <button 
-                            onClick={() => handleOpenLink(url)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#004A74] text-white rounded-lg text-[9px] font-black uppercase tracking-tight shadow-sm hover:scale-105 transition-all"
+                            onClick={(e) => handleCopy(e, ref.replace(/<[^>]*>/g, ''))}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-[#004A74] rounded-lg border border-gray-100 text-[9px] font-black uppercase tracking-tight shadow-sm hover:bg-[#FED400] transition-all"
                           >
-                            <ArrowTopRightOnSquareIcon className="w-3 h-3" /> Visit
+                            <DocumentDuplicateIcon className="w-3 h-3" /> Copy
                           </button>
-                        )}
+                          {url && (
+                            <button 
+                              onClick={() => handleOpenLink(url)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#004A74] text-white rounded-lg text-[9px] font-black uppercase tracking-tight shadow-sm hover:bg-[#003859] hover:scale-105 transition-all"
+                            >
+                              <ArrowTopRightOnSquareIcon className="w-3 h-3" /> Visit
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                }) : <div className="py-6 text-center text-gray-300 text-[10px] font-bold uppercase italic">No supporting links.</div>}
+                    );
+                  }) : <div className="py-6 text-center text-gray-300 text-[10px] font-bold uppercase italic">No supporting links.</div>
+                )}
               </div>
             </div>
 
@@ -335,15 +409,17 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
                 <VideoCameraIcon className="w-3.5 h-3.5" /> Visual Insights
               </h3>
               <div className="flex-1 flex flex-col justify-center">
-                {supportingData.videoUrl ? (
-                  <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl border-4 border-white/10">
-                    <iframe className="w-full h-full" src={supportingData.videoUrl} frameBorder="0" allowFullScreen></iframe>
-                  </div>
-                ) : (
-                  <div className="aspect-video rounded-2xl bg-white/5 flex flex-col items-center justify-center border-2 border-dashed border-white/10">
-                    <VideoCameraIcon className="w-10 h-10 text-white/10 mb-2" />
-                    <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Video stream unavailable</p>
-                  </div>
+                {isLoading ? <div className="aspect-video w-full skeleton rounded-2xl" /> : (
+                  supportingData.videoUrl ? (
+                    <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl border-4 border-white/10 group transition-all hover:scale-[1.01]">
+                      <iframe className="w-full h-full" src={supportingData.videoUrl} frameBorder="0" allowFullScreen></iframe>
+                    </div>
+                  ) : (
+                    <div className="aspect-video rounded-2xl bg-white/5 flex flex-col items-center justify-center border-2 border-dashed border-white/10">
+                      <VideoCameraIcon className="w-10 h-10 text-white/10 mb-2" />
+                      <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Video stream unavailable</p>
+                    </div>
+                  )
                 )}
                 <p className="mt-4 text-[10px] text-[#FED400]/80 font-bold italic text-center px-4 leading-relaxed">
                   "Conceptual visualization facilitates faster knowledge anchoring."
@@ -375,6 +451,13 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose }) 
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #004A7430; border-radius: 10px; }
+        
+        /* Fix: Apply blur when mobile backdrop is active */
+        body:has(.z-[70]) .library-detail-overlay {
+           filter: blur(8px);
+           pointer-events: none;
+           opacity: 0.8;
+        }
       `}</style>
     </div>
   );
