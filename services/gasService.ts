@@ -36,9 +36,31 @@ export const fetchLibrary = async (): Promise<LibraryItem[]> => {
   }
 };
 
-/**
- * Server-side Paginated Fetch with AbortSignal and Sorting Support
- */
+export const fetchStorageNodes = async (): Promise<any[]> => {
+  try {
+    if (!GAS_WEB_APP_URL) return [];
+    const response = await fetch(`${GAS_WEB_APP_URL}?action=getStorageNodes`);
+    const result = await response.json();
+    return result.data || [];
+  } catch (error) {
+    console.error("Fetch storage nodes error:", error);
+    return [];
+  }
+};
+
+export const addStorageNode = async (nodeUrl: string, folderId: string, label: string): Promise<boolean> => {
+  try {
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'addStorageNode', nodeUrl, folderId, label }),
+    });
+    const result = await res.json();
+    return result.status === 'success';
+  } catch (error) {
+    return false;
+  }
+};
+
 export const fetchLibraryPaginated = async (
   page: number = 1, 
   limit: number = 25, 
@@ -127,7 +149,6 @@ export const extractFromUrl = async (url: string, onStageChange?: (stage: 'READI
 export const callIdentifierSearch = async (idValue: string, signal?: AbortSignal): Promise<Partial<LibraryItem> | null> => {
   if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL missing.');
   
-  // Use provided signal or create a local one with 15s timeout as fallback
   const internalSignal = signal || AbortSignal.timeout(15000);
 
   try {
