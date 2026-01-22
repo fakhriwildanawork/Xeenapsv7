@@ -156,7 +156,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     arxivId: '',
     bibcode: '',
     abstract: '',
-    mainInfo: '', // Search indexer terms
+    mainInfo: '', 
     keywords: [] as string[],
     labels: [] as string[],
     url: '',
@@ -165,7 +165,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     inTextHarvard: '',
     bibHarvard: '',
     chunks: [] as string[],
-    extractedText: '' // Full text for JSON storage
+    extractedText: '' 
   });
 
   const existingValues = useMemo(() => ({
@@ -209,16 +209,19 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     delete (baseData as any).chunks;
     delete (baseData as any).extractedText;
 
-    if (!initialMetadata.title && (identifiers.doi || identifiers.isbn || identifiers.pmid || identifiers.arxivId)) {
-      const mainId = identifiers.doi || identifiers.isbn || identifiers.pmid || identifiers.arxivId;
+    // STEP 1: Search Official Metadata if identifier found
+    const targetId = identifiers.doi || identifiers.isbn || identifiers.pmid || identifiers.arxivId;
+    if (!initialMetadata.title && targetId) {
       setExtractionStage('FETCHING_ID');
       try {
-        const officialData = await callIdentifierSearch(mainId!, signal);
+        const officialData = await callIdentifierSearch(targetId, signal);
         if (officialData) {
           baseData = { ...baseData, ...officialData };
           setFormData(prev => ({ ...prev, ...officialData }));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Identifier lookup failed, falling back to AI:", e);
+      }
     }
 
     if (identifiers.imageView) {
@@ -226,6 +229,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       baseData.imageView = identifiers.imageView;
     }
 
+    // STEP 2: Enrich with AI Librarian
     setExtractionStage('AI_ANALYSIS');
     const aiEnriched = await extractMetadataWithAI(extractedText, baseData, signal);
     
@@ -235,7 +239,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       aiEnriched.publisher = "Youtube";
     }
 
-    // Normalize category matching
     const normalizedCategory = (() => {
       if (!aiEnriched.category) return null;
       const target = aiEnriched.category.trim().toLowerCase();
@@ -255,6 +258,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       chunks: chunks,
       extractedText: extractedText
     }));
+    setExtractionStage('IDLE');
   };
 
   const isSocialMediaBlocked = (url: string) => {
@@ -265,17 +269,9 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const handleExtractionError = (err: any) => {
     setExtractionStage('IDLE');
     if (err.message === 'TIMEOUT') {
-      showXeenapsAlert({ 
-        icon: 'error', 
-        title: 'PROCESS FAILED', 
-        text: 'The request took too long (max 30s). Please check your link or try again.' 
-      });
+      showXeenapsAlert({ icon: 'error', title: 'PROCESS FAILED', text: 'The request took too long (max 30s).' });
     } else {
-      showXeenapsAlert({ 
-        icon: 'warning', 
-        title: 'EXTRACTION FAILED', 
-        text: 'This operation could not be completed automatically.' 
-      });
+      showXeenapsAlert({ icon: 'warning', title: 'EXTRACTION FAILED', text: 'Could not process automatically.' });
     }
   };
 
@@ -285,7 +281,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     if (!url || !url.startsWith('http') || url === lastExtractedUrl.current || formData.addMethod !== 'LINK') return;
 
     if (isSocialMediaBlocked(url) && !url.includes('youtube.com') && !url.includes('youtu.be')) {
-      showXeenapsAlert({ icon: 'error', title: 'LINK NON SUPPORTED', text: 'Social media links (except YouTube) are not allowed.' });
+      showXeenapsAlert({ icon: 'error', title: 'LINK NON SUPPORTED', text: 'Social media links are not allowed.' });
       setFormData(prev => ({ ...prev, url: '' }));
       return;
     }
@@ -295,20 +291,10 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       workflow.execute(
         async (signal) => {
           setExtractionStage('READING');
-          const res = await fetch(GAS_WEB_APP_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'extractOnly', url }),
-            signal
-          });
+          const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url }), signal });
           const data = await res.json();
           if (data.status === 'success' && data.extractedText) {
-            const ids = { 
-              doi: data.detectedDoi, 
-              isbn: data.detectedIsbn, 
-              pmid: data.detectedPmid, 
-              arxivId: data.detectedArxiv,
-              imageView: data.imageView 
-            };
+            const ids = { doi: data.detectedDoi, isbn: data.detectedIsbn, pmid: data.detectedPmid, arxivId: data.detectedArxiv, imageView: data.imageView };
             await runExtractionWorkflow(data.extractedText, chunkifyText(data.extractedText), ids, {}, signal);
           }
         },
@@ -316,7 +302,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
         handleExtractionError
       );
     }, 1000);
-    
     return () => clearTimeout(tid);
   }, [formData.url, formData.addMethod, workflow.execute]);
 
@@ -335,23 +320,15 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
               const targetUrl = data.url || (data.doi ? `https://doi.org/${data.doi}` : null);
               if (targetUrl && targetUrl.startsWith('http')) {
                 setExtractionStage('READING');
-                const scrapeRes = await fetch(GAS_WEB_APP_URL, {
-                  method: 'POST',
-                  body: JSON.stringify({ action: 'extractOnly', url: targetUrl }),
-                  signal
-                });
+                const scrapeRes = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', url: targetUrl }), signal });
                 const scrapeData = await scrapeRes.json();
                 if (scrapeData.status === 'success' && scrapeData.extractedText) {
                   await runExtractionWorkflow(scrapeData.extractedText, chunkifyText(scrapeData.extractedText), {}, data, signal);
                 } else {
-                  setExtractionStage('AI_ANALYSIS');
-                  const aiEnriched = await extractMetadataWithAI("", data, signal);
-                  setFormData(prev => ({ ...prev, ...aiEnriched }));
+                  await runExtractionWorkflow("", [], {}, data, signal);
                 }
               } else {
-                setExtractionStage('AI_ANALYSIS');
-                const aiEnriched = await extractMetadataWithAI("", data, signal);
-                setFormData(prev => ({ ...prev, ...aiEnriched }));
+                await runExtractionWorkflow("", [], {}, data, signal);
               }
             }
           },
@@ -375,19 +352,10 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             reader.onload = () => resolve((reader.result as string).split(',')[1]);
             reader.readAsDataURL(selectedFile);
           });
-          const response = await fetch(GAS_WEB_APP_URL, { 
-            method: 'POST', 
-            body: JSON.stringify({ action: 'extractOnly', fileData: base64Data, fileName: selectedFile.name, mimeType: selectedFile.type }),
-            signal
-          });
+          const response = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'extractOnly', fileData: base64Data, fileName: selectedFile.name, mimeType: selectedFile.type }), signal });
           const result = await response.json();
           if (result.status === 'success' && result.extractedText) {
-            const ids = { 
-              doi: result.detectedDoi, 
-              isbn: result.detectedIsbn, 
-              pmid: result.detectedPmid, 
-              arxivId: result.detectedArxiv 
-            };
+            const ids = { doi: result.detectedDoi, isbn: result.detectedIsbn, pmid: result.detectedPmid, arxivId: result.detectedArxiv };
             await runExtractionWorkflow(result.extractedText, chunkifyText(result.extractedText), ids, {}, signal);
           }
         },
@@ -400,65 +368,24 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    Swal.fire({ title: 'Registering Item...', text: 'Larger files may take a moment longer to process.', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
+    Swal.fire({ title: 'Registering Item...', text: 'Please wait...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), ...XEENAPS_SWAL_CONFIG });
     try {
       let detectedFormat = FileFormat.PDF;
       let fileUploadData = undefined;
       if (file) {
         const ext = file.name.split('.').pop()?.toLowerCase();
-        const formatMap: any = { 'pptx': FileFormat.PPTX, 'docx': FileFormat.DOCX, 'xlsx': FileFormat.XLSX, 'png': FileFormat.URL, 'jpg': FileFormat.URL, 'jpeg': FileFormat.URL };
+        const formatMap: any = { 'pptx': FileFormat.PPTX, 'docx': FileFormat.DOCX, 'xlsx': FileFormat.XLSX };
         detectedFormat = formatMap[ext || ''] || FileFormat.PDF;
         const reader = new FileReader();
         const b64 = await new Promise<string>(r => { reader.onload = () => r((reader.result as string).split(',')[1]); reader.readAsDataURL(file); });
         fileUploadData = { fileName: file.name, mimeType: file.type, fileData: b64 };
       }
-      const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-      
-      const newItem: any = { 
-        ...formData, 
-        id: generatedId, 
-        createdAt: new Date().toISOString(), 
-        updatedAt: new Date().toISOString(), 
-        source: formData.addMethod === 'LINK' ? SourceType.LINK : SourceType.FILE, 
-        format: formData.addMethod === 'LINK' ? FileFormat.URL : detectedFormat,
-        pubInfo: {
-          journal: formData.journalName || "",
-          vol: formData.volume || "",
-          issue: formData.issue || "",
-          pages: formData.pages || ""
-        },
-        identifiers: {
-          doi: formData.doi || "",
-          issn: formData.issn || "",
-          isbn: formData.isbn || "",
-          pmid: formData.pmid || "",
-          arxiv: formData.arxivId || "",
-          bibcode: formData.bibcode || ""
-        },
-        tags: {
-          keywords: formData.keywords || [],
-          labels: formData.labels || []
-        },
-        insightJsonId: '',
-        mainInfo: formData.mainInfo
-      };
-
-      const finalPayload = { 
-        action: 'saveItem', 
-        item: newItem, 
-        file: fileUploadData,
-        extractedText: formData.extractedText 
-      };
-
-      const res = await fetch(GAS_WEB_APP_URL, {
-        method: 'POST',
-        body: JSON.stringify(finalPayload),
-      });
+      const generatedId = crypto.randomUUID();
+      const newItem: any = { ...formData, id: generatedId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), source: formData.addMethod === 'LINK' ? SourceType.LINK : SourceType.FILE, format: formData.addMethod === 'LINK' ? FileFormat.URL : detectedFormat, pubInfo: { journal: formData.journalName || "", vol: formData.volume || "", issue: formData.issue || "", pages: formData.pages || "" }, identifiers: { doi: formData.doi || "", issn: formData.issn || "", isbn: formData.isbn || "", pmid: formData.pmid || "", arxiv: formData.arxivId || "", bibcode: formData.bibcode || "" }, tags: { keywords: formData.keywords || [], labels: formData.labels || [] }, insightJsonId: '', mainInfo: formData.mainInfo };
+      const res = await fetch(GAS_WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'saveItem', item: newItem, file: fileUploadData, extractedText: formData.extractedText }) });
       const result = await res.json();
-      const success = result.status === 'success';
-
       Swal.close();
-      if (success) { onComplete(); navigate('/'); }
+      if (result.status === 'success') { onComplete(); navigate('/'); }
     } catch (err) {
       Swal.close();
       showXeenapsAlert({ icon: 'error', title: 'Save Failed', text: 'Could not register item.' });
@@ -523,7 +450,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center">
                     {isExtracting ? <ArrowPathIcon className="w-5 h-5 text-[#004A74] animate-spin" /> : <FingerPrintIcon className="w-5 h-5 text-gray-300 group-focus-within:text-[#004A74]" />}
                   </div>
-                  <input className={`w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl focus:ring-2 border ${!formData.doi ? 'border-red-300' : 'border-gray-200'} text-sm font-mono font-bold transition-all`} placeholder="Enter DOI, ISBN, PMID, Arxiv, or Title..." value={formData.doi} onChange={(e) => setFormData({...formData, doi: e.target.value})} disabled={isFormDisabled} />
+                  <input className={`w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl focus:ring-2 border ${!formData.doi ? 'border-red-300' : 'border-gray-200'} text-sm font-mono font-bold transition-all`} placeholder="Enter DOI, ISBN, PMID..." value={formData.doi} onChange={(e) => setFormData({...formData, doi: e.target.value})} disabled={isFormDisabled} />
                 </div>
               </FormField>
             ) : (
@@ -537,7 +464,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
                   ) : (
                     <>
                       <CloudArrowUpIcon className="w-8 h-8 text-gray-300 group-hover:text-[#004A74] mb-2" />
-                      <p className="text-sm text-gray-500 text-center px-6">{file ? <span className="font-bold text-[#004A74]">{file.name}</span> : "Drop your files here (Max 25Mb)"}</p>
+                      <p className="text-sm text-gray-500 text-center px-6">{file ? <span className="font-bold text-[#004A74]">{file.name}</span> : "Drop your files here"}</p>
                     </>
                   )}
                   <input type="file" className="hidden" onChange={handleFileChange} disabled={isFormDisabled} />
@@ -569,6 +496,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
           <FormField label="Title"><input className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 text-sm font-bold text-[#004A74]" placeholder="Enter title..." value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} disabled={isFormDisabled} /></FormField>
           <FormField label="Author(s)"><FormDropdown isMulti multiValues={formData.authors} onAddMulti={(v) => setFormData({...formData, authors: [...formData.authors, v]})} onRemoveMulti={(v) => setFormData({...formData, authors: formData.authors.filter(a => a !== v)})} options={existingValues.allAuthors} placeholder="Identify authors..." value="" onChange={() => {}} disabled={isFormDisabled} /></FormField>
 
+
           <div className="space-y-6 bg-gray-50/30 p-6 rounded-[2rem] border border-gray-100">
             <FormField label="Publisher"><FormDropdown value={formData.publisher} onChange={(v) => setFormData({...formData, publisher: v})} options={existingValues.publishers} placeholder="Publisher name..." disabled={isFormDisabled} /></FormField>
             <FormField label="Journal"><FormDropdown value={formData.journalName} onChange={(v) => setFormData({...formData, journalName: v})} options={existingValues.journalNames} placeholder="Journal name..." disabled={isFormDisabled} /></FormField>
@@ -589,22 +517,18 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             <FormField label="PMID"><input className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 text-sm font-mono" placeholder="PMID" value={formData.pmid} onChange={(e) => setFormData({...formData, pmid: e.target.value})} disabled={isFormDisabled} /></FormField>
             <FormField label="arXiv ID"><input className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 text-sm font-mono" placeholder="arXiv ID" value={formData.arxivId} onChange={(e) => setFormData({...formData, arxivId: e.target.value})} disabled={isFormDisabled} /></FormField>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField label="ISSN"><input className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 text-sm font-mono" placeholder="XXXX-XXXX" value={formData.issn} onChange={(e) => setFormData({...formData, issn: e.target.value})} disabled={isFormDisabled} /></FormField>
-            <FormField label="ISBN"><input className="w-full px-5 py-4 bg-gray-50 rounded-2xl border border-gray-200 text-sm font-mono" placeholder="978-x-xxx" value={formData.isbn} onChange={(e) => setFormData({...formData, isbn: e.target.value})} disabled={isFormDisabled} /></FormField>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField label="Keywords"><FormDropdown isMulti multiValues={formData.keywords} onAddMulti={(v) => setFormData({...formData, keywords: [...formData.keywords, v]})} onRemoveMulti={(v) => setFormData({...formData, keywords: formData.keywords.filter(a => a !== v)})} options={existingValues.allKeywords} placeholder="Keywords..." value="" onChange={() => {}} disabled={isFormDisabled} /></FormField>
-            <FormField label="Labels"><FormDropdown isMulti multiValues={formData.labels} onAddMulti={(v) => setFormData({...formData, labels: [...formData.labels, v]})} onRemoveMulti={(v) => setFormData({...formData, labels: formData.labels.filter(a => a !== v)})} options={existingValues.allLabels} placeholder="Thematic labels..." value="" onChange={() => {}} disabled={isFormDisabled} /></FormField>
+            <FormField label="Keyword(s)">
+              <FormDropdown isMulti multiValues={formData.keywords} onAddMulti={(v) => setFormData({...formData, keywords: [...formData.keywords, v]})} onRemoveMulti={(v) => setFormData({...formData, keywords: formData.keywords.filter(k => k !== v)})} options={existingValues.allKeywords} placeholder="Select or type..." value="" onChange={() => {}} disabled={isFormDisabled} />
+            </FormField>
+            <FormField label="Label(s)">
+              <FormDropdown isMulti multiValues={formData.labels} onAddMulti={(v) => setFormData({...formData, labels: [...formData.labels, v]})} onRemoveMulti={(v) => setFormData({...formData, labels: formData.labels.filter(l => l !== v)})} options={existingValues.allLabels} placeholder="Thematic labels..." value="" onChange={() => {}} disabled={isFormDisabled} />
+            </FormField>
           </div>
 
           <FormField label="Abstract">
-            <AbstractEditor 
-              value={formData.abstract} 
-              onChange={(val) => setFormData({...formData, abstract: val})} 
-              disabled={isFormDisabled} 
-            />
+            <AbstractEditor value={formData.abstract} onChange={(val) => setFormData({...formData, abstract: val})} disabled={isFormDisabled} />
           </FormField>
 
           <div className="pt-10 flex flex-col md:flex-row gap-4">

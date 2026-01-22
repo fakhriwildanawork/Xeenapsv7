@@ -38,13 +38,13 @@ function doPost(e) {
   try {
     if (action === 'setupDatabase') return createJsonResponse(setupDatabase());
     
-    // ACTION: checkQuota - Used by other nodes to verify storage availability
+    // ACTION: checkQuota
     if (action === 'checkQuota') {
       const remaining = DriveApp.getStorageLimit() - DriveApp.getStorageUsed();
       return createJsonResponse({ status: 'success', remaining: remaining });
     }
 
-    // ACTION: saveJsonFile - Helper to create sharded JSON files
+    // ACTION: saveJsonFile
     if (action === 'saveJsonFile') {
       const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
       const folder = DriveApp.getFolderById(folderId);
@@ -53,7 +53,7 @@ function doPost(e) {
       return createJsonResponse({ status: 'success', fileId: file.getId() });
     }
 
-    // ACTION: saveFileDirect - Existing file upload handler
+    // ACTION: saveFileDirect
     if (action === 'saveFileDirect') {
       const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
       const folder = DriveApp.getFolderById(folderId);
@@ -65,16 +65,12 @@ function doPost(e) {
     if (action === 'saveItem') {
       const item = body.item;
       const extractedText = body.extractedText || "";
-      
-      // DETERMINING STORAGE TARGET (Smart Switch Logic)
       const storageTarget = getViableStorageTarget();
       item.storageNodeUrl = storageTarget.url;
 
-      // 1. Handle Sharding: Create extractedJsonId file
       if (extractedText) {
         const jsonFileName = `extracted_${item.id}.json`;
         const jsonContent = JSON.stringify({ id: item.id, fullText: extractedText });
-        
         if (storageTarget.isLocal) {
           const folder = DriveApp.getFolderById(storageTarget.folderId);
           const file = folder.createFile(Utilities.newBlob(jsonContent, 'application/json', jsonFileName));
@@ -83,12 +79,7 @@ function doPost(e) {
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
-            payload: JSON.stringify({
-              action: 'saveJsonFile',
-              fileName: jsonFileName,
-              content: jsonContent,
-              folderId: storageTarget.folderId
-            }),
+            payload: JSON.stringify({ action: 'saveJsonFile', fileName: jsonFileName, content: jsonContent, folderId: storageTarget.folderId }),
             muteHttpExceptions: true
           });
           const resJson = JSON.parse(res.getContentText());
@@ -96,11 +87,9 @@ function doPost(e) {
         }
       }
 
-      // 2. MANDATORY LOCK-IN: Create insightJsonId placeholder ({})
       if (!item.insightJsonId) {
         const insightFileName = `insight_${item.id}.json`;
         const insightContent = JSON.stringify({});
-        
         if (storageTarget.isLocal) {
           const folder = DriveApp.getFolderById(storageTarget.folderId);
           const file = folder.createFile(Utilities.newBlob(insightContent, 'application/json', insightFileName));
@@ -109,12 +98,7 @@ function doPost(e) {
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
-            payload: JSON.stringify({
-              action: 'saveJsonFile',
-              fileName: insightFileName,
-              content: insightContent,
-              folderId: storageTarget.folderId
-            }),
+            payload: JSON.stringify({ action: 'saveJsonFile', fileName: insightFileName, content: insightContent, folderId: storageTarget.folderId }),
             muteHttpExceptions: true
           });
           const resJson = JSON.parse(res.getContentText());
@@ -122,10 +106,8 @@ function doPost(e) {
         }
       }
 
-      // 3. Handle Physical File Upload
       if (body.file && body.file.fileData) {
         const mimeType = body.file.mimeType || 'application/octet-stream';
-        
         if (storageTarget.isLocal) {
           const folder = DriveApp.getFolderById(storageTarget.folderId);
           const blob = Utilities.newBlob(Utilities.base64Decode(body.file.fileData), mimeType, body.file.fileName);
@@ -135,21 +117,13 @@ function doPost(e) {
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
-            payload: JSON.stringify({
-              action: 'saveFileDirect',
-              fileName: body.file.fileName,
-              mimeType: mimeType,
-              fileData: body.file.fileData,
-              folderId: storageTarget.folderId
-            }),
+            payload: JSON.stringify({ action: 'saveFileDirect', fileName: body.file.fileName, mimeType: mimeType, fileData: body.file.fileData, folderId: storageTarget.folderId }),
             muteHttpExceptions: true
           });
           const resJson = JSON.parse(res.getContentText());
           if (resJson.status === 'success') {
             item.fileId = resJson.fileId;
-            if (mimeType.toLowerCase().includes('image/')) {
-              item.imageView = 'https://lh3.googleusercontent.com/d/' + resJson.fileId;
-            }
+            if (mimeType.toLowerCase().includes('image/')) item.imageView = 'https://lh3.googleusercontent.com/d/' + resJson.fileId;
           }
         }
       }
@@ -181,9 +155,7 @@ function doPost(e) {
             try {
               const fileMeta = Drive.Files.get(driveId);
               detectedMime = fileMeta.mimeType;
-              if (detectedMime && detectedMime.toLowerCase().includes('image/')) {
-                imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
-              }
+              if (detectedMime && detectedMime.toLowerCase().includes('image/')) imageView = 'https://lh3.googleusercontent.com/d/' + driveId;
             } catch (e) {}
           }
           extractedText = routerUrlExtraction(body.url);
@@ -195,26 +167,39 @@ function doPost(e) {
         extractedText = "Extraction failed: " + err.toString();
       }
 
-      // INCREASE SEARCH RANGE FOR BETTER DETECTION
       const snippet = extractedText.substring(0, 15000);
       
-      const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
-      // Improved ISBN regex without end-anchors for snippet matching
+      // IMPROVED DOI REGEX: Captures the DOI but allows logic below to sanitize 'greedily' matched words
+      const doiPattern = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+(?![a-z])/i;
       const isbnPattern = /ISBN(?:-1[03])?:?\s*((?:97[89][\s-]?)?[0-9]{1,5}[\s-]?[0-9]+[\s-]?[0-9]+[\s-]?[0-9X])/i;
       const pmidPattern = /PMID:?\s*(\d{4,10})/i;
       const arxivPattern = /arXiv:?\s*(\d{4}\.\d{4,5}(?:v\d+)?)/i;
 
-      const doiMatch = snippet.match(doiPattern);
+      let doiMatch = snippet.match(doiPattern);
       const isbnMatch = snippet.match(isbnPattern);
       const pmidMatch = snippet.match(pmidPattern);
       const arxivMatch = snippet.match(arxivPattern);
+
+      let finalDoi = doiMatch ? doiMatch[0] : null;
+
+      // CLEANUP LOGIC: Strip trailing punctuation often caught by greediness
+      if (finalDoi) {
+        finalDoi = finalDoi.replace(/[.,;)]+$/, '');
+        // DOI HEURISTIC: If a DOI ends with multiple uppercase letters following a digit (e.g., "123BMC"),
+        // it's highly likely a word attached to the identifier. We strip the word part.
+        // Valid DOI alphanumeric suffixes (like S336965) are usually longer or contain specific patterns.
+        if (/[0-9][A-Z]{2,}$/.test(finalDoi)) {
+          const cleaned = finalDoi.replace(/[A-Z]{3,}$/, ''); // Strip trailing caps if 3+ chars
+          if (cleaned.length > 7) finalDoi = cleaned;
+        }
+      }
 
       return createJsonResponse({ 
         status: 'success', 
         extractedText: extractedText,
         fileName: fileName,
         mimeType: detectedMime,
-        detectedDoi: doiMatch ? doiMatch[0] : null,
+        detectedDoi: finalDoi,
         detectedIsbn: isbnMatch ? isbnMatch[1] : null,
         detectedPmid: pmidMatch ? pmidMatch[1] : null,
         detectedArxiv: arxivMatch ? (arxivMatch[1] || arxivMatch[0]) : null,
@@ -222,36 +207,18 @@ function doPost(e) {
       });
     }
 
-    if (action === 'searchByIdentifier') {
-      return createJsonResponse(handleIdentifierSearch(body.idValue));
-    }
-    
-    if (action === 'aiProxy') {
-      const { provider, prompt, modelOverride } = body;
-      const result = handleAiRequest(provider, prompt, modelOverride);
-      return createJsonResponse(result);
-    }
+    if (action === 'searchByIdentifier') return createJsonResponse(handleIdentifierSearch(body.idValue));
+    if (action === 'aiProxy') return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
     return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
     return createJsonResponse({ status: 'error', message: err.toString() });
   }
 }
 
-/**
- * SMART STORAGE NODE SELECTOR
- */
 function getViableStorageTarget() {
   const THRESHOLD = CONFIG.STORAGE.THRESHOLD;
   const localRemaining = DriveApp.getStorageLimit() - DriveApp.getStorageUsed();
-  
-  if (localRemaining > THRESHOLD) {
-    return { 
-      isLocal: true, 
-      url: ScriptApp.getService().getUrl(), 
-      folderId: CONFIG.FOLDERS.MAIN_LIBRARY 
-    };
-  }
-  
+  if (localRemaining > THRESHOLD) return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
     const sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
@@ -262,26 +229,14 @@ function getViableStorageTarget() {
         const folderId = values[i][2];
         if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
         try {
-          const response = UrlFetchApp.fetch(nodeUrl, {
-            method: 'post',
-            contentType: 'application/json',
-            payload: JSON.stringify({ action: 'checkQuota' }),
-            muteHttpExceptions: true
-          });
+          const response = UrlFetchApp.fetch(nodeUrl, { method: 'post', contentType: 'application/json', payload: JSON.stringify({ action: 'checkQuota' }), muteHttpExceptions: true });
           const resJson = JSON.parse(response.getContentText());
-          if (resJson.status === 'success' && resJson.remaining > THRESHOLD) {
-            return { isLocal: false, url: nodeUrl, folderId: folderId };
-          }
+          if (resJson.status === 'success' && resJson.remaining > THRESHOLD) return { isLocal: false, url: nodeUrl, folderId: folderId };
         } catch (nodeErr) {}
       }
     }
   } catch (e) {}
-  
-  return { 
-    isLocal: true, 
-    url: ScriptApp.getService().getUrl(), 
-    folderId: CONFIG.FOLDERS.MAIN_LIBRARY 
-  };
+  return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
 }
 
 function extractYoutubeId(url) {
@@ -291,20 +246,13 @@ function extractYoutubeId(url) {
 }
 
 function routerUrlExtraction(url) {
-  if (url.includes('youtube.com') || url.includes('youtu.be')) {
-    return handleYoutubeExtraction(url);
-  }
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return handleYoutubeExtraction(url);
   const driveId = getFileIdFromUrl(url);
-  if (driveId && (url.includes('drive.google.com') || url.includes('docs.google.com'))) {
-    return handleDriveExtraction(url, driveId);
-  }
+  if (driveId && (url.includes('drive.google.com') || url.includes('docs.google.com'))) return handleDriveExtraction(url, driveId);
   return handleWebExtraction(url);
 }
 
 function handleAiRequest(provider, prompt, modelOverride) {
-  if (provider === 'groq') {
-    return callGroqLibrarian(prompt, modelOverride);
-  } else {
-    return callGeminiService(prompt, modelOverride);
-  }
+  if (provider === 'groq') return callGroqLibrarian(prompt, modelOverride);
+  return callGeminiService(prompt, modelOverride);
 }
