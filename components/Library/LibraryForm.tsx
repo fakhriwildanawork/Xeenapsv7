@@ -162,8 +162,6 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
     url: '',
     fileId: '',
     imageView: '',
-    inTextHarvard: '',
-    bibHarvard: '',
     chunks: [] as string[],
     extractedText: '' 
   });

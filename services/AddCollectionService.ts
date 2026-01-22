@@ -30,8 +30,8 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
     1. LIBRARIAN ROLE: Identify Title, Authors, Publisher, Year, and technical identifiers.
     2. GAP-FILLING: Use "EXISTING_DATA" as core facts. Fill ONLY fields that are empty ("") or "N/A".
     3. MANDATORY CLASSIFICATION (CRITICAL):
-       - KEYWORDS: You MUST provide EXACTLY 5 relevant keywords.
-       - LABELS: You MUST provide EXACTLY 3 thematic labels.
+       - KEYWORDS: You MUST provide EXACTLY 7 relevant keywords.
+       - LABELS: You MUST provide EXACTLY 5 thematic labels.
        - TOPIC & SUBTOPIC: You MUST determine a high-level Topic and a specific Sub-Topic.
        - CATEGORY: You HAVE TO choose ONLY ONE category from the APPROVED LIST provided below. CHOOSE BEST CATEGORY that match with abstract (IF AVAILABLE) data or this data string.
     4. YOUTUBE SPECIAL HANDLING (CRITICAL):
@@ -83,10 +83,8 @@ export const extractMetadataWithAI = async (textSnippet: string, existingData: P
       "subTopic": "Specific Sub-Topic",
       "abstract": "HTML formatted verbatim abstract",
       "mainInfo": "Clean technical noun-based index string (Max 1000 chars)",
-      "keywords": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-      "labels": ["label1", "label2", "label3"],
-      "inTextHarvard": "Generate a parenthetical Harvard in-text citation. MANDATORY: Citation MUST USE PARENTHESES. For 1-2 authors, list all names, for example: '(Author1 & Author2, 2024)'. For 3 or more authors, use 'et al.' after the first author, for example: '(Author1 et al., 2024)'. Ensure no italics for 'et al.' unless specified.",
-      "bibHarvard": "Generate a full Harvard bibliographic entry. List ALL authors regardless of the count (up to 20 authors). Format: 'Surname, Initial., Surname, Initial. and Surname, Initial. (Year) Title of article. Journal Name, Volume(Issue), pp. pages. DOI link.'"
+      "keywords": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7"],
+      "labels": ["label1", "label2", "label3", "label4", "label5"],
     }`;
 
     const response = await callAiProxy('groq', prompt, undefined, signal);
