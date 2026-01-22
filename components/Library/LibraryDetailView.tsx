@@ -228,9 +228,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
 
-                {/* 
-                  Fix: CreatedAt and UpdatedAt metadata bottom-right 
-                */}
                 <div className="absolute bottom-4 right-8 flex flex-col items-end gap-0.5 opacity-60">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />

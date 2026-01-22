@@ -97,7 +97,7 @@ interface LibraryMainProps {
 
 type SortConfig = { key: keyof LibraryItem | 'none'; direction: 'asc' | 'desc' | null; };
 
-const LibraryMain: React.FC<LibraryMainProps> = ({ initialItems, isLoading: isGlobalLoading, onRefresh, globalSearch }) => {
+const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoading, onRefresh, globalSearch }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const workflow = useAsyncWorkflow(30000);
@@ -124,7 +124,6 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ initialItems, isLoading: isGl
   const itemsPerPage = isMobile ? 20 : 25;
   const filters: ('All' | LibraryType)[] = ['All', LibraryType.LITERATURE, LibraryType.TASK, LibraryType.PERSONAL, LibraryType.OTHER];
   
-  // Fix: Defined totalPages based on server item count and items per page
   const totalPages = Math.ceil(totalItemsServer / itemsPerPage);
 
   useEffect(() => {
