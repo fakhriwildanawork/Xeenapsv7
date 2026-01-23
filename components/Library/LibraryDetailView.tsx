@@ -269,7 +269,7 @@ const parseJsonField = (field: any, defaultValue: any = {}) => {
 
 /**
  * Enhanced List Component with Primary Circle and Yellow Text
- * FIX: Menambahkan handling untuk Array dan pembersihan trim() yang aman.
+ * MODIFIED: Supports Narrative HTML blocks without numeric markers if complex tags are detected.
  */
 const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolean }> = ({ text, className = "", isLoading }) => {
   if (isLoading) {
@@ -285,27 +285,30 @@ const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolea
     );
   }
 
-  // Early return jika data kosong atau 'N/A'
   if (text === null || text === undefined || text === 'N/A') return null;
   
-  let items: string[] = [];
+  // NARRATIVE DETECTION: If text contains specific HTML highlight tags or is very long narrative
+  const isNarrative = typeof text === 'string' && (text.includes('<span') || text.includes('<b') || text.length > 500);
 
-  // Jika input adalah Array
+  if (isNarrative) {
+    return (
+      <div 
+        className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} 
+        dangerouslySetInnerHTML={{ __html: text }} 
+      />
+    );
+  }
+
+  let items: string[] = [];
   if (Array.isArray(text)) {
     items = text.map(i => String(i).trim()).filter(Boolean);
-  } 
-  // Jika input adalah String
-  else if (typeof text === 'string') {
+  } else if (typeof text === 'string') {
     const trimmedText = text.trim();
     if (trimmedText === '') return null;
-    
-    // Split berdasarkan baris baru atau penomoran
     items = trimmedText.split(/\n|(?=\d+\.)|(?=•)/)
       .map(i => i.replace(/^\d+\.\s*|•\s*/, '').trim())
       .filter(Boolean);
-  } 
-  // Fallback untuk tipe data lain (number, dsb)
-  else {
+  } else {
     const strVal = String(text).trim();
     if (strVal === '') return null;
     items = [strVal];
@@ -313,7 +316,6 @@ const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolea
 
   if (items.length === 0) return null;
 
-  // Render teks biasa jika hanya ada 1 item dan bukan format list
   if (items.length === 1 && typeof text === 'string' && !text.match(/\n|(?=\d+\.)|(?=•)/)) {
     return (
       <div className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} dangerouslySetInnerHTML={{ __html: text }} />
@@ -341,22 +343,17 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [showCiteModal, setShowCiteModal] = useState(false);
   const [dummySearch, setDummySearch] = useState('');
   
-  // Local states for interactivity
   const [isBookmarked, setIsBookmarked] = useState(!!item.isBookmarked);
   const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
-  // FIX: State baru untuk memisahkan proses fetch awal data JSON
   const [isFetchingStoredInsights, setIsFetchingStoredInsights] = useState(false);
 
-  // local item state to reflect AI updates immediately
   const [currentItem, setCurrentItem] = useState(item);
 
-  // On mount: Fetch Knowledge Insights from JSON file (JSON-Only Insights strategy)
   useEffect(() => {
     const loadJsonInsights = async () => {
       if (item.insightJsonId) {
-        // FIX: Menggunakan state fetching, bukan generating
         setIsFetchingStoredInsights(true);
         const jsonInsights = await fetchFileContent(item.insightJsonId, item.storageNodeUrl);
         if (jsonInsights && Object.keys(jsonInsights).length > 0) {
@@ -369,9 +366,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
       }
     };
     
-    // Always sync with prop when it changes
     setCurrentItem(item);
-    // Then try to enrich from JSON
     loadJsonInsights();
   }, [item]);
 
@@ -396,22 +391,18 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const handleToggleAction = async (property: 'isBookmarked' | 'isFavorite') => {
     const newValue = property === 'isBookmarked' ? !isBookmarked : !isFavorite;
     
-    // 1. Optimistic Local Update
     if (property === 'isBookmarked') setIsBookmarked(newValue);
     else setIsFavorite(newValue);
     
     const updatedItem = { ...currentItem, [property]: newValue };
     
-    // 2. Optimistic Parent Update (Table)
     if (onUpdateOptimistic) {
       onUpdateOptimistic(updatedItem);
     }
 
-    // 3. Background Sync
     try {
       await saveLibraryItem(updatedItem);
     } catch (e) {
-      // Rollback on failure
       if (property === 'isBookmarked') setIsBookmarked(!newValue);
       else setIsFavorite(!newValue);
       if (onUpdateOptimistic) onUpdateOptimistic(item);
@@ -438,7 +429,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           updatedAt: new Date().toISOString()
         };
         setCurrentItem(updated);
-        // Note: No spreadsheet update required for insights as per new vision
         showXeenapsToast('success', 'Deep Insights Generated!');
       } else {
         showXeenapsToast('error', 'Analysis failed on server');
@@ -470,7 +460,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const handleDelete = async () => {
     const confirmed = await showXeenapsDeleteConfirm(1);
     if (confirmed) {
-      // 1. Optimistic Instant Redirect
       if (onDeleteOptimistic) {
         onDeleteOptimistic(currentItem.id);
       }
@@ -478,7 +467,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
       navigate('/');
       showXeenapsToast('success', 'Processing Deletion...');
 
-      // 2. Background Deletion
       try {
         await deleteLibraryItem(currentItem.id);
       } catch (e) {
@@ -490,12 +478,10 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
   const hasViewLink = !!(currentItem.fileId || currentItem.url);
 
-  // Methodology check: If not 'Original Research' category AND empty string, hide.
   const categoriesJournal = ["Original Research", "Systematic Review", "Meta-analysis", "Case Report", "Review Article", "Scoping Review", "Rapid Review", "Preprint"];
   const isJournalType = categoriesJournal.includes(currentItem.category);
   const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
 
-  // Combined data area loading state (Fetch awal OR Generate AI)
   const isAnyLoading = isGeneratingInsights || isFetchingStoredInsights;
 
   return (
@@ -504,9 +490,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     >
       {showCiteModal && <CitationModal item={currentItem} onClose={() => setShowCiteModal(false)} />}
 
-      {/* 1. TOP STICKY AREA (Header + Action Bar) */}
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
-        {/* Integrated Header Component */}
         <div className="px-4 md:px-8">
            <Header 
             searchQuery={dummySearch} 
@@ -515,7 +499,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
            />
         </div>
 
-        {/* Action Bar (Nav Buttons) */}
         <nav className="px-4 md:px-8 py-3 flex items-center justify-between border-t border-gray-50/50">
           <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 px-3 py-2 rounded-xl transition-all">
             <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
@@ -586,7 +569,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
         <div className="max-w-6xl mx-auto px-5 md:px-10 py-6 space-y-4">
           
-          {/* 2. BLOK HEADER KONTEN */}
           <header className="bg-gray-50/50 p-6 md:p-10 rounded-[2.5rem] border border-gray-100 space-y-4 relative overflow-hidden">
             {isLoading && !isSyncing ? (
               <div className="space-y-4">
@@ -614,7 +596,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
 
-                {/* RESPONSIVE TIMESTAMPS: Relative on small screens, Absolute on desktop to avoid overlap */}
                 <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-0.5 opacity-60 md:absolute md:bottom-4 md:right-8 transition-all">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />
@@ -660,7 +641,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             )}
           </header>
 
-          {/* 3. BLOK TAGS */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><HashtagIcon className="w-3 h-3" /> Keywords</h3>
@@ -680,7 +660,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             </div>
           </section>
 
-          {/* 4. BLOK ABSTRACT */}
           <section className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
             <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookOpenIcon className="w-3.5 h-3.5" /> Abstract</h3>
             {isLoading && !isSyncing ? (
@@ -690,7 +669,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             )}
           </section>
 
-          {/* 5. BLOK INSIGHT */}
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-black text-[#004A74] flex items-center gap-2">
@@ -757,7 +735,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             </div>
           </section>
 
-          {/* 6. BLOK SUPPORTING REFERENCE */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
             <div className="space-y-4">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
@@ -830,7 +807,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         </div>
       </div>
 
-      {/* Quick Tips Modal */}
       {showTips && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-[#004A74] text-white p-8 md:p-12 rounded-[3rem] max-w-lg shadow-2xl relative border border-white/10">

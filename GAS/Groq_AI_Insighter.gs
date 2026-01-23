@@ -10,22 +10,17 @@ function handleGenerateInsight(item) {
     if (!extractedId) return { status: 'error', message: 'No extracted data found to analyze.' };
 
     const nodeUrl = item.storageNodeUrl;
-    // FIX: Gunakan URL Web App untuk deteksi lokal yang lebih akurat daripada ScriptId
     const currentWebAppUrl = ScriptApp.getService().getUrl();
     const isLocal = !nodeUrl || nodeUrl === "" || nodeUrl === currentWebAppUrl;
 
     let fullText = "";
 
-    // 1. Fetch Extracted Text (Local vs Remote Node)
     if (isLocal) {
-      console.log("Processing locally on Master Node...");
       const file = DriveApp.getFileById(extractedId);
       const contentStr = file.getBlob().getDataAsString();
       const content = JSON.parse(contentStr);
       fullText = content.fullText || "";
     } else {
-      console.log("Fetching remote content from Storage Node: " + nodeUrl);
-      // Remote Fetch from Slave Node via doGet/getFileContent
       try {
         const remoteRes = UrlFetchApp.fetch(nodeUrl + (nodeUrl.indexOf('?') === -1 ? '?' : '&') + "action=getFileContent&fileId=" + extractedId, { 
           muteHttpExceptions: true 
@@ -46,62 +41,61 @@ function handleGenerateInsight(item) {
       return { status: 'error', message: 'Extracted content is too short for analysis.' };
     }
 
-    // 2. Prepare specialized Prompt
-    const categoriesJournal = ["Original Research", "Systematic Review", "Meta-analysis", "Case Report", "Review Article", "Scoping Review", "Rapid Review", "Preprint"];
-    const isAcademicJournal = categoriesJournal.includes(item.category);
+    // MANDATORY: Upgraded Context to 100,000 characters
+    const contextText = fullText.substring(0, 100000);
 
-    const prompt = `ACT AS A SENIOR RESEARCH ANALYST AND ACADEMIC INSIGHTER (XEENAPS AI INSIGHTER).
-    ANALYZE THE FOLLOWING TEXT EXTRACTED FROM A PKM ITEM TITLED "${item.title}".
+    const prompt = `ACT AS A SENIOR ARCHITECTURAL RESEARCH ANALYST (XEENAPS AI INSIGHTER).
+    YOUR GOAL IS TO PROVIDE A DEEP, PROLIX, AND ARCHITECTURAL ANALYSIS OF THE TEXT BELOW.
 
-    --- ANALYTICAL REQUIREMENTS ---
+    --- MANDATORY ANALYTICAL REQUIREMENTS ---
     1. RESEARCH METHODOLOGY:
-       - Find the methodology specifically within the ABSTRACT section.
-       - Describe it and its technical terminology.
-       - FORMAT: Use <b>Terminology</b>: Description.
-    2. SUMMARY (IMRaD+C):
-       - IF CATEGORY IS ACADEMIC JOURNAL ("${item.category}"), USE IMRaD+C STRUCTURE.
-       - EACH SUB-HEADING BOLDED WITH <b> tag.
-    3. STRENGTHS: Numbered list.
-    4. WEAKNESSES: Numbered list.
-    5. UNFAMILIAR TERMINOLOGY: 
-       - Technical terms explained in a numbered list.
-       - FORMAT: <b>Terminology</b><br/>Explanation.
-    6. QUICK TIPS: Practical advice.
+       - Identify the exact technical methodology used.
+       - FORMAT: Use <b>Methodology</b>: Description.
+    
+    2. ARCHITECTURAL SUMMARY (IMRaD+C STRUCTURE):
+       - YOU MUST WRITE MINIMUM 500 WORDS.
+       - STRUCTURE: Introduction, Methods, Results, Discussion, Conclusion.
+       - STYLE: Prolix, Verbose, and Highly Descriptive Narrative.
+       - SUB-HEADINGS: Use ONLY <b>Introduction</b>, <b>Methods</b>, etc.
+
+    3. STRENGTHS & WEAKNESSES:
+       - Provide detailed narrative points.
+
+    4. UNFAMILIAR TERMINOLOGY & HIGHLIGHTING:
+       - For EVERY technical term, key concept, or specific terminology mentioned in your narrative:
+         WRAP IT WITH: <span style="background-color: rgba(254, 212, 0, 0.3); font-weight: bold;">Terminology</span>
+       - In the "unfamiliarTerminology" field, provide a detailed explanation for each.
 
     --- FORMATTING RESTRICTIONS (STRICT) ---
-    - DILARANG PAKAI TANDA BINTANG (*) ATAU TANDA KUTIP DUA ('').
-    - GUNAKAN TAG <b>, <i>, DAN <br/>.
-    - NO MARKDOWN SYMBOLS. OUTPUT MUST BE RAW JSON.
+    - DILARANG KERAS MENGGUNAKAN SIMBOL MARKDOWN (* atau # atau ##).
+    - GUNAKAN TAG HTML: <b> untuk sub-heading, <br/> untuk baris baru.
+    - GUNAKAN TAG SPAN BERIKUT UNTUK HIGHLIGHT ISTILAH: <span style="background-color: rgba(254, 212, 0, 0.3); font-weight: bold;">
+    - JANGAN GUNAKAN TANDA KUTIP GANDA DI DALAM VALUE STRING JSON (Gunakan single quote jika perlu).
+    - OUTPUT HARUS RAW JSON.
 
+    ITEM TITLE: "${item.title}"
     TEXT TO ANALYZE:
-    ${fullText.substring(0, 12000)}
+    ${contextText}
 
     EXPECTED JSON OUTPUT:
     {
-      "researchMethodology": "string",
-      "summary": "string",
-      "strength": "string",
-      "weakness": "string",
-      "unfamiliarTerminology": "string",
+      "researchMethodology": "string with HTML",
+      "summary": "Verbose narrative min 500 words with HTML sub-headings and span highlights",
+      "strength": "Detailed narrative with HTML highlights",
+      "weakness": "Detailed narrative with HTML highlights",
+      "unfamiliarTerminology": "Detailed list with <b>Term</b><br/>Explanation and span highlights",
       "quickTipsForYou": "string"
     }`;
 
-    // 3. Call Groq Service
     const aiResult = callGroqLibrarian(prompt);
     if (aiResult.status !== 'success') return aiResult;
 
-    // FIX: Robust JSON Extraction menggunakan Regex untuk menangani AI yang "chatty"
     let rawData = aiResult.data;
-    console.log("Raw AI Response: " + rawData);
-    
     const jsonMatch = rawData.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("AI did not return a valid JSON object structure.");
-    }
+    if (!jsonMatch) throw new Error("AI did not return a valid JSON object structure.");
     
     const insights = JSON.parse(jsonMatch[0]);
 
-    // 4. Persistence: Update insight_[id].json Shard (Local/Remote)
     if (item.insightJsonId) {
       const insightContent = JSON.stringify(insights);
       if (isLocal) {
@@ -120,11 +114,9 @@ function handleGenerateInsight(item) {
       }
     }
 
-    console.log("Insights generated and saved successfully.");
     return { status: 'success', data: insights };
 
   } catch (err) {
-    console.error("Insighter Error Log: " + err.toString());
     return { status: 'error', message: 'Insighter Error: ' + err.toString() };
   }
 }
