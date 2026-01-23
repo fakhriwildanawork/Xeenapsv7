@@ -202,6 +202,14 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
     });
   };
 
+  const handleDetailUpdate = (updatedItem: LibraryItem) => {
+    setServerItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+  };
+
+  const handleDetailDelete = (id: string) => {
+    setServerItems(prev => prev.filter(i => i.id !== id));
+  };
+
   const formatDateTime = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -234,6 +242,8 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
           isLoading={isGlobalLoading}
           isMobileSidebarOpen={isMobileSidebarOpen}
           onRefresh={onRefresh}
+          onUpdateOptimistic={handleDetailUpdate}
+          onDeleteOptimistic={handleDetailDelete}
         />
       )}
 

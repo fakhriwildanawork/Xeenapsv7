@@ -6,6 +6,7 @@ import { LibraryItem } from './types';
 import { fetchLibrary } from './services/gasService';
 import LibraryMain from './components/Library/LibraryMain';
 import LibraryForm from './components/Library/LibraryForm';
+import LibraryEditForm from './components/Library/LibraryEditForm';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import SettingsView from './components/Settings/SettingsView';
@@ -83,6 +84,7 @@ const App: React.FC = () => {
               <Route path="/research" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} isMobileSidebarOpen={isMobileSidebarOpen} />} />
               
               <Route path="/add" element={isLoading ? <GlobalAppLoader /> : <LibraryForm onComplete={loadData} items={items} />} />
+              <Route path="/edit/:id" element={isLoading ? <GlobalAppLoader /> : <LibraryEditForm onComplete={loadData} items={items} />} />
               <Route path="/settings" element={isLoading ? <GlobalAppLoader /> : <SettingsView />} />
               
               <Route path="*" element={<Navigate to="/" replace />} />

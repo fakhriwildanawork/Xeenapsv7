@@ -46,6 +46,8 @@ interface LibraryDetailViewProps {
   isLoading?: boolean;
   isMobileSidebarOpen?: boolean;
   onRefresh?: () => Promise<void>;
+  onUpdateOptimistic?: (updatedItem: LibraryItem) => void;
+  onDeleteOptimistic?: (id: string) => void;
 }
 
 /**
@@ -157,7 +159,7 @@ const ElegantList: React.FC<{ text?: string; className?: string; isLoading?: boo
   );
 };
 
-const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, isLoading, isMobileSidebarOpen, onRefresh }) => {
+const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, isLoading, isMobileSidebarOpen, onRefresh, onUpdateOptimistic, onDeleteOptimistic }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
@@ -187,31 +189,29 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleToggleAction = async (property: 'isBookmarked' | 'isFavorite') => {
-    if (isSyncing) return;
-    
     const newValue = property === 'isBookmarked' ? !isBookmarked : !isFavorite;
     
-    // Optimistic UI update
+    // 1. Optimistic Local Update
     if (property === 'isBookmarked') setIsBookmarked(newValue);
     else setIsFavorite(newValue);
     
-    setIsSyncing(true);
+    const updatedItem = { ...item, [property]: newValue };
+    
+    // 2. Optimistic Parent Update (Table)
+    if (onUpdateOptimistic) {
+      onUpdateOptimistic(updatedItem);
+    }
+
+    // 3. Background Sync
     try {
-      const updatedItem = { ...item, [property]: newValue };
-      const success = await saveLibraryItem(updatedItem);
-      if (success) {
-        showXeenapsToast('success', `${property === 'isBookmarked' ? 'Bookmark' : 'Favorite'} Updated`);
-        if (onRefresh) onRefresh();
-      } else {
-        throw new Error('Sync failed');
-      }
+      await saveLibraryItem(updatedItem);
+      showXeenapsToast('success', `${property === 'isBookmarked' ? 'Bookmark' : 'Favorite'} Updated`);
     } catch (e) {
-      // Rollback
+      // Rollback on failure
       if (property === 'isBookmarked') setIsBookmarked(!newValue);
       else setIsFavorite(!newValue);
+      if (onUpdateOptimistic) onUpdateOptimistic(item);
       showXeenapsToast('error', 'Failed to sync with server');
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -229,26 +229,26 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleUpdate = () => {
-    navigate('/add', { state: { editItem: item } });
+    navigate(`/edit/${item.id}`);
   };
 
   const handleDelete = async () => {
     const confirmed = await showXeenapsDeleteConfirm(1);
     if (confirmed) {
-      setIsSyncing(true);
+      // 1. Optimistic Instant Redirect
+      if (onDeleteOptimistic) {
+        onDeleteOptimistic(item.id);
+      }
+      onClose();
+      navigate('/');
+      showXeenapsToast('success', 'Processing Deletion...');
+
+      // 2. Background Deletion
       try {
-        const success = await deleteLibraryItem(item.id);
-        if (success) {
-          showXeenapsToast('success', 'Entry Deleted Successfully');
-          if (onRefresh) await onRefresh();
-          onClose();
-        } else {
-          showXeenapsToast('error', 'Failed to delete entry');
-        }
+        await deleteLibraryItem(item.id);
       } catch (e) {
-        showXeenapsToast('error', 'An error occurred during deletion');
-      } finally {
-        setIsSyncing(false);
+        showXeenapsToast('error', 'Critical Error: Deletion failed on server');
+        if (onRefresh) onRefresh();
       }
     }
   };
