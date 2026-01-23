@@ -95,6 +95,8 @@ function handleGenerateInsight(item) {
       quickTipsForYou: rawInsights.quickTipsForYou || rawInsights.tips || ""
     };
 
+    const newUpdatedAt = new Date().toISOString();
+
     // 5. Persistence: Update insight_[id].json Shard
     if (item.insightJsonId) {
       const insightContent = JSON.stringify(insights);
@@ -117,7 +119,18 @@ function handleGenerateInsight(item) {
       }
     }
 
-    return { status: 'success', data: insights };
+    // 6. SYNC SPREADSHEET: Update updatedAt only (without narrative content)
+    // prepare a shallow copy for spreadsheet update
+    const spreadsheetItem = { ...item, updatedAt: newUpdatedAt };
+    saveToSheet(CONFIG.SPREADSHEETS.LIBRARY, "Collections", spreadsheetItem);
+
+    return { 
+      status: 'success', 
+      data: { 
+        ...insights, 
+        updatedAt: newUpdatedAt 
+      } 
+    };
 
   } catch (err) {
     console.error("Insighter Error: " + err.toString());

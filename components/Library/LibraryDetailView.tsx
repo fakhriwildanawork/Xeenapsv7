@@ -439,9 +439,15 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           weakness: data.weakness,
           unfamiliarTerminology: data.unfamiliarTerminology,
           quickTipsForYou: data.quickTipsForYou,
-          updatedAt: new Date().toISOString()
+          updatedAt: data.updatedAt || new Date().toISOString()
         };
         setCurrentItem(updated);
+        
+        // SYNC MASTER: Update local state global (App.tsx) agar saat navigasi data baru tetap terbaca
+        if (onUpdateOptimistic) {
+          onUpdateOptimistic(updated);
+        }
+
         showXeenapsToast('success', 'Deep Insights Generated!');
       } else {
         showXeenapsToast('error', 'Analysis failed on server');
@@ -567,7 +573,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
               {isMenuOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-2 z-[90] animate-in fade-in zoom-in-95">
-                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all">
+                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-0050 rounded-xl transition-all">
                     <PencilIcon className="w-4 h-4" /> Update
                   </button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
