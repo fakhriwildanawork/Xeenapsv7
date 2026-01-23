@@ -74,6 +74,7 @@ export const FormField: React.FC<{
 
 /**
  * Standard Searchable Dropdown
+ * Updated: Borderless dropdown menu with soft premium shadow.
  */
 export const FormDropdown: React.FC<{
   value: string | any;
@@ -184,7 +185,7 @@ export const FormDropdown: React.FC<{
       </div>
 
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[0_15px_35px_rgba(0,0,0,0.08)] border border-gray-100/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border-none overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           {showSearch && (
             <div className="p-2 bg-gray-50">
               <input 
