@@ -37,7 +37,7 @@ import {
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
-import { saveLibraryItem, deleteLibraryItem, generateCitations, generateInsight } from '../../services/gasService';
+import { saveLibraryItem, deleteLibraryItem, generateCitations, generateInsight, fetchFileContent } from '../../services/gasService';
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
 import { FormDropdown } from '../Common/FormComponents';
 import Header from '../Layout/Header';
@@ -326,8 +326,26 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   // local item state to reflect AI updates immediately
   const [currentItem, setCurrentItem] = useState(item);
 
+  // On mount: Fetch Knowledge Insights from JSON file (JSON-Only Insights strategy)
   useEffect(() => {
+    const loadJsonInsights = async () => {
+      if (item.insightJsonId) {
+        setIsGeneratingInsights(true);
+        const jsonInsights = await fetchFileContent(item.insightJsonId, item.storageNodeUrl);
+        if (jsonInsights && Object.keys(jsonInsights).length > 0) {
+          setCurrentItem(prev => ({
+            ...prev,
+            ...jsonInsights
+          }));
+        }
+        setIsGeneratingInsights(false);
+      }
+    };
+    
+    // Always sync with prop when it changes
     setCurrentItem(item);
+    // Then try to enrich from JSON
+    loadJsonInsights();
   }, [item]);
 
   const pubInfo: PubInfo = useMemo(() => parseJsonField(currentItem.pubInfo), [currentItem.pubInfo]);
@@ -362,7 +380,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
       onUpdateOptimistic(updatedItem);
     }
 
-    // 3. Background Sync (Success Toast Removed for Snappiness)
+    // 3. Background Sync
     try {
       await saveLibraryItem(updatedItem);
     } catch (e) {
@@ -393,7 +411,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           updatedAt: new Date().toISOString()
         };
         setCurrentItem(updated);
-        if (onUpdateOptimistic) onUpdateOptimistic(updated);
+        // Note: No spreadsheet update required for insights as per new vision
         showXeenapsToast('success', 'Deep Insights Generated!');
       } else {
         showXeenapsToast('error', 'Analysis failed on server');

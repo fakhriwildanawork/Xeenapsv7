@@ -78,6 +78,23 @@ export const fetchLibraryPaginated = async (
   }
 };
 
+/**
+ * Fetch File Content from Storage Node (Master or Slave)
+ */
+export const fetchFileContent = async (fileId: string, nodeUrl?: string): Promise<any> => {
+  try {
+    const targetUrl = nodeUrl || GAS_WEB_APP_URL;
+    if (!targetUrl) return null;
+    const finalUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}action=getFileContent&fileId=${fileId}`;
+    const response = await fetch(finalUrl);
+    const result = await response.json();
+    return result.status === 'success' ? JSON.parse(result.content) : null;
+  } catch (error) {
+    console.error("fetchFileContent error:", error);
+    return null;
+  }
+};
+
 export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, modelOverride?: string, signal?: AbortSignal): Promise<string> => {
   try {
     if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL not configured');

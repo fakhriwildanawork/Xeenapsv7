@@ -14,6 +14,14 @@ function doGet(e) {
       return createJsonResponse({ status: 'success', remaining: remaining });
     }
 
+    // ACTION: getFileContent (Support for Sharding Retrieval)
+    if (action === 'getFileContent') {
+      const fileId = e.parameter.fileId;
+      if (!fileId) return createJsonResponse({ status: 'error', message: 'No fileId provided' });
+      const content = DriveApp.getFileById(fileId).getBlob().getDataAsString();
+      return createJsonResponse({ status: 'success', content: content });
+    }
+
     if (action === 'getLibrary') {
       const page = parseInt(e.parameter.page || "1");
       const limit = parseInt(e.parameter.limit || "25");

@@ -47,7 +47,7 @@ const CONFIG = {
       'isBookmarked', 
       'createdAt', 
       'updatedAt',
-      'supportingReferences' // New Column
+      'supportingReferences'
     ]
   }
 };
