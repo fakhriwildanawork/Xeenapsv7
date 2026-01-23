@@ -6,21 +6,18 @@ import { BRAND_ASSETS } from '../assets';
 import { callAiProxy } from './gasService';
 
 /**
- * Helper to fetch image and convert to Base64 to bypass CORS issues in pptxgenjs
+ * Helper to fetch image and convert to Base64 via GAS Proxy to bypass CORS issues
  */
 const imageUrlToBase64 = async (url: string): Promise<string | null> => {
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Network response was not ok');
-    const blob = await response.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'fetchImageProxy', url })
     });
+    const result = await response.json();
+    return result.status === 'success' ? result.data : null;
   } catch (error) {
-    console.warn("Failed to fetch image, using fallback:", url);
+    console.warn("Proxy fetch failed for:", url);
     return null;
   }
 };
@@ -63,10 +60,17 @@ export const createPresentationWorkflow = async (
       ]
     }`;
 
-    const aiResText = await callAiProxy('groq', blueprintPrompt);
+    let aiResText = await callAiProxy('groq', blueprintPrompt);
     
     if (!aiResText) {
       throw new Error("AI Proxy failed to return blueprint text.");
+    }
+
+    // JSON Cleaning Logic: Ensure we only parse the JSON block
+    if (aiResText.includes('{')) {
+      const start = aiResText.indexOf('{');
+      const end = aiResText.lastIndexOf('}');
+      if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
     }
 
     const blueprint = JSON.parse(aiResText || '{"slides":[]}');
@@ -119,7 +123,7 @@ export const createPresentationWorkflow = async (
         color: '333333', bullet: true, valign: 'top' 
       });
 
-      // Fetch Image (Using LoremFlickr as it's more stable for keyword search + CORS friendly via Base64 helper)
+      // Fetch Image (Using LoremFlickr via Backend Proxy)
       if (sData.imageKeyword) {
         onProgress?.(`Loading asset for: ${sData.title}...`);
         const imgUrl = `https://loremflickr.com/800/600/${encodeURIComponent(sData.imageKeyword)}`;

@@ -356,6 +356,18 @@ function doPost(e) {
     if (action === 'searchByIdentifier') return createJsonResponse(handleIdentifierSearch(body.idValue));
     if (action === 'aiProxy') return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
     
+    // NEW: fetchImageProxy (Bypass CORS via Server-side fetch)
+    if (action === 'fetchImageProxy') {
+      try {
+        const imgRes = UrlFetchApp.fetch(body.url);
+        const blob = imgRes.getBlob();
+        const b64 = Utilities.base64Encode(blob.getBytes());
+        return createJsonResponse({ status: 'success', data: 'data:' + blob.getContentType() + ';base64,' + b64 });
+      } catch (e) {
+        return createJsonResponse({ status: 'error', message: e.toString() });
+      }
+    }
+
     // NEW ACTION: getSupportingReferences
     if (action === 'getSupportingReferences') {
       const keywords = body.keywords || [];

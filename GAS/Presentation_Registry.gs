@@ -81,12 +81,11 @@ function handleSavePresentation(body) {
       pptxFileId = JSON.parse(res.getContentText()).fileId;
     }
 
-    // 3. Konversi ke Google Slides
-    // Di GAS, cara terbaik konversi adalah menggunakan Drive API v2/v3 insert/create dengan convert: true
+    // 3. Konversi ke Google Slides (Fix Drive API v3)
     const resource = {
-      title: presentation.title,
+      name: presentation.title,
       mimeType: MimeType.GOOGLE_SLIDES,
-      parents: [{ id: storageTarget.folderId }]
+      parents: [storageTarget.folderId]
     };
     
     const convertedFile = Drive.Files.create(resource, blob);
