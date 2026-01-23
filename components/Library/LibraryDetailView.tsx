@@ -762,7 +762,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-black text-[#004A74] flex items-center gap-2">
-                <SparklesIcon className="w-5 h-5 text-[#FED400]" /> KNOWLEDGE INSIGHTS
+                <SparklesIcon className="w-5 h-5 text-[#004A74]" /> KNOWLEDGE INSIGHTS
               </h2>
               <div className="flex items-center gap-2">
                 <button 
@@ -780,22 +780,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {showMethodologyBlock && (
-                <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
-                  <SectionHeader 
-                    label="Research Methodology" 
-                    icon={<BeakerIcon className="w-3.5 h-3.5" />} 
-                    sectionName="researchMethodology"
-                    hasContent={!!currentItem.researchMethodology}
-                  />
-                  {isAnyLoading || translatingSection === 'researchMethodology' ? (
-                    <div className="h-12 w-full skeleton rounded-xl" />
-                  ) : (
-                    <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: currentItem.researchMethodology || 'Methodology pending analysis.' }} />
-                  )}
-                </div>
-              )}
-              
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                 <SectionHeader 
                   label="Summary" 
@@ -814,7 +798,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 )}
               </div>
 
-              <div className="bg-green-50/20 p-6 rounded-[2rem] border border-green-100/50 shadow-sm space-y-3">
+              <div className="bg-green-50 p-6 rounded-[2rem] border border-green-100/50 shadow-sm space-y-3">
                 <SectionHeader 
                   label="Strengths" 
                   icon={<ClipboardDocumentCheckIcon className="w-3.5 h-3.5" />} 
@@ -828,7 +812,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 )}
               </div>
 
-              <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
+              <div className="bg-red-50 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
                 <SectionHeader 
                   label="Weaknesses" 
                   icon={<ExclamationTriangleIcon className="w-3.5 h-3.5" />} 

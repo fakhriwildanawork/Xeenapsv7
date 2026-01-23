@@ -606,7 +606,7 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
             )}
             {isExtracting && (
               <div className="flex items-center gap-2 px-2 animate-in fade-in slide-in-from-top-1 duration-300">
-                <SparklesIcon className="w-4 h-4 text-[#FED400] animate-pulse" />
+                <SparklesIcon className="w-4 h-4 text-[#004A74] animate-pulse" />
                 <span className="text-[10px] font-black text-[#004A74] uppercase tracking-tighter">
                   {extractionStage === 'FETCHING_ID' ? 'Searching for metadata...' : 
                    extractionStage === 'READING' ? 'Accessing Content...' : 
