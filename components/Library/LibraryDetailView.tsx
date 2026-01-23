@@ -39,6 +39,7 @@ import {
 import { showXeenapsToast } from '../../utils/toastUtils';
 import { saveLibraryItem, deleteLibraryItem, generateCitations } from '../../services/gasService';
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
+import { FormDropdown } from '../Common/FormComponents';
 import Header from '../Layout/Header';
 
 interface LibraryDetailViewProps {
@@ -122,27 +123,29 @@ const CitationModal: React.FC<{
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pr-2">
-          {/* Configuration Grid */}
+          {/* Configuration Grid using Xeenaps FormDropdown */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Citation Style</label>
-              <select 
+              <FormDropdown 
                 value={style} 
-                onChange={(e) => setStyle(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#004A74] focus:ring-2 focus:ring-[#004A74]/10 outline-none transition-all"
-              >
-                {styles.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+                onChange={(v) => setStyle(v)} 
+                options={styles} 
+                placeholder="Select style..."
+                allowCustom={false}
+                disabled={isGenerating}
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Language</label>
-              <select 
+              <FormDropdown 
                 value={language} 
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#004A74] focus:ring-2 focus:ring-[#004A74]/10 outline-none transition-all"
-              >
-                {languages.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
+                onChange={(v) => setLanguage(v)} 
+                options={languages} 
+                placeholder="Select language..."
+                allowCustom={false}
+                disabled={isGenerating}
+              />
             </div>
           </div>
 

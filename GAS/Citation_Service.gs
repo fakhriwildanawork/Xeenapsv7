@@ -162,8 +162,10 @@ function formatCitations(item, style, lang) {
       break;
   }
 
-  // Cleanup: Ensure no double spaces and trim
-  bibliography = bibliography.replace(/\s+/g, ' ').trim();
+  // Final Cleanup: No HTML allowed, remove redundant spaces
+  bibliography = bibliography.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  parenthetical = parenthetical.replace(/<[^>]*>/g, '').trim();
+  narrative = narrative.replace(/<[^>]*>/g, '').trim();
 
   return {
     parenthetical,
