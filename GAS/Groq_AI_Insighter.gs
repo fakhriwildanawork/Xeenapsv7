@@ -37,7 +37,7 @@ function handleGenerateInsight(item) {
        - STYLING (MANDATORY): 
          * Use <b><i> tags for key findings and major breakthroughs.
          * Use <span style="background-color: #FED40030; color: #004A74; padding: 0 4px; border-radius: 4px;">...</span> to HIGHLIGHT critical terms, core concepts, or statistical significance.
-         * Use <br/> for paragraph breaks. MUST BE AT LEAST 4-6 LONG PARAGRAPHS.
+         * Use <br/> for paragraph breaks. MUST BE AT LEAST 5-8 LONG PARAGRAPHS.
 
     3. STRENGTHS & WEAKNESSES: Numbered list with technical justification.
     
