@@ -201,8 +201,8 @@ const LibraryEditForm: React.FC<LibraryEditFormProps> = ({ onComplete, items = [
       
       if (result.status === 'success') { 
         onComplete(); 
-        navigate('/'); 
-        // Fix: Use showXeenapsToast which is now properly imported
+        // Redirect to main and auto-open detail view for the edited item
+        navigate('/', { state: { openItem: updatedItem }, replace: true }); 
         showXeenapsToast('success', 'Update successful');
       } else {
         showXeenapsAlert({ icon: 'error', title: 'UPDATE FAILED', text: result.message || 'Error occurred.' });
@@ -245,7 +245,10 @@ const LibraryEditForm: React.FC<LibraryEditFormProps> = ({ onComplete, items = [
 
   return (
     <FormPageContainer>
-      <FormStickyHeader title="Update Collection" subtitle="Refining your knowledge anchor" onBack={() => navigate('/')} />
+      <FormStickyHeader title="Update Collection" subtitle="Refining your knowledge anchor" onBack={() => {
+        const item = items.find(i => i.id === id);
+        navigate('/', { state: { openItem: item }, replace: true });
+      }} />
       <FormContentArea>
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -291,7 +294,10 @@ const LibraryEditForm: React.FC<LibraryEditFormProps> = ({ onComplete, items = [
           </FormField>
 
           <div className="pt-10 flex flex-col md:flex-row gap-4">
-            <button type="button" onClick={() => navigate('/')} disabled={isSubmitting} className="w-full md:px-10 py-5 bg-gray-100 text-gray-400 rounded-[1.5rem] font-black text-sm uppercase">Cancel</button>
+            <button type="button" onClick={() => {
+              const item = items.find(i => i.id === id);
+              navigate('/', { state: { openItem: item }, replace: true });
+            }} disabled={isSubmitting} className="w-full md:px-10 py-5 bg-gray-100 text-gray-400 rounded-[1.5rem] font-black text-sm uppercase">Cancel</button>
             <button type="submit" disabled={isSubmitting} className="w-full py-5 bg-[#004A74] text-white rounded-[1.5rem] font-black text-sm flex items-center justify-center gap-3 uppercase">{isSubmitting ? 'SAVING CHANGES...' : <><CheckIcon className="w-5 h-5" /> Save Changes</>}</button>
           </div>
         </form>

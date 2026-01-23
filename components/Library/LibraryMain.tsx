@@ -134,6 +134,16 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
     }
   }, [globalSearch]);
 
+  // Listener for auto-opening item from navigation state (Save/Cancel/Register)
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.openItem) {
+      setSelectedItem(state.openItem);
+      // Clean up state so it doesn't reopen on back navigation
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
+
   useEffect(() => {
     workflow.execute(
       async (signal) => {

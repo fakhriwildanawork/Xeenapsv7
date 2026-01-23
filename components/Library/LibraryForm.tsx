@@ -506,9 +506,9 @@ const LibraryForm: React.FC<LibraryFormProps> = ({ onComplete, items = [] }) => 
       
       if (result.status === 'success') { 
         onComplete(); 
-        navigate('/'); 
+        // Redirect to main and auto-open detail view for the newly created item
+        navigate('/', { state: { openItem: newItem }, replace: true }); 
       } else {
-        // Handle specific storage/logic errors from backend
         showXeenapsAlert({ 
           icon: 'error', 
           title: result.title || 'SAVE FAILED', 

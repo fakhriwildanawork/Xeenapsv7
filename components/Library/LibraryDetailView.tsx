@@ -202,10 +202,9 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
       onUpdateOptimistic(updatedItem);
     }
 
-    // 3. Background Sync
+    // 3. Background Sync (Success Toast Removed for Snappiness)
     try {
       await saveLibraryItem(updatedItem);
-      showXeenapsToast('success', `${property === 'isBookmarked' ? 'Bookmark' : 'Favorite'} Updated`);
     } catch (e) {
       // Rollback on failure
       if (property === 'isBookmarked') setIsBookmarked(!newValue);
