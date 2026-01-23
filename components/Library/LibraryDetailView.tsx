@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LibraryItem, PubInfo, Identifiers } from '../../types';
 import { 
   XMarkIcon, 
@@ -26,14 +27,17 @@ import {
   TagIcon,
   BeakerIcon,
   ClockIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { 
   BookmarkIcon as BookmarkSolid, 
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
-import { saveLibraryItem } from '../../services/gasService';
+import { saveLibraryItem, deleteLibraryItem } from '../../services/gasService';
+import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
 import Header from '../Layout/Header';
 
 interface LibraryDetailViewProps {
@@ -154,6 +158,7 @@ const ElegantList: React.FC<{ text?: string; className?: string; isLoading?: boo
 };
 
 const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, isLoading, isMobileSidebarOpen, onRefresh }) => {
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [dummySearch, setDummySearch] = useState('');
@@ -223,6 +228,31 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     }
   };
 
+  const handleUpdate = () => {
+    navigate('/add', { state: { editItem: item } });
+  };
+
+  const handleDelete = async () => {
+    const confirmed = await showXeenapsDeleteConfirm(1);
+    if (confirmed) {
+      setIsSyncing(true);
+      try {
+        const success = await deleteLibraryItem(item.id);
+        if (success) {
+          showXeenapsToast('success', 'Entry Deleted Successfully');
+          if (onRefresh) await onRefresh();
+          onClose();
+        } else {
+          showXeenapsToast('error', 'Failed to delete entry');
+        }
+      } catch (e) {
+        showXeenapsToast('error', 'An error occurred during deletion');
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
   const hasViewLink = !!(item.fileId || item.url);
 
   return (
@@ -287,10 +317,17 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
               {isMenuOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-2 z-[90] animate-in fade-in zoom-in-95">
+                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all">
+                    <PencilIcon className="w-4 h-4" /> Update
+                  </button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ClipboardDocumentListIcon className="w-4 h-4" /> To-Do List</button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><AcademicCapIcon className="w-4 h-4" /> Export Metadata</button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ShareIcon className="w-4 h-4" /> Share Entry</button>
+                  <div className="h-px bg-gray-50 my-1 mx-2" />
+                  <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                    <TrashIcon className="w-4 h-4" /> Delete
+                  </button>
                 </div>
               )}
             </div>
