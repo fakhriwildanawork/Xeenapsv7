@@ -543,13 +543,14 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         {icon} {label}
       </h3>
       {hasContent && !isAnyLoading && (
-        <div className="relative">
+        <div className="relative group">
           <button 
             onClick={() => setOpenTranslationMenu(openTranslationMenu === sectionName ? null : sectionName)}
-            className="p-1.5 text-gray-400 hover:text-[#004A74] hover:bg-white rounded-lg transition-all"
+            className="p-1.5 text-[#004A74] bg-white border border-gray-100 rounded-lg shadow-sm hover:scale-110 transition-all z-10"
           >
-            <LanguageIcon className="w-3.5 h-3.5" />
+            <LanguageIcon className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
+          <MiniTooltip text="Translate Section" />
           {openTranslationMenu === sectionName && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 p-1 z-[110] animate-in fade-in zoom-in-95">
               <div className="p-2 border-b border-gray-50 mb-1">
