@@ -101,11 +101,13 @@ function handleGenerateInsight(item) {
       if (isLocal) {
         DriveApp.getFileById(item.insightJsonId).setContent(insightContent);
       } else {
+        // ENHANCED: Pass fileId to remote node to perform overwrite instead of create
         UrlFetchApp.fetch(nodeUrl, {
           method: 'post',
           contentType: 'application/json',
           payload: JSON.stringify({ 
             action: 'saveJsonFile', 
+            fileId: item.insightJsonId, // CRITICAL FOR TOTAL REWRITE
             fileName: `insight_${item.id}.json`, 
             content: insightContent, 
             folderId: CONFIG.FOLDERS.MAIN_LIBRARY 

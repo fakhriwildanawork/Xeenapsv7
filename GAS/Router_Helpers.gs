@@ -35,9 +35,11 @@ function getViableStorageTarget(threshold) {
       const nodeFolderId = data[i][2];
       const status = data[i][3];
       
+      // STABILITY FIX: Use smarter URL parameter appending
       if (status === 'active' && nodeUrl) {
         try {
-          const res = UrlFetchApp.fetch(nodeUrl + "?action=checkQuota", { muteHttpExceptions: true });
+          const separator = nodeUrl.indexOf('?') === -1 ? '?' : '&';
+          const res = UrlFetchApp.fetch(nodeUrl + separator + "action=checkQuota", { muteHttpExceptions: true });
           const resJson = JSON.parse(res.getContentText());
           if (resJson.status === 'success' && resJson.remaining > threshold) {
             return {

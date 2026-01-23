@@ -66,6 +66,45 @@ function doPost(e) {
       return createJsonResponse(handleGenerateInsight(body.item));
     }
 
+    // NEW ACTION: translateInsightSection (TRANSLATION + TOTAL REWRITE)
+    if (action === 'translateInsightSection') {
+      const { fileId, sectionName, targetLang, nodeUrl } = body;
+      if (!fileId) throw new Error("Missing fileId");
+
+      const myUrl = ScriptApp.getService().getUrl();
+      const isLocal = !nodeUrl || nodeUrl === "" || nodeUrl === myUrl;
+      let insightJson;
+
+      // 1. Ambil data JSON asli
+      if (isLocal) {
+        insightJson = JSON.parse(DriveApp.getFileById(fileId).getBlob().getDataAsString());
+      } else {
+        const remoteRes = UrlFetchApp.fetch(nodeUrl + (nodeUrl.indexOf('?') === -1 ? '?' : '&') + "action=getFileContent&fileId=" + fileId);
+        insightJson = JSON.parse(JSON.parse(remoteRes.getContentText()).content);
+      }
+
+      // 2. Terjemahkan bagian spesifik
+      const originalText = insightJson[sectionName];
+      if (!originalText) throw new Error("Section text is empty");
+      
+      const translatedText = fetchTranslation(originalText, targetLang);
+      insightJson[sectionName] = translatedText;
+
+      // 3. Simpan balik (Total Rewrite)
+      const newContent = JSON.stringify(insightJson);
+      if (isLocal) {
+        DriveApp.getFileById(fileId).setContent(newContent);
+      } else {
+        UrlFetchApp.fetch(nodeUrl, {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify({ action: 'saveJsonFile', fileId: fileId, content: newContent })
+        });
+      }
+
+      return createJsonResponse({ status: 'success', translatedText: translatedText });
+    }
+
     // ACTION: checkQuota (POST support for Master-Slave communication)
     if (action === 'checkQuota') {
       const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
@@ -73,12 +112,20 @@ function doPost(e) {
       return createJsonResponse({ status: 'success', remaining: remaining });
     }
 
-    // ACTION: saveJsonFile
+    // ACTION: saveJsonFile (ID-AWARE OVERWRITE SUPPORT)
     if (action === 'saveJsonFile') {
-      const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
-      const folder = DriveApp.getFolderById(folderId);
-      const blob = Utilities.newBlob(body.content, 'application/json', body.fileName);
-      const file = folder.createFile(blob);
+      let file;
+      if (body.fileId) {
+        // TOTAL REWRITE LOGIC
+        file = DriveApp.getFileById(body.fileId);
+        file.setContent(body.content);
+      } else {
+        // INITIAL CREATION LOGIC
+        const folderId = body.folderId || CONFIG.FOLDERS.MAIN_LIBRARY;
+        const folder = DriveApp.getFolderById(folderId);
+        const blob = Utilities.newBlob(body.content, 'application/json', body.fileName);
+        file = folder.createFile(blob);
+      }
       return createJsonResponse({ status: 'success', fileId: file.getId() });
     }
 

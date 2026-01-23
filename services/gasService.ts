@@ -273,3 +273,28 @@ export const generateInsight = async (item: LibraryItem): Promise<any> => {
     return null;
   }
 };
+
+/**
+ * NEW: Translate Insight Section via GAS Service
+ */
+export const translateInsightSection = async (item: LibraryItem, sectionName: string, targetLang: string): Promise<string | null> => {
+  try {
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
+      body: JSON.stringify({ 
+        action: 'translateInsightSection', 
+        fileId: item.insightJsonId, 
+        sectionName, 
+        targetLang,
+        nodeUrl: item.storageNodeUrl
+      }),
+    });
+    const result = await res.json();
+    return result.status === 'success' ? result.translatedText : null;
+  } catch (error) {
+    console.error("Translation failed:", error);
+    return null;
+  }
+};

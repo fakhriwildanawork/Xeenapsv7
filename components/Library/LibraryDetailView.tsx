@@ -30,14 +30,15 @@ import {
   ArrowPathIcon,
   PencilIcon,
   TrashIcon,
-  CheckIcon
+  CheckIcon,
+  LanguageIcon
 } from '@heroicons/react/24/outline';
 import { 
   BookmarkIcon as BookmarkSolid, 
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
-import { saveLibraryItem, deleteLibraryItem, generateCitations, generateInsight, fetchFileContent } from '../../services/gasService';
+import { saveLibraryItem, deleteLibraryItem, generateCitations, generateInsight, fetchFileContent, translateInsightSection } from '../../services/gasService';
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
 import { FormDropdown } from '../Common/FormComponents';
 import Header from '../Layout/Header';
@@ -349,6 +350,10 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const [isFetchingStoredInsights, setIsFetchingStoredInsights] = useState(false);
 
+  // New state for section-specific translation
+  const [translatingSection, setTranslatingSection] = useState<string | null>(null);
+  const [openTranslationMenu, setOpenTranslationMenu] = useState<string | null>(null);
+
   const [currentItem, setCurrentItem] = useState(item);
 
   useEffect(() => {
@@ -377,6 +382,24 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   
   const displayDate = formatDate(currentItem.fullDate || currentItem.year);
   const authorsText = Array.isArray(currentItem.authors) ? currentItem.authors.join(', ') : (currentItem.authors || 'Unknown');
+
+  const LANG_OPTIONS = [
+    { label: "English", code: "en" },
+    { label: "Indonesian", code: "id" },
+    { label: "Portuguese", code: "pt" },
+    { label: "Spanish", code: "es" },
+    { label: "German", code: "de" },
+    { label: "French", code: "fr" },
+    { label: "Dutch", code: "nl" },
+    { label: "Mandarin", code: "zh" },
+    { label: "Japanese", code: "ja" },
+    { label: "Vietnamese", code: "vi" },
+    { label: "Thai", code: "th" },
+    { label: "Hindi", code: "hi" },
+    { label: "Turkish", code: "tr" },
+    { label: "Russian", code: "ru" },
+    { label: "Arabic", code: "ar" }
+  ];
 
   const handleOpenLink = (url: string | null) => {
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
@@ -440,6 +463,30 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     }
   };
 
+  const handleTranslateSection = async (sectionName: string, langCode: string) => {
+    if (translatingSection) return;
+    setTranslatingSection(sectionName);
+    setOpenTranslationMenu(null);
+    showXeenapsToast('info', 'Translating content...');
+
+    try {
+      const translated = await translateInsightSection(currentItem, sectionName, langCode);
+      if (translated) {
+        setCurrentItem(prev => ({
+          ...prev,
+          [sectionName]: translated
+        }));
+        showXeenapsToast('success', 'Translation successful!');
+      } else {
+        showXeenapsToast('error', 'Translation service error');
+      }
+    } catch (e) {
+      showXeenapsToast('error', 'Translation failed');
+    } finally {
+      setTranslatingSection(null);
+    }
+  };
+
   const handleViewCollection = () => {
     let targetUrl = '';
     if (currentItem.fileId) {
@@ -483,6 +530,48 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
 
   const isAnyLoading = isGeneratingInsights || isFetchingStoredInsights;
+
+  // New Subcomponent for Section Header with Translation Button
+  const SectionHeader: React.FC<{ 
+    label: string; 
+    icon: React.ReactNode; 
+    sectionName: string;
+    hasContent: boolean;
+  }> = ({ label, icon, sectionName, hasContent }) => (
+    <div className="flex items-center justify-between mb-2">
+      <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+        {icon} {label}
+      </h3>
+      {hasContent && !isAnyLoading && (
+        <div className="relative">
+          <button 
+            onClick={() => setOpenTranslationMenu(openTranslationMenu === sectionName ? null : sectionName)}
+            className="p-1.5 text-gray-400 hover:text-[#004A74] hover:bg-white rounded-lg transition-all"
+          >
+            <LanguageIcon className="w-3.5 h-3.5" />
+          </button>
+          {openTranslationMenu === sectionName && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 p-1 z-[110] animate-in fade-in zoom-in-95">
+              <div className="p-2 border-b border-gray-50 mb-1">
+                 <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Select Language</p>
+              </div>
+              <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                {LANG_OPTIONS.map((lang) => (
+                  <button 
+                    key={lang.code}
+                    onClick={() => handleTranslateSection(sectionName, lang.code)}
+                    className="w-full text-left px-3 py-2 text-[10px] font-bold text-[#004A74] hover:bg-gray-50 rounded-lg transition-all flex items-center justify-between"
+                  >
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div 
@@ -692,16 +781,28 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {showMethodologyBlock && (
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
-                  <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><BeakerIcon className="w-3.5 h-3.5" /> Research Methodology</h3>
-                  {isAnyLoading ? <div className="h-12 w-full skeleton rounded-xl" /> : (
+                  <SectionHeader 
+                    label="Research Methodology" 
+                    icon={<BeakerIcon className="w-3.5 h-3.5" />} 
+                    sectionName="researchMethodology"
+                    hasContent={!!currentItem.researchMethodology}
+                  />
+                  {isAnyLoading || translatingSection === 'researchMethodology' ? (
+                    <div className="h-12 w-full skeleton rounded-xl" />
+                  ) : (
                     <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: currentItem.researchMethodology || 'Methodology pending analysis.' }} />
                   )}
                 </div>
               )}
               
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardDocumentListIcon className="w-3.5 h-3.5" /> Summary</h3>
-                {isAnyLoading ? (
+                <SectionHeader 
+                  label="Summary" 
+                  icon={<ClipboardDocumentListIcon className="w-3.5 h-3.5" />} 
+                  sectionName="summary"
+                  hasContent={!!currentItem.summary}
+                />
+                {isAnyLoading || translatingSection === 'summary' ? (
                   <div className="space-y-3">
                     <div className="h-4 w-full skeleton rounded-md" />
                     <div className="h-4 w-full skeleton rounded-md" />
@@ -713,24 +814,45 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               </div>
 
               <div className="bg-green-50/20 p-6 rounded-[2rem] border border-green-100/50 shadow-sm space-y-3">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2">
-                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths
-                </h3>
-                <ElegantList text={currentItem.strength} isLoading={isAnyLoading} />
+                <SectionHeader 
+                  label="Strengths" 
+                  icon={<ClipboardDocumentCheckIcon className="w-3.5 h-3.5" />} 
+                  sectionName="strength"
+                  hasContent={!!currentItem.strength}
+                />
+                {translatingSection === 'strength' ? (
+                  <div className="h-20 w-full skeleton rounded-xl" />
+                ) : (
+                  <ElegantList text={currentItem.strength} isLoading={isAnyLoading} />
+                )}
               </div>
 
               <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
-                  <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses
-                </h3>
-                <ElegantList text={currentItem.weakness} isLoading={isAnyLoading} />
+                <SectionHeader 
+                  label="Weaknesses" 
+                  icon={<ExclamationTriangleIcon className="w-3.5 h-3.5" />} 
+                  sectionName="weakness"
+                  hasContent={!!currentItem.weakness}
+                />
+                {translatingSection === 'weakness' ? (
+                  <div className="h-20 w-full skeleton rounded-xl" />
+                ) : (
+                  <ElegantList text={currentItem.weakness} isLoading={isAnyLoading} />
+                )}
               </div>
 
               <div className="bg-[#004A74]/5 p-6 rounded-[2rem] border border-[#004A74]/10 shadow-sm space-y-3 md:col-span-2">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
-                  <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
-                </h3>
-                <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isAnyLoading} />
+                <SectionHeader 
+                  label="Unfamiliar Terminology" 
+                  icon={<ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" />} 
+                  sectionName="unfamiliarTerminology"
+                  hasContent={!!(currentItem.unfamiliarTerminology || currentItem.quickTipsForYou)}
+                />
+                {translatingSection === 'unfamiliarTerminology' ? (
+                  <div className="h-20 w-full skeleton rounded-xl" />
+                ) : (
+                  <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isAnyLoading} />
+                )}
               </div>
             </div>
           </section>
