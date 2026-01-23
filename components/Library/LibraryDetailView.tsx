@@ -269,8 +269,9 @@ const parseJsonField = (field: any, defaultValue: any = {}) => {
 
 /**
  * Enhanced List Component with Primary Circle and Yellow Text
+ * FIX: Menambahkan handling untuk Array dan pembersihan trim() yang aman.
  */
-const ElegantList: React.FC<{ text?: string; className?: string; isLoading?: boolean }> = ({ text, className = "", isLoading }) => {
+const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolean }> = ({ text, className = "", isLoading }) => {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -284,13 +285,36 @@ const ElegantList: React.FC<{ text?: string; className?: string; isLoading?: boo
     );
   }
 
-  if (!text || text === 'N/A' || text.trim() === '') return null;
+  // Early return jika data kosong atau 'N/A'
+  if (text === null || text === undefined || text === 'N/A') return null;
   
-  const items = text.split(/\n|(?=\d+\.)|(?=•)/)
-    .map(i => i.replace(/^\d+\.\s*|•\s*/, '').trim())
-    .filter(Boolean);
-  
-  if (items.length <= 1) {
+  let items: string[] = [];
+
+  // Jika input adalah Array
+  if (Array.isArray(text)) {
+    items = text.map(i => String(i).trim()).filter(Boolean);
+  } 
+  // Jika input adalah String
+  else if (typeof text === 'string') {
+    const trimmedText = text.trim();
+    if (trimmedText === '') return null;
+    
+    // Split berdasarkan baris baru atau penomoran
+    items = trimmedText.split(/\n|(?=\d+\.)|(?=•)/)
+      .map(i => i.replace(/^\d+\.\s*|•\s*/, '').trim())
+      .filter(Boolean);
+  } 
+  // Fallback untuk tipe data lain (number, dsb)
+  else {
+    const strVal = String(text).trim();
+    if (strVal === '') return null;
+    items = [strVal];
+  }
+
+  if (items.length === 0) return null;
+
+  // Render teks biasa jika hanya ada 1 item dan bukan format list
+  if (items.length === 1 && typeof text === 'string' && !text.match(/\n|(?=\d+\.)|(?=•)/)) {
     return (
       <div className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} dangerouslySetInnerHTML={{ __html: text }} />
     );
@@ -322,6 +346,8 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  // FIX: State baru untuk memisahkan proses fetch awal data JSON
+  const [isFetchingStoredInsights, setIsFetchingStoredInsights] = useState(false);
 
   // local item state to reflect AI updates immediately
   const [currentItem, setCurrentItem] = useState(item);
@@ -330,7 +356,8 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   useEffect(() => {
     const loadJsonInsights = async () => {
       if (item.insightJsonId) {
-        setIsGeneratingInsights(true);
+        // FIX: Menggunakan state fetching, bukan generating
+        setIsFetchingStoredInsights(true);
         const jsonInsights = await fetchFileContent(item.insightJsonId, item.storageNodeUrl);
         if (jsonInsights && Object.keys(jsonInsights).length > 0) {
           setCurrentItem(prev => ({
@@ -338,7 +365,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             ...jsonInsights
           }));
         }
-        setIsGeneratingInsights(false);
+        setIsFetchingStoredInsights(false);
       }
     };
     
@@ -393,7 +420,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleGenerateInsights = async () => {
-    if (isGeneratingInsights) return;
+    if (isGeneratingInsights || isFetchingStoredInsights) return;
     setIsGeneratingInsights(true);
     showXeenapsToast('info', 'AI Insighter is analyzing content...');
 
@@ -467,6 +494,9 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const categoriesJournal = ["Original Research", "Systematic Review", "Meta-analysis", "Case Report", "Review Article", "Scoping Review", "Rapid Review", "Preprint"];
   const isJournalType = categoriesJournal.includes(currentItem.category);
   const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
+
+  // Combined data area loading state (Fetch awal OR Generate AI)
+  const isAnyLoading = isGeneratingInsights || isFetchingStoredInsights;
 
   return (
     <div 
@@ -669,7 +699,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleGenerateInsights}
-                  disabled={isGeneratingInsights}
+                  disabled={isAnyLoading}
                   className="flex items-center gap-2 px-4 py-2 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[#004A74]/20 hover:scale-105 transition-all disabled:opacity-50"
                 >
                   {isGeneratingInsights ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
@@ -685,7 +715,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               {showMethodologyBlock && (
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                   <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><BeakerIcon className="w-3.5 h-3.5" /> Research Methodology</h3>
-                  {isGeneratingInsights ? <div className="h-12 w-full skeleton rounded-xl" /> : (
+                  {isAnyLoading ? <div className="h-12 w-full skeleton rounded-xl" /> : (
                     <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: currentItem.researchMethodology || 'Methodology pending analysis.' }} />
                   )}
                 </div>
@@ -693,7 +723,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardDocumentListIcon className="w-3.5 h-3.5" /> Summary</h3>
-                {isGeneratingInsights ? (
+                {isAnyLoading ? (
                   <div className="space-y-3">
                     <div className="h-4 w-full skeleton rounded-md" />
                     <div className="h-4 w-full skeleton rounded-md" />
@@ -708,21 +738,21 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2">
                   <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths
                 </h3>
-                <ElegantList text={currentItem.strength} isLoading={isGeneratingInsights} />
+                <ElegantList text={currentItem.strength} isLoading={isAnyLoading} />
               </div>
 
               <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
                   <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses
                 </h3>
-                <ElegantList text={currentItem.weakness} isLoading={isGeneratingInsights} />
+                <ElegantList text={currentItem.weakness} isLoading={isAnyLoading} />
               </div>
 
               <div className="bg-[#004A74]/5 p-6 rounded-[2rem] border border-[#004A74]/10 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
                   <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
                 </h3>
-                <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isGeneratingInsights} />
+                <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isAnyLoading} />
               </div>
             </div>
           </section>

@@ -10,18 +10,21 @@ function handleGenerateInsight(item) {
     if (!extractedId) return { status: 'error', message: 'No extracted data found to analyze.' };
 
     const nodeUrl = item.storageNodeUrl;
-    const myId = ScriptApp.getService().getScriptId();
-    const isLocal = !nodeUrl || nodeUrl === "" || nodeUrl.indexOf(myId) !== -1;
+    // FIX: Gunakan URL Web App untuk deteksi lokal yang lebih akurat daripada ScriptId
+    const currentWebAppUrl = ScriptApp.getService().getUrl();
+    const isLocal = !nodeUrl || nodeUrl === "" || nodeUrl === currentWebAppUrl;
 
     let fullText = "";
 
     // 1. Fetch Extracted Text (Local vs Remote Node)
     if (isLocal) {
+      console.log("Processing locally on Master Node...");
       const file = DriveApp.getFileById(extractedId);
       const contentStr = file.getBlob().getDataAsString();
       const content = JSON.parse(contentStr);
       fullText = content.fullText || "";
     } else {
+      console.log("Fetching remote content from Storage Node: " + nodeUrl);
       // Remote Fetch from Slave Node via doGet/getFileContent
       try {
         const remoteRes = UrlFetchApp.fetch(nodeUrl + (nodeUrl.indexOf('?') === -1 ? '?' : '&') + "action=getFileContent&fileId=" + extractedId, { 
@@ -30,7 +33,7 @@ function handleGenerateInsight(item) {
         const resJson = JSON.parse(remoteRes.getContentText());
         if (resJson.status === 'success') {
           const content = JSON.parse(resJson.content);
-          fullText = content.fullText || "";
+          fullText = content.content ? JSON.parse(resJson.content).fullText : (content.fullText || "");
         } else {
           throw new Error(resJson.message || "Failed to fetch remote content");
         }
@@ -87,17 +90,22 @@ function handleGenerateInsight(item) {
     const aiResult = callGroqLibrarian(prompt);
     if (aiResult.status !== 'success') return aiResult;
 
-    // Robust JSON Stripping (Removing markdown code blocks if any)
-    let rawData = aiResult.data.trim();
-    if (rawData.startsWith('```')) {
-      rawData = rawData.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    // FIX: Robust JSON Extraction menggunakan Regex untuk menangani AI yang "chatty"
+    let rawData = aiResult.data;
+    console.log("Raw AI Response: " + rawData);
+    
+    const jsonMatch = rawData.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("AI did not return a valid JSON object structure.");
     }
-    const insights = JSON.parse(rawData);
+    
+    const insights = JSON.parse(jsonMatch[0]);
 
     // 4. Persistence: Update insight_[id].json Shard (Local/Remote)
     if (item.insightJsonId) {
+      const insightContent = JSON.stringify(insights);
       if (isLocal) {
-        DriveApp.getFileById(item.insightJsonId).setContent(JSON.stringify(insights));
+        DriveApp.getFileById(item.insightJsonId).setContent(insightContent);
       } else {
         UrlFetchApp.fetch(nodeUrl, {
           method: 'post',
@@ -105,17 +113,18 @@ function handleGenerateInsight(item) {
           payload: JSON.stringify({ 
             action: 'saveJsonFile', 
             fileName: `insight_${item.id}.json`, 
-            content: JSON.stringify(insights), 
+            content: insightContent, 
             folderId: CONFIG.FOLDERS.MAIN_LIBRARY 
           })
         });
       }
     }
 
-    // SUCCESS: Return insights only. No Spreadsheet update per user instruction (JSON-Only Insights).
+    console.log("Insights generated and saved successfully.");
     return { status: 'success', data: insights };
 
   } catch (err) {
+    console.error("Insighter Error Log: " + err.toString());
     return { status: 'error', message: 'Insighter Error: ' + err.toString() };
   }
 }
