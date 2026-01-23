@@ -68,7 +68,7 @@ const CitationModal: React.FC<{
   item: LibraryItem; 
   onClose: () => void 
 }> = ({ item, onClose }) => {
-  const [style, setStyle] = useState('Harvard (Xeenaps)');
+  const [style, setStyle] = useState('Harvard');
   const [language, setLanguage] = useState('English');
   const [results, setResults] = useState<{ parenthetical: string; narrative: string; bibliography: string } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -78,8 +78,8 @@ const CitationModal: React.FC<{
   const [editableNarrative, setEditableNarrative] = useState('');
   const [editableBibliography, setEditableBibliography] = useState('');
 
-  const styles = ['Harvard (Xeenaps)', 'APA (7th Edition)', 'IEEE (Numeric)', 'Chicago (Author-Date)', 'Vancouver'];
-  const languages = ['English', 'Indonesian'];
+  const styles = ['Harvard', 'APA 7th Edition', 'IEEE', 'Chicago', 'Vancouver', 'MLA 9th Edition'];
+  const languages = ['English', 'Indonesian', 'French', 'German', 'Dutch'];
 
   const handleGenerate = async () => {
     setIsGenerating(true);

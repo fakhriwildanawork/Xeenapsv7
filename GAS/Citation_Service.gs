@@ -2,6 +2,7 @@
 /**
  * XEENAPS PKM - CITATION GENERATOR SERVICE
  * Handles multiple styles and languages for academic citations.
+ * Returns Clean Plain Text only.
  */
 
 function formatCitations(item, style, lang) {
@@ -16,109 +17,107 @@ function formatCitations(item, style, lang) {
   const doi = item.identifiers?.doi || "";
   const url = item.url || "";
 
-  // Helper for Language
-  const isId = lang === 'Indonesian';
-  const andStr = isId ? 'dan' : 'and';
-  const etAlStr = 'et al.';
-  const availableAt = isId ? 'Tersedia di' : 'Available at';
-  const volStr = isId ? 'vol.' : 'vol.';
-  const noStr = isId ? 'no.' : 'no.';
-  const ppStr = isId ? 'hlm.' : 'pp.';
+  // Dictionary for Internationalization
+  const dict = {
+    'English': { and: 'and', etAl: 'et al.', available: 'Available at', vol: 'vol.', no: 'no.', pp: 'pp.' },
+    'Indonesian': { and: 'dan', etAl: 'et al.', available: 'Tersedia di', vol: 'vol.', no: 'no.', pp: 'hlm.' },
+    'French': { and: 'et', etAl: 'et al.', available: 'Disponible sur', vol: 'vol.', no: 'n°', pp: 'pp.' },
+    'German': { and: 'und', etAl: 'et al.', available: 'Verfügbar unter', vol: 'Bd.', no: 'Nr.', pp: 'S.' },
+    'Dutch': { and: 'en', etAl: 'et al.', available: 'Beschikbaar op', vol: 'vol.', no: 'nr.', pp: 'pp.' }
+  };
 
-  // 1. Format Authors for In-Text
-  let inTextAuthor = "";
-  if (authors.length === 0) {
-    inTextAuthor = "Anon.";
-  } else if (authors.length === 1) {
-    inTextAuthor = authors[0].split(' ').pop();
-  } else if (authors.length === 2) {
-    inTextAuthor = authors[0].split(' ').pop() + " " + andStr + " " + authors[1].split(' ').pop();
-  } else {
-    inTextAuthor = authors[0].split(' ').pop() + " " + etAlStr;
-  }
+  const l = dict[lang] || dict['English'];
 
-  // 2. Format Authors for Bibliography
-  const formattedBibAuthors = authors.map(a => {
-    const parts = a.split(' ');
+  // Author Name Formatting Helper (Last, F.)
+  const formatAuthorName = (name) => {
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0];
     const last = parts.pop();
-    const firstInit = parts.length > 0 ? parts[0].charAt(0) + "." : "";
-    return last + ", " + firstInit;
-  });
+    const initials = parts.map(p => p.charAt(0).toUpperCase() + ".").join(" ");
+    return `${last}, ${initials}`;
+  };
 
+  // Bibliography Author List
   let bibAuthorStr = "";
-  if (formattedBibAuthors.length === 0) {
+  if (authors.length === 0) {
     bibAuthorStr = "Anon.";
-  } else if (formattedBibAuthors.length === 1) {
-    bibAuthorStr = formattedBibAuthors[0];
-  } else if (formattedBibAuthors.length === 2) {
-    bibAuthorStr = formattedBibAuthors[0] + " " + andStr + " " + formattedBibAuthors[1];
+  } else if (authors.length === 1) {
+    bibAuthorStr = formatAuthorName(authors[0]);
+  } else if (authors.length === 2) {
+    bibAuthorStr = `${formatAuthorName(authors[0])} ${l.and} ${formatAuthorName(authors[1])}`;
   } else {
-    bibAuthorStr = formattedBibAuthors.slice(0, -1).join(", ") + ", " + andStr + " " + formattedBibAuthors[formattedBibAuthors.length - 1];
+    const allButLast = authors.slice(0, -1).map(formatAuthorName).join(", ");
+    bibAuthorStr = `${allButLast}, ${l.and} ${formatAuthorName(authors[authors.length - 1])}`;
   }
 
-  // --- STYLE GENERATORS ---
+  // In-Text Author (Short)
+  let shortAuthor = authors.length > 0 ? authors[0].trim().split(' ').pop() : "Anon.";
+  if (authors.length === 2) shortAuthor += ` ${l.and} ${authors[1].trim().split(' ').pop()}`;
+  else if (authors.length > 2) shortAuthor += ` ${l.etAl}`;
+
   let parenthetical = "";
   let narrative = "";
   let bibliography = "";
 
+  const source = doi ? `https://doi.org/${doi}` : url;
+
   switch (style) {
-    case 'APA (7th Edition)':
-      parenthetical = `(${inTextAuthor}, ${year})`;
-      narrative = `${inTextAuthor} (${year})`;
+    case 'APA 7th Edition':
+      parenthetical = `(${shortAuthor}, ${year})`;
+      narrative = `${shortAuthor} (${year})`;
       bibliography = `${bibAuthorStr} (${year}). ${title}. `;
       if (journal) {
-        bibliography += `<i>${journal}</i>`;
-        if (vol) bibliography += `, <i>${vol}</i>`;
+        bibliography += `${journal}`;
+        if (vol) bibliography += `, ${vol}`;
         if (issue) bibliography += `(${issue})`;
         if (pages) bibliography += `, ${pages}`;
       } else if (publisher) {
         bibliography += `${publisher}.`;
       }
-      if (doi) bibliography += `. https://doi.org/${doi}`;
-      else if (url) bibliography += `. ${url}`;
+      if (source) bibliography += `. ${source}`;
       break;
 
-    case 'IEEE (Numeric)':
+    case 'IEEE':
       parenthetical = `[1]`;
       narrative = `[1]`;
       const ieeeAuthors = authors.map(a => {
-         const p = a.split(' ');
-         return p[0].charAt(0) + ". " + p.pop();
+        const p = a.split(' ');
+        const last = p.pop();
+        return p[0].charAt(0).toUpperCase() + ". " + last;
       }).join(", ");
       bibliography = `${ieeeAuthors}, "${title}," `;
       if (journal) {
-        bibliography += `<i>${journal}</i>, ${volStr} ${vol}, ${noStr} ${issue}, ${ppStr} ${pages}, ${year}.`;
+        bibliography += `${journal}, ${l.vol} ${vol}, ${l.no} ${issue}, ${l.pp} ${pages}, ${year}.`;
       } else {
         bibliography += `${publisher}, ${year}.`;
       }
       break;
 
-    case 'Chicago (Author-Date)':
-      parenthetical = `(${inTextAuthor} ${year})`;
-      narrative = `${inTextAuthor} (${year})`;
+    case 'Chicago':
+      parenthetical = `(${shortAuthor} ${year})`;
+      narrative = `${shortAuthor} (${year})`;
       bibliography = `${bibAuthorStr}. ${year}. "${title}." `;
       if (journal) {
-        bibliography += `<i>${journal}</i>`;
+        bibliography += `${journal}`;
         if (vol) bibliography += ` ${vol}`;
-        if (issue) bibliography += `, no. ${issue}`;
+        if (issue) bibliography += `, ${l.no} ${issue}`;
         if (pages) bibliography += `: ${pages}`;
       } else if (publisher) {
         bibliography += `${publisher}.`;
       }
-      if (doi) bibliography += ` https://doi.org/${doi}.`;
-      else if (url) bibliography += ` ${url}.`;
+      if (source) bibliography += ` ${source}.`;
       break;
 
     case 'Vancouver':
       parenthetical = `(1)`;
       narrative = `(1)`;
-      const vancouverAuthors = authors.map(a => {
+      const vancAuthors = authors.map(a => {
         const p = a.split(' ');
         const last = p.pop();
-        const initials = p.map(n => n.charAt(0).toUpperCase()).join('');
-        return last + ' ' + initials;
-      }).join(', ');
-      bibliography = `${vancouverAuthors}. ${title}. `;
+        const init = p.map(n => n.charAt(0).toUpperCase()).join("");
+        return last + " " + init;
+      }).join(", ");
+      bibliography = `${vancAuthors}. ${title}. `;
       if (journal) {
         bibliography += `${journal}. ${year};`;
         if (vol) bibliography += `${vol}`;
@@ -129,23 +128,42 @@ function formatCitations(item, style, lang) {
       }
       break;
 
-    case 'Harvard (Xeenaps)':
+    case 'MLA 9th Edition':
+      const mlaAuthor = authors.length > 0 ? (authors[0].split(' ').pop() + ", " + authors[0].split(' ').slice(0,-1).join(' ')) : "Anon.";
+      let mlaAuthorStr = mlaAuthor;
+      if (authors.length === 2) mlaAuthorStr += ` ${l.and} ${authors[1]}`;
+      else if (authors.length > 2) mlaAuthorStr += `, ${l.etAl}`;
+      
+      parenthetical = `(${shortAuthor} ${pages})`;
+      narrative = `${shortAuthor}`;
+      bibliography = `${mlaAuthorStr}. "${title}." `;
+      if (journal) {
+        bibliography += `${journal}, ${l.vol} ${vol}, ${l.no} ${issue}, ${year}, ${l.pp} ${pages}.`;
+      } else {
+        bibliography += `${publisher}, ${year}.`;
+      }
+      if (source) bibliography += ` ${source.replace(/^https?:\/\//, '')}.`;
+      break;
+
+    case 'Harvard':
     default:
-      parenthetical = `(${inTextAuthor}, ${year})`;
-      narrative = `${inTextAuthor} (${year})`;
+      parenthetical = `(${shortAuthor}, ${year})`;
+      narrative = `${shortAuthor} (${year})`;
       bibliography = `${bibAuthorStr} (${year}) '${title}'`;
       if (journal) {
-        bibliography += `, <i>${journal}</i>`;
+        bibliography += `, ${journal}`;
         if (vol) bibliography += `, ${vol}`;
         if (issue) bibliography += `(${issue})`;
-        if (pages) bibliography += `, ${ppStr} ${pages}`;
+        if (pages) bibliography += `, ${l.pp} ${pages}`;
       } else if (publisher) {
         bibliography += `, ${publisher}`;
       }
-      const citeSource = doi ? `https://doi.org/${doi}` : url;
-      if (citeSource) bibliography += `. ${availableAt}: ${citeSource}`;
+      if (source) bibliography += `. ${l.available}: ${source}`;
       break;
   }
+
+  // Cleanup: Ensure no double spaces and trim
+  bibliography = bibliography.replace(/\s+/g, ' ').trim();
 
   return {
     parenthetical,
