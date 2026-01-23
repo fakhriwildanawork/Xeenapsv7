@@ -106,15 +106,18 @@ function handleGenerateInsight(item) {
       if (isLocal) {
         DriveApp.getFileById(item.insightJsonId).setContent(insightContent);
       } else {
+        const token = ScriptApp.getOAuthToken();
         UrlFetchApp.fetch(item.storageNodeUrl, {
           method: 'post',
           contentType: 'application/json',
+          headers: { "Authorization": "Bearer " + token },
           payload: JSON.stringify({ 
             action: 'saveJsonFile', 
             fileName: `insight_${item.id}.json`, 
             content: insightContent, 
             folderId: CONFIG.FOLDERS.MAIN_LIBRARY 
-          })
+          }),
+          muteHttpExceptions: true
         });
       }
     }

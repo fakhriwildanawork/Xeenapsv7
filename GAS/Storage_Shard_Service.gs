@@ -23,13 +23,21 @@ const StorageShardService = {
         const content = file.getBlob().getDataAsString();
         return JSON.parse(content);
       } else {
+        const token = ScriptApp.getOAuthToken();
         const finalUrl = nodeUrl + (nodeUrl.indexOf('?') === -1 ? '?' : '&') + "action=getFileContent&fileId=" + fileId;
-        const res = UrlFetchApp.fetch(finalUrl, { muteHttpExceptions: true });
-        const resJson = JSON.parse(res.getContentText());
+        const res = UrlFetchApp.fetch(finalUrl, { 
+          muteHttpExceptions: true,
+          headers: { "Authorization": "Bearer " + token }
+        });
+        const text = res.getContentText();
         
-        if (resJson.status === 'success' && resJson.content) {
-          // Response getFileContent dari Main.gs mengirim stringified JSON di dalam properti 'content'
-          return JSON.parse(resJson.content);
+        // Safety Check: Ensure response is JSON before parsing
+        if (res.getResponseCode() === 200 && text && text.indexOf('{') === 0) {
+          const resJson = JSON.parse(text);
+          if (resJson.status === 'success' && resJson.content) {
+            // Response getFileContent dari Main.gs mengirim stringified JSON di dalam properti 'content'
+            return JSON.parse(resJson.content);
+          }
         }
       }
     } catch (e) {
