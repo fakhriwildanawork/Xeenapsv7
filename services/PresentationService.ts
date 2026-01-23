@@ -1,13 +1,13 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
 import pptxgen from 'pptxgenjs';
 import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import { BRAND_ASSETS } from '../assets';
+import { callAiProxy } from './gasService';
 
 /**
  * PresentationService
- * Alur: Groq Blueprint -> Unsplash Images -> PptxGenJS Build -> GAS Save
+ * Alur: Groq Blueprint (via GAS Proxy) -> Unsplash Images -> PptxGenJS Build -> GAS Save
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -23,9 +23,9 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
     // 1. GENERATE BLUEPRINT (Materi Slide)
+    // Sekarang menggunakan callAiProxy untuk memanggil GROQ via Backend (GAS)
+    // Ini memastikan API Key tetap rahasia di server dan rotasi key tetap berjalan.
     onProgress?.("Generating AI Blueprint...");
     const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
@@ -45,20 +45,20 @@ export const createPresentationWorkflow = async (
       ]
     }`;
 
-    const aiRes = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: blueprintPrompt,
-      config: { responseMimeType: "application/json" }
-    });
+    // Memanggil backend proxy dengan provider 'groq'
+    const aiResText = await callAiProxy('groq', blueprintPrompt);
+    
+    if (!aiResText) {
+      throw new Error("AI Proxy failed to return blueprint text.");
+    }
 
-    const blueprint = JSON.parse(aiRes.text || '{"slides":[]}');
+    const blueprint = JSON.parse(aiResText || '{"slides":[]}');
     
     // 2. INITIALIZE PPTX
     onProgress?.("Assembling Slides...");
     const pptx = new pptxgen();
     
     // DEFINE MASTER (BRANDING LOGO)
-    // Fix: Updated method name from defineMaster to defineSlideMaster
     pptx.defineSlideMaster({
       title: 'XEENAPS_MASTER',
       background: { color: 'FFFFFF' },
@@ -117,7 +117,6 @@ export const createPresentationWorkflow = async (
 
     // 3. EXPORT TO BASE64
     onProgress?.("Converting to Google Slides...");
-    // Fix: Changed .write('base64') to .write({ outputType: 'base64' }) to match TypeScript props
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     // 4. SAVE TO GAS
