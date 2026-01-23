@@ -93,6 +93,42 @@ function formatCitations(item, style, lang) {
       }
       break;
 
+    case 'Chicago (Author-Date)':
+      parenthetical = `(${inTextAuthor} ${year})`;
+      narrative = `${inTextAuthor} (${year})`;
+      bibliography = `${bibAuthorStr}. ${year}. "${title}." `;
+      if (journal) {
+        bibliography += `<i>${journal}</i>`;
+        if (vol) bibliography += ` ${vol}`;
+        if (issue) bibliography += `, no. ${issue}`;
+        if (pages) bibliography += `: ${pages}`;
+      } else if (publisher) {
+        bibliography += `${publisher}.`;
+      }
+      if (doi) bibliography += ` https://doi.org/${doi}.`;
+      else if (url) bibliography += ` ${url}.`;
+      break;
+
+    case 'Vancouver':
+      parenthetical = `(1)`;
+      narrative = `(1)`;
+      const vancouverAuthors = authors.map(a => {
+        const p = a.split(' ');
+        const last = p.pop();
+        const initials = p.map(n => n.charAt(0).toUpperCase()).join('');
+        return last + ' ' + initials;
+      }).join(', ');
+      bibliography = `${vancouverAuthors}. ${title}. `;
+      if (journal) {
+        bibliography += `${journal}. ${year};`;
+        if (vol) bibliography += `${vol}`;
+        if (issue) bibliography += `(${issue})`;
+        if (pages) bibliography += `:${pages}.`;
+      } else {
+        bibliography += `${publisher}; ${year}.`;
+      }
+      break;
+
     case 'Harvard (Xeenaps)':
     default:
       parenthetical = `(${inTextAuthor}, ${year})`;
