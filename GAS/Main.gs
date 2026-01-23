@@ -46,6 +46,13 @@ function doPost(e) {
   try {
     if (action === 'setupDatabase') return createJsonResponse(setupDatabase());
     
+    // NEW ACTION: generateCitations
+    if (action === 'generateCitations') {
+      const { item, style, language } = body;
+      const result = formatCitations(item, style, language);
+      return createJsonResponse({ status: 'success', data: result });
+    }
+
     // ACTION: checkQuota (POST support for Master-Slave communication)
     if (action === 'checkQuota') {
       const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
@@ -295,65 +302,4 @@ function doPost(e) {
   } catch (err) {
     return createJsonResponse({ status: 'error', message: err.toString() });
   }
-}
-
-function getViableStorageTarget(threshold) {
-  const reqThreshold = threshold || CONFIG.STORAGE.THRESHOLD;
-  
-  // Gunakan Drive API v3 untuk akurasi kuota total (Gmail + Drive + Photos)
-  const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;
-  const localRemaining = parseInt(quota.limit) - parseInt(quota.usage);
-
-  // Jika Master masih punya ruang di atas ambang batas, simpan secara lokal
-  if (localRemaining > reqThreshold) {
-    return { isLocal: true, url: ScriptApp.getService().getUrl(), folderId: CONFIG.FOLDERS.MAIN_LIBRARY };
-  }
-
-  // Jika Master hampir penuh, cari Slave di spreadsheet Registry
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.STORAGE_REGISTRY);
-    const ss_sheet = ss.getSheetByName(CONFIG.STORAGE.REGISTRY_SHEET);
-    if (ss_sheet) {
-      const values = ss_sheet.getDataRange().getValues();
-      for (let i = 1; i < values.length; i++) {
-        const nodeUrl = values[i][1];
-        const folderId = values[i][2];
-        if (!nodeUrl || !nodeUrl.toString().startsWith('http')) continue;
-        try {
-          // Cek kuota Slave
-          const response = UrlFetchApp.fetch(nodeUrl, { 
-            method: 'post', 
-            contentType: 'application/json', 
-            payload: JSON.stringify({ action: 'checkQuota' }), 
-            muteHttpExceptions: true 
-          });
-          const resJson = JSON.parse(response.getContentText());
-          if (resJson.status === 'success' && resJson.remaining > reqThreshold) {
-            return { isLocal: false, url: nodeUrl, folderId: folderId };
-          }
-        } catch (nodeErr) {}
-      }
-    }
-  } catch (e) {}
-
-  // Jika Master dan SEMUA Slave tidak mencukupi, kembalikan null
-  return null;
-}
-
-function extractYoutubeId(url) {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
-}
-
-function routerUrlExtraction(url) {
-  if (url.includes('youtube.com') || url.includes('youtu.be')) return handleYoutubeExtraction(url);
-  const driveId = getFileIdFromUrl(url);
-  if (driveId && (url.includes('drive.google.com') || url.includes('docs.google.com'))) return handleDriveExtraction(url, driveId);
-  return handleWebExtraction(url);
-}
-
-function handleAiRequest(provider, prompt, modelOverride) {
-  if (provider === 'groq') return callGroqLibrarian(prompt, modelOverride);
-  return callGeminiService(prompt, modelOverride);
 }

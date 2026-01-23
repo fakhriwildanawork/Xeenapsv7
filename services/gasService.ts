@@ -218,3 +218,22 @@ export const deleteLibraryItem = async (id: string): Promise<boolean> => {
   const result = await res.json();
   return result.status === 'success';
 };
+
+/**
+ * NEW: Generate Citations via GAS Service
+ */
+export const generateCitations = async (item: LibraryItem, style: string, language: string): Promise<any> => {
+  try {
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
+      body: JSON.stringify({ action: 'generateCitations', item, style, language }),
+    });
+    const result = await res.json();
+    return result.status === 'success' ? result.data : null;
+  } catch (error) {
+    console.error("Citation generation failed:", error);
+    return null;
+  }
+};

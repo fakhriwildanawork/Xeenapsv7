@@ -29,14 +29,15 @@ import {
   ClockIcon,
   ArrowPathIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  CheckIcon
 } from '@heroicons/react/24/outline';
 import { 
   BookmarkIcon as BookmarkSolid, 
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
-import { saveLibraryItem, deleteLibraryItem } from '../../services/gasService';
+import { saveLibraryItem, deleteLibraryItem, generateCitations } from '../../services/gasService';
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
 import Header from '../Layout/Header';
 
@@ -59,6 +60,151 @@ const MiniTooltip: React.FC<{ text: string }> = ({ text }) => (
     <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#004A74]"></div>
   </div>
 );
+
+/**
+ * Citation Modal Component
+ */
+const CitationModal: React.FC<{ 
+  item: LibraryItem; 
+  onClose: () => void 
+}> = ({ item, onClose }) => {
+  const [style, setStyle] = useState('Harvard (Xeenaps)');
+  const [language, setLanguage] = useState('English');
+  const [results, setResults] = useState<{ parenthetical: string; narrative: string; bibliography: string } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Editable states
+  const [editableParenthetical, setEditableParenthetical] = useState('');
+  const [editableNarrative, setEditableNarrative] = useState('');
+  const [editableBibliography, setEditableBibliography] = useState('');
+
+  const styles = ['Harvard (Xeenaps)', 'APA (7th Edition)', 'IEEE (Numeric)', 'Chicago (Author-Date)', 'Vancouver'];
+  const languages = ['English', 'Indonesian'];
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    const data = await generateCitations(item, style, language);
+    if (data) {
+      setResults(data);
+      setEditableParenthetical(data.parenthetical);
+      setEditableNarrative(data.narrative);
+      setEditableBibliography(data.bibliography);
+    }
+    setIsGenerating(false);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    showXeenapsToast('success', 'Citation Copied!');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-6 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="bg-white/90 backdrop-blur-2xl p-6 md:p-10 rounded-[3rem] w-full max-w-2xl shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] relative border border-white/20 flex flex-col max-h-[90vh]">
+        
+        {/* Modal Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-[#004A74] text-[#FED400] rounded-2xl flex items-center justify-center shadow-lg">
+              <AcademicCapIcon className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-[#004A74] uppercase tracking-tight">Citation Generator</h3>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Premium Academic Standards</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-all"
+          >
+            <XMarkIcon className="w-8 h-8" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pr-2">
+          {/* Configuration Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Citation Style</label>
+              <select 
+                value={style} 
+                onChange={(e) => setStyle(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#004A74] focus:ring-2 focus:ring-[#004A74]/10 outline-none transition-all"
+              >
+                {styles.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Language</label>
+              <select 
+                value={language} 
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-[#004A74] focus:ring-2 focus:ring-[#004A74]/10 outline-none transition-all"
+              >
+                {languages.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <button 
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="w-full py-4 bg-[#004A74] text-[#FED400] rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-[#004A74]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+          >
+            {isGenerating ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <SparklesIcon className="w-5 h-5" />}
+            {isGenerating ? 'Processing...' : 'Cite Now'}
+          </button>
+
+          {/* Results Section */}
+          {results && (
+            <div className="space-y-6 animate-in slide-in-from-top-4 duration-500 pb-4">
+              <div className="h-px bg-gray-100 w-full" />
+              
+              {/* In-Text Parenthetical */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">In-Text (Parenthetical)</span>
+                  <button onClick={() => copyToClipboard(editableParenthetical)} className="text-[#004A74] hover:scale-110 transition-transform"><DocumentDuplicateIcon className="w-4 h-4" /></button>
+                </div>
+                <textarea 
+                  value={editableParenthetical}
+                  onChange={(e) => setEditableParenthetical(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-semibold text-[#004A74] leading-relaxed focus:bg-white transition-all outline-none resize-none min-h-[60px]"
+                />
+              </div>
+
+              {/* In-Text Narrative */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">In Narrative Citation</span>
+                  <button onClick={() => copyToClipboard(editableNarrative)} className="text-[#004A74] hover:scale-110 transition-transform"><DocumentDuplicateIcon className="w-4 h-4" /></button>
+                </div>
+                <textarea 
+                  value={editableNarrative}
+                  onChange={(e) => setEditableNarrative(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-semibold text-[#004A74] leading-relaxed focus:bg-white transition-all outline-none resize-none min-h-[60px]"
+                />
+              </div>
+
+              {/* Bibliography */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Bibliographic Citation</span>
+                  <button onClick={() => copyToClipboard(editableBibliography)} className="text-[#004A74] hover:scale-110 transition-transform"><DocumentDuplicateIcon className="w-4 h-4" /></button>
+                </div>
+                <textarea 
+                  value={editableBibliography}
+                  onChange={(e) => setEditableBibliography(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-semibold text-[#004A74] leading-relaxed focus:bg-white transition-all outline-none resize-none min-h-[100px]"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Helper to safely format dates from ISO or raw strings.
@@ -163,6 +309,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [showCiteModal, setShowCiteModal] = useState(false);
   const [dummySearch, setDummySearch] = useState('');
   
   // Local states for interactivity
@@ -258,6 +405,8 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     <div 
       className={`fixed top-0 right-0 bottom-0 left-0 lg:left-16 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden transition-all ease-in-out border-l border-gray-100 ${isMobileSidebarOpen ? 'blur-[15px] opacity-40 pointer-events-none scale-[0.98]' : ''}`}
     >
+      {showCiteModal && <CitationModal item={item} onClose={() => setShowCiteModal(false)} />}
+
       {/* 1. TOP STICKY AREA (Header + Action Bar) */}
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
         {/* Integrated Header Component */}
@@ -276,7 +425,10 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           </button>
 
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all">
+            <button 
+              onClick={() => setShowCiteModal(true)}
+              className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all"
+            >
               Cite
             </button>
             
