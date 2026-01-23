@@ -33,6 +33,7 @@ import {
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
+import { saveLibraryItem } from '../../services/gasService';
 import Header from '../Layout/Header';
 
 interface LibraryDetailViewProps {
@@ -42,6 +43,16 @@ interface LibraryDetailViewProps {
   isMobileSidebarOpen?: boolean;
   onRefresh?: () => Promise<void>;
 }
+
+/**
+ * Tooltip Component for Premium Hover Effect
+ */
+const MiniTooltip: React.FC<{ text: string }> = ({ text }) => (
+  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-300 translate-y-1 group-hover:translate-y-0 whitespace-nowrap z-[100]">
+    {text}
+    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#004A74]"></div>
+  </div>
+);
 
 /**
  * Helper to safely format dates from ISO or raw strings.
@@ -146,6 +157,11 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [dummySearch, setDummySearch] = useState('');
+  
+  // Local states for interactivity
+  const [isBookmarked, setIsBookmarked] = useState(!!item.isBookmarked);
+  const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const pubInfo: PubInfo = useMemo(() => parseJsonField(item.pubInfo), [item.pubInfo]);
   const identifiers: Identifiers = useMemo(() => parseJsonField(item.identifiers), [item.identifiers]);
@@ -164,6 +180,50 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     navigator.clipboard.writeText(text);
     showXeenapsToast('success', 'Reference Copied!');
   };
+
+  const handleToggleAction = async (property: 'isBookmarked' | 'isFavorite') => {
+    if (isSyncing) return;
+    
+    const newValue = property === 'isBookmarked' ? !isBookmarked : !isFavorite;
+    
+    // Optimistic UI update
+    if (property === 'isBookmarked') setIsBookmarked(newValue);
+    else setIsFavorite(newValue);
+    
+    setIsSyncing(true);
+    try {
+      const updatedItem = { ...item, [property]: newValue };
+      const success = await saveLibraryItem(updatedItem);
+      if (success) {
+        showXeenapsToast('success', `${property === 'isBookmarked' ? 'Bookmark' : 'Favorite'} Updated`);
+        if (onRefresh) onRefresh();
+      } else {
+        throw new Error('Sync failed');
+      }
+    } catch (e) {
+      // Rollback
+      if (property === 'isBookmarked') setIsBookmarked(!newValue);
+      else setIsFavorite(!newValue);
+      showXeenapsToast('error', 'Failed to sync with server');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleViewCollection = () => {
+    let targetUrl = '';
+    if (item.fileId) {
+      targetUrl = `https://drive.google.com/file/d/${item.fileId}/view`;
+    } else if (item.url) {
+      targetUrl = item.url;
+    }
+    
+    if (targetUrl) {
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const hasViewLink = !!(item.fileId || item.url);
 
   return (
     <div 
@@ -191,13 +251,39 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               Cite
             </button>
             
-            <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EyeIcon className="w-5 h-5" /></button>
-            <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
-              {item.isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
-            </button>
-            <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
-              {item.isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
-            </button>
+            {hasViewLink && (
+              <div className="relative group">
+                <button 
+                  onClick={handleViewCollection}
+                  className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"
+                >
+                  <EyeIcon className="w-5 h-5" />
+                </button>
+                <MiniTooltip text="View Document" />
+              </div>
+            )}
+
+            <div className="relative group">
+              <button 
+                onClick={() => handleToggleAction('isBookmarked')}
+                disabled={isSyncing}
+                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none disabled:opacity-50"
+              >
+                {isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
+              </button>
+              <MiniTooltip text={isBookmarked ? "Unbookmark" : "Bookmark"} />
+            </div>
+
+            <div className="relative group">
+              <button 
+                onClick={() => handleToggleAction('isFavorite')}
+                disabled={isSyncing}
+                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none disabled:opacity-50"
+              >
+                {isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
+              </button>
+              <MiniTooltip text={isFavorite ? "Remove from Favorites" : "Add to Favorites"} />
+            </div>
             
             <div className="relative">
               <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
