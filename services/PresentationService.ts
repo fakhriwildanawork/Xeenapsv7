@@ -2,29 +2,12 @@
 import pptxgen from 'pptxgenjs';
 import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
-import { BRAND_ASSETS } from '../assets';
 import { callAiProxy } from './gasService';
 
 /**
- * Helper to fetch image and convert to Base64 via GAS Proxy to bypass CORS issues
- */
-const imageUrlToBase64 = async (url: string): Promise<string | null> => {
-  try {
-    const response = await fetch(GAS_WEB_APP_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'fetchImageProxy', url })
-    });
-    const result = await response.json();
-    return result.status === 'success' ? result.data : null;
-  } catch (error) {
-    console.warn("Proxy fetch failed for:", url);
-    return null;
-  }
-};
-
-/**
- * PresentationService
- * Alur: Groq Blueprint -> Image Proxy (Base64) -> PptxGenJS -> GAS Save (Slave Delegated)
+ * PresentationService - TEXT ONLY "GAMMA-STYLE" EDITION
+ * Fokus: Menghilangkan seluruh ketergantungan pada gambar (CORS/Proxy) 
+ * untuk memastikan slide terisi dan memvalidasi alur builder.
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -40,11 +23,7 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // 0. PRE-FETCH MASTER ASSETS (Logo) - WAJIB BASE64 untuk Master Slide
-    onProgress?.("Loading Brand Assets...");
-    const logoBase64 = await imageUrlToBase64(BRAND_ASSETS.LOGO_ICON);
-
-    // 1. GENERATE BLUEPRINT
+    // 1. GENERATE BLUEPRINT (Materi Slide)
     onProgress?.("Generating AI Blueprint...");
     const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
@@ -54,20 +33,21 @@ export const createPresentationWorkflow = async (
     REQUIREMENTS:
     - EXACTLY ${config.slidesCount} CONTENT SLIDES (Excluding Title & Reference).
     - LANGUAGE: ${config.language}.
-    - FOR EACH SLIDE PROVIDE: "title", "content" (bullet points), and "imageKeyword" (1-2 words for relevant image).
+    - FOR EACH SLIDE PROVIDE: "title", "content" (detailed bullet points).
     - OUTPUT RAW JSON ONLY.
 
     FORMAT:
     {
       "slides": [
-        { "title": "Slide Title", "content": ["Point 1", "Point 2"], "imageKeyword": "keyword" }
+        { "title": "Slide Title", "content": ["Point 1", "Point 2", "Point 3"] }
       ]
     }`;
 
     let aiResText = await callAiProxy('groq', blueprintPrompt);
     
-    if (!aiResText) throw new Error("AI Blueprint failed.");
+    if (!aiResText) throw new Error("AI Proxy failed to return blueprint.");
 
+    // Clean JSON
     if (aiResText.includes('{')) {
       const start = aiResText.indexOf('{');
       const end = aiResText.lastIndexOf('}');
@@ -76,82 +56,91 @@ export const createPresentationWorkflow = async (
 
     let blueprint = JSON.parse(aiResText || '{"slides":[]}');
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
-    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid AI data.");
+    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid slide data structure.");
     
     // 2. INITIALIZE PPTX
-    onProgress?.("Assembling Slides...");
+    onProgress?.("Designing Visual Layout...");
     const pptx = new pptxgen();
+    
+    // Font Configuration
     const headingFont = config.theme.headingFont || 'Arial';
     const bodyFont = config.theme.fontFamily || 'Arial';
+    const primaryColor = config.theme.primaryColor || '004A74';
 
-    // DEFINE MASTER (Gunakan logoBase64 yang sudah di-fetch agar tidak CORS)
+    // DEFINE MASTER (GEOMETRIC ACCENTS - NO IMAGES)
     pptx.defineSlideMaster({
-      title: 'XEENAPS_MASTER',
+      title: 'XEENAPS_TEXT_MASTER',
       background: { color: 'FFFFFF' },
       objects: [
+        // Top accent line
+        { rect: { x: 0.5, y: 0.8, w: 1, h: 0.05, fill: { color: primaryColor } } },
+        // Bottom footer accent
+        { rect: { x: 0, y: '95%', w: '100%', h: 0.05, fill: { color: primaryColor } } },
+        // Subtle Side Vertical Bar (Gamma Style)
+        { rect: { x: 0, y: 0, w: 0.1, h: '100%', fill: { color: primaryColor } } },
         { 
-          image: { 
-            x: '92%', y: '92%', w: 0.35, h: 0.35, 
-            path: logoBase64 || undefined // Gunakan base64
+          text: { 
+            text: "XEENAPS PKM", 
+            options: { x: 0.5, y: '96%', fontSize: 8, fontFace: bodyFont, color: 'FFFFFF', align: 'left' } 
           } 
-        },
-        {
-          rect: { x: 0, y: '90%', w: '100%', h: 0.05, fill: { color: config.theme.primaryColor } }
         }
       ]
     });
 
-    // SLIDE 1: COVER
-    const slide1 = pptx.addSlide({ masterName: 'XEENAPS_MASTER' });
+    // SLIDE 1: COVER (Modern Centered Layout)
+    const slide1 = pptx.addSlide({ masterName: 'XEENAPS_TEXT_MASTER' });
     slide1.addText(config.title.toUpperCase(), { 
-      x: 0.5, y: 2, w: '90%', fontSize: 32, fontFace: headingFont, 
-      color: config.theme.primaryColor, bold: true, align: 'center' 
+      x: 1, y: 2, w: '80%', fontSize: 42, fontFace: headingFont, 
+      color: primaryColor, bold: true, align: 'center' 
     });
-    slide1.addText(`Presented by: ${config.presenters.join(', ')}`, { 
-      x: 0.5, y: 3.2, w: '90%', fontSize: 18, fontFace: bodyFont, 
-      color: '666666', align: 'center' 
+    
+    // Decorative separator line under title
+    slide1.addShape(pptx.ShapeType.rect, { x: 4, y: 3, w: 2, h: 0.05, fill: { color: primaryColor } });
+
+    slide1.addText(`PRESENTED BY\n${config.presenters.join(', ')}`, { 
+      x: 1, y: 3.5, w: '80%', fontSize: 16, fontFace: bodyFont, 
+      color: '666666', align: 'center', bold: true 
     });
 
-    // CONTENT SLIDES
+    // CONTENT SLIDES (Full Text Layout)
     for (const sData of blueprint.slides) {
-      onProgress?.(`Building Slide: ${sData.title}...`);
-      const slide = pptx.addSlide({ masterName: 'XEENAPS_MASTER' });
+      onProgress?.(`Assembling: ${sData.title}...`);
+      const slide = pptx.addSlide({ masterName: 'XEENAPS_TEXT_MASTER' });
       
+      // Slide Heading
       slide.addText(sData.title, { 
-        x: 0.5, y: 0.4, w: '90%', fontSize: 24, fontFace: headingFont, 
-        color: config.theme.primaryColor, bold: true 
+        x: 0.5, y: 0.3, w: '90%', fontSize: 32, fontFace: headingFont, 
+        color: primaryColor, bold: true 
       });
 
+      // Horizontal Divider
+      slide.addShape(pptx.ShapeType.line, { x: 0.5, y: 0.9, w: 9, h: 0, line: { color: primaryColor, width: 2 } });
+
+      // Body Content (Larger Text for Full Width)
       const contentText = Array.isArray(sData.content) ? sData.content.join('\n\n') : String(sData.content);
       slide.addText(contentText, { 
-        x: 0.5, y: 1.2, w: '55%', fontSize: 14, fontFace: bodyFont, 
-        color: '333333', bullet: true, valign: 'top' 
+        x: 0.5, y: 1.5, w: '90%', fontSize: 18, fontFace: bodyFont, 
+        color: '333333', bullet: { indent: 20 }, valign: 'top', lineSpacing: 28 
       });
-
-      if (sData.imageKeyword) {
-        const imgUrl = `https://loremflickr.com/800/600/${encodeURIComponent(sData.imageKeyword)}`;
-        const base64Img = await imageUrlToBase64(imgUrl);
-        
-        // Selalu gunakan base64 untuk menjamin render
-        if (base64Img) {
-          slide.addImage({ 
-            x: '60%', y: 1.2, w: '35%', h: 3, 
-            path: base64Img, 
-            sizing: { type: 'cover', w: 3, h: 3 } 
-          });
-        }
-      }
     }
 
-    // REFERENCE SLIDE
-    const lastSlide = pptx.addSlide({ masterName: 'XEENAPS_MASTER' });
-    lastSlide.addText("References & Source", { x: 0.5, y: 0.5, fontSize: 24, bold: true, fontFace: headingFont, color: config.theme.primaryColor });
-    lastSlide.addText(`Source: ${item.title}`, { x: 0.5, y: 1.5, fontSize: 14, fontFace: bodyFont });
+    // FINAL SLIDE: SUMMARY & REFERENCE
+    const lastSlide = pptx.addSlide({ masterName: 'XEENAPS_TEXT_MASTER' });
+    lastSlide.addText("References", { x: 0.5, y: 0.5, fontSize: 28, bold: true, fontFace: headingFont, color: primaryColor });
+    lastSlide.addText(`Extracted Source: ${item.title}\nLibrary ID: ${item.id}`, { 
+      x: 0.5, y: 1.5, w: '90%', fontSize: 14, fontFace: bodyFont, color: '666666' 
+    });
+    
+    lastSlide.addText("END OF PRESENTATION", { 
+      x: 0.5, y: 4, w: '90%', fontSize: 24, fontFace: headingFont, 
+      color: primaryColor, bold: true, align: 'center', italic: true 
+    });
 
-    // 3. EXPORT & SAVE
-    onProgress?.("Syncing with Cloud...");
+    // 3. EXPORT TO BASE64
+    onProgress?.("Finalizing Cloud Sync...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
+    // 4. SAVE TO GAS
     const presentationData: Partial<PresentationItem> = {
       id: crypto.randomUUID(),
       collectionIds: [item.id],
@@ -175,9 +164,10 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Failed to save.");
+    
+    throw new Error(result.message || "Failed to save presentation to cloud storage.");
   } catch (error) {
-    console.error("Presentation Error:", error);
+    console.error("Critical Presentation Error:", error);
     return null;
   }
 };
