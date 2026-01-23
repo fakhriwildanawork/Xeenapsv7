@@ -268,8 +268,8 @@ const parseJsonField = (field: any, defaultValue: any = {}) => {
 };
 
 /**
- * Enhanced List Component with Primary Circle and Yellow Text
- * FIX: Menambahkan handling untuk Array dan pembersihan trim() yang aman.
+ * Enhanced List Component
+ * FIX: Menangani format naratif HTML murni tanpa perlu split/trim regex yang berisiko.
  */
 const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolean }> = ({ text, className = "", isLoading }) => {
   if (isLoading) {
@@ -285,40 +285,34 @@ const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolea
     );
   }
 
-  // Early return jika data kosong atau 'N/A'
   if (text === null || text === undefined || text === 'N/A') return null;
   
-  let items: string[] = [];
+  // Jika formatnya naratif murni (terdeteksi ada tag <b> dan <br>), render langsung.
+  if (typeof text === 'string' && (text.includes('<b>') || text.includes('<br'))) {
+    return (
+      <div 
+        className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} 
+        dangerouslySetInnerHTML={{ __html: text }} 
+      />
+    );
+  }
 
-  // Jika input adalah Array
+  let items: string[] = [];
   if (Array.isArray(text)) {
     items = text.map(i => String(i).trim()).filter(Boolean);
-  } 
-  // Jika input adalah String
-  else if (typeof text === 'string') {
+  } else if (typeof text === 'string') {
     const trimmedText = text.trim();
     if (trimmedText === '') return null;
-    
-    // Split berdasarkan baris baru atau penomoran
     items = trimmedText.split(/\n|(?=\d+\.)|(?=•)/)
       .map(i => i.replace(/^\d+\.\s*|•\s*/, '').trim())
       .filter(Boolean);
-  } 
-  // Fallback untuk tipe data lain (number, dsb)
-  else {
+  } else {
     const strVal = String(text).trim();
     if (strVal === '') return null;
     items = [strVal];
   }
 
   if (items.length === 0) return null;
-
-  // Render teks biasa jika hanya ada 1 item dan bukan format list
-  if (items.length === 1 && typeof text === 'string' && !text.match(/\n|(?=\d+\.)|(?=•)/)) {
-    return (
-      <div className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} dangerouslySetInnerHTML={{ __html: text }} />
-    );
-  }
 
   return (
     <ol className={`space-y-3 list-none ${className}`}>
@@ -345,18 +339,18 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isBookmarked, setIsBookmarked] = useState(!!item.isBookmarked);
   const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // FIX: Separasi state loading
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
-  // FIX: State baru untuk memisahkan proses fetch awal data JSON agar tombol generate tidak visual-bug
   const [isFetchingStoredInsights, setIsFetchingStoredInsights] = useState(false);
 
   // local item state to reflect AI updates immediately
   const [currentItem, setCurrentItem] = useState(item);
 
-  // On mount: Fetch Knowledge Insights from JSON file (JSON-Only Insights strategy)
+  // On mount: Fetch Knowledge Insights from JSON file
   useEffect(() => {
     const loadJsonInsights = async () => {
       if (item.insightJsonId) {
-        // FIX: Menggunakan state fetching, bukan generating, sehingga tombol Generate tetap idle
         setIsFetchingStoredInsights(true);
         const jsonInsights = await fetchFileContent(item.insightJsonId, item.storageNodeUrl);
         if (jsonInsights && Object.keys(jsonInsights).length > 0) {
@@ -368,10 +362,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         setIsFetchingStoredInsights(false);
       }
     };
-    
-    // Always sync with prop when it changes
     setCurrentItem(item);
-    // Then try to enrich from JSON
     loadJsonInsights();
   }, [item]);
 
@@ -395,23 +386,15 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
   const handleToggleAction = async (property: 'isBookmarked' | 'isFavorite') => {
     const newValue = property === 'isBookmarked' ? !isBookmarked : !isFavorite;
-    
-    // 1. Optimistic Local Update
     if (property === 'isBookmarked') setIsBookmarked(newValue);
     else setIsFavorite(newValue);
     
     const updatedItem = { ...currentItem, [property]: newValue };
-    
-    // 2. Optimistic Parent Update (Table)
-    if (onUpdateOptimistic) {
-      onUpdateOptimistic(updatedItem);
-    }
+    if (onUpdateOptimistic) onUpdateOptimistic(updatedItem);
 
-    // 3. Background Sync
     try {
       await saveLibraryItem(updatedItem);
     } catch (e) {
-      // Rollback on failure
       if (property === 'isBookmarked') setIsBookmarked(!newValue);
       else setIsFavorite(!newValue);
       if (onUpdateOptimistic) onUpdateOptimistic(item);
@@ -420,8 +403,8 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleGenerateInsights = async () => {
-    // Tombol hanya bisa di-trigger jika tidak sedang loading data lama dan tidak sedang running AI
-    if (isGeneratingInsights || isFetchingStoredInsights) return;
+    // FIX: Tombol Generate murni dikontrol oleh isGeneratingInsights
+    if (isGeneratingInsights) return;
     
     setIsGeneratingInsights(true);
     showXeenapsToast('info', 'AI Insighter is analyzing content...');
@@ -453,33 +436,20 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
   const handleViewCollection = () => {
     let targetUrl = '';
-    if (currentItem.fileId) {
-      targetUrl = `https://drive.google.com/file/d/${currentItem.fileId}/view`;
-    } else if (currentItem.url) {
-      targetUrl = currentItem.url;
-    }
-    
-    if (targetUrl) {
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-    }
+    if (currentItem.fileId) targetUrl = `https://drive.google.com/file/d/${currentItem.fileId}/view`;
+    else if (currentItem.url) targetUrl = currentItem.url;
+    if (targetUrl) window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleUpdate = () => {
-    navigate(`/edit/${currentItem.id}`);
-  };
+  const handleUpdate = () => navigate(`/edit/${currentItem.id}`);
 
   const handleDelete = async () => {
     const confirmed = await showXeenapsDeleteConfirm(1);
     if (confirmed) {
-      // 1. Optimistic Instant Redirect
-      if (onDeleteOptimistic) {
-        onDeleteOptimistic(currentItem.id);
-      }
+      if (onDeleteOptimistic) onDeleteOptimistic(currentItem.id);
       onClose();
       navigate('/');
       showXeenapsToast('success', 'Processing Deletion...');
-
-      // 2. Background Deletion
       try {
         await deleteLibraryItem(currentItem.id);
       } catch (e) {
@@ -490,13 +460,11 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const hasViewLink = !!(currentItem.fileId || currentItem.url);
-
-  // Methodology check: If not 'Original Research' category AND empty string, hide.
   const categoriesJournal = ["Original Research", "Systematic Review", "Meta-analysis", "Case Report", "Review Article", "Scoping Review", "Rapid Review", "Preprint"];
   const isJournalType = categoriesJournal.includes(currentItem.category);
   const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
 
-  // UI Helper: Combined loading state for data areas (Fetch awal OR Generate AI)
+  // UI Helper: Area konten hanya menggunakan skeleton jika data sedang di-fetch/generate
   const isAnyLoading = isGeneratingInsights || isFetchingStoredInsights;
 
   return (
@@ -505,77 +473,36 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     >
       {showCiteModal && <CitationModal item={currentItem} onClose={() => setShowCiteModal(false)} />}
 
-      {/* 1. TOP STICKY AREA (Header + Action Bar) */}
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
         <div className="px-4 md:px-8">
-           <Header 
-            searchQuery={dummySearch} 
-            setSearchQuery={setDummySearch} 
-            onRefresh={onRefresh}
-           />
+           <Header searchQuery={dummySearch} setSearchQuery={setDummySearch} onRefresh={onRefresh} />
         </div>
-
-        {/* Action Bar (Nav Buttons) */}
         <nav className="px-4 md:px-8 py-3 flex items-center justify-between border-t border-gray-50/50">
           <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 px-3 py-2 rounded-xl transition-all">
             <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
           </button>
-
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setShowCiteModal(true)}
-              className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all"
-            >
-              Cite
-            </button>
-            
+            <button onClick={() => setShowCiteModal(true)} className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all">Cite</button>
             {hasViewLink && (
               <div className="relative group">
-                <button 
-                  onClick={handleViewCollection}
-                  className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"
-                >
-                  <EyeIcon className="w-5 h-5" />
-                </button>
+                <button onClick={handleViewCollection} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"><EyeIcon className="w-5 h-5" /></button>
                 <MiniTooltip text="View Document" />
               </div>
             )}
-
             <div className="relative group">
-              <button 
-                onClick={() => handleToggleAction('isBookmarked')}
-                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"
-              >
-                {isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
-              </button>
+              <button onClick={() => handleToggleAction('isBookmarked')} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none">{isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}</button>
               <MiniTooltip text={isBookmarked ? "Unbookmark" : "Bookmark"} />
             </div>
-
             <div className="relative group">
-              <button 
-                onClick={() => handleToggleAction('isFavorite')}
-                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"
-              >
-                {isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
-              </button>
+              <button onClick={() => handleToggleAction('isFavorite')} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none">{isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}</button>
               <MiniTooltip text={isFavorite ? "Remove from Favorites" : "Add to Favorites"} />
             </div>
-            
             <div className="relative">
               <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
               {isMenuOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-2 z-[90] animate-in fade-in zoom-in-95">
-                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all">
-                    <PencilIcon className="w-4 h-4" /> Update
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ClipboardDocumentListIcon className="w-4 h-4" /> To-Do List</button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><AcademicCapIcon className="w-4 h-4" /> Export Metadata</button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ShareIcon className="w-4 h-4" /> Share Entry</button>
-                  <div className="h-px bg-gray-50 my-1 mx-2" />
-                  <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                    <TrashIcon className="w-4 h-4" /> Delete
-                  </button>
+                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PencilIcon className="w-4 h-4" /> Update</button>
+                  <button onClick={handleDelete} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"><TrashIcon className="w-4 h-4" /> Delete</button>
                 </div>
               )}
             </div>
@@ -585,111 +512,29 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
         <div className="max-w-6xl mx-auto px-5 md:px-10 py-6 space-y-4">
-          
-          {/* 2. BLOK HEADER KONTEN */}
           <header className="bg-gray-50/50 p-6 md:p-10 rounded-[2.5rem] border border-gray-100 space-y-4 relative overflow-hidden">
-            {isLoading && !isSyncing ? (
-              <div className="space-y-4">
-                <div className="flex gap-2"><div className="h-6 w-20 skeleton rounded-full"/><div className="h-6 w-20 skeleton rounded-full"/></div>
-                <div className="h-10 w-full skeleton rounded-2xl"/>
-                <div className="h-4 w-1/2 skeleton rounded-lg"/>
-                <div className="pt-4 border-t border-gray-100 flex flex-col gap-2">
-                   <div className="h-3 w-1/4 skeleton rounded-md"/>
-                   <div className="h-3 w-1/3 skeleton rounded-md"/>
-                </div>
-              </div>
+            {isLoading ? (
+              <div className="space-y-4"><div className="h-6 w-20 skeleton rounded-full"/><div className="h-10 w-full skeleton rounded-2xl"/></div>
             ) : (
               <>
                 <div className="flex flex-wrap gap-1.5">
                   <span className="px-3 py-1 bg-[#004A74] text-white text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.type}</span>
-                  {currentItem.category && <span className="px-3 py-1 bg-[#004A74]/10 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.category}</span>}
                   <span className="px-3 py-1 bg-[#FED400] text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.topic}</span>
-                  {currentItem.subTopic && <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.subTopic}</span>}
                 </div>
-
                 <h1 className="text-xl md:text-2xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{currentItem.title}</h1>
-                
                 <div className="flex flex-col gap-1">
                   {displayDate && <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{displayDate}</p>}
-                  <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
-                </div>
-
-                <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-0.5 opacity-60 md:absolute md:bottom-4 md:right-8 transition-all">
-                   <div className="flex items-center gap-1.5">
-                      <ClockIcon className="w-2.5 h-2.5" />
-                      <span className="text-[7px] font-black uppercase tracking-tighter">Created: {formatTimeMeta(currentItem.createdAt)}</span>
-                   </div>
-                   <div className="flex items-center gap-1.5">
-                      <ArrowPathIcon className="w-2.5 h-2.5" />
-                      <span className="text-[7px] font-black uppercase tracking-tighter">Updated: {formatTimeMeta(currentItem.updatedAt)}</span>
-                   </div>
-                </div>
-
-                <div className="space-y-2 pt-4 border-t border-gray-100">
-                  {currentItem.publisher && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publisher</span>
-                      <p className="text-[11px] font-bold text-gray-600">{currentItem.publisher}</p>
-                    </div>
-                  )}
-                  
-                  {(pubInfo.journal || pubInfo.vol || pubInfo.issue || pubInfo.pages) && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publication</span>
-                      <p className="text-[11px] font-bold text-[#004A74]">
-                        {[pubInfo.journal, pubInfo.vol ? `Vol. ${pubInfo.vol}` : '', pubInfo.issue ? `No. ${pubInfo.issue}` : '', pubInfo.pages ? `pp. ${pubInfo.pages}` : ''].filter(Boolean).join(' • ')}
-                      </p>
-                    </div>
-                  )}
-
-                  {Object.values(identifiers).some(v => v) && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Identifiers</span>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                        {identifiers.doi && <p className="text-[9px] font-mono font-bold text-gray-400 italic">DOI: {identifiers.doi}</p>}
-                        {identifiers.issn && <p className="text-[9px] font-mono font-bold text-gray-400 italic">ISSN: {identifiers.issn}</p>}
-                        {identifiers.isbn && <p className="text-[9px] font-mono font-bold text-gray-400 italic">ISBN: {identifiers.isbn}</p>}
-                        {identifiers.pmid && <p className="text-[9px] font-mono font-bold text-gray-400 italic">PMID: {identifiers.pmid}</p>}
-                        {identifiers.arxiv && <p className="text-[9px] font-mono font-bold text-gray-400 italic">arXiv: {identifiers.arxiv}</p>}
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-sm font-bold text-[#004A74]">{authorsText}</p>
                 </div>
               </>
             )}
           </header>
 
-          {/* 3. BLOK TAGS */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><HashtagIcon className="w-3 h-3" /> Keywords</h3>
-              {isLoading && !isSyncing ? <div className="h-10 w-full skeleton rounded-xl" /> : (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.keywords?.length > 0 ? tags.keywords.map((k: string) => <span key={k} className="px-2.5 py-1 bg-[#004A74]/5 border border-[#004A74]/10 rounded-lg text-[9px] font-bold text-[#004A74]">{k}</span>) : <p className="text-[9px] text-gray-300 italic">No keywords.</p>}
-                </div>
-              )}
-            </div>
-            <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><TagIcon className="w-3 h-3" /> Labels</h3>
-              {isLoading && !isSyncing ? <div className="h-10 w-full skeleton rounded-xl" /> : (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.labels?.length > 0 ? tags.labels.map((l: string) => <span key={l} className="px-2.5 py-1 bg-[#FED400]/10 border border-[#FED400]/20 rounded-lg text-[9px] font-bold text-[#004A74]">{l}</span>) : <p className="text-[9px] text-gray-300 italic">No labels.</p>}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* 4. BLOK ABSTRACT */}
           <section className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
             <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookOpenIcon className="w-3.5 h-3.5" /> Abstract</h3>
-            {isLoading && !isSyncing ? (
-               <div className="space-y-2"><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-3/4 skeleton rounded-md"/></div>
-            ) : (
-              <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: currentItem.abstract || 'No abstract content found.' }} />
-            )}
+            <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: currentItem.abstract || 'No abstract content found.' }} />
           </section>
 
-          {/* 5. BLOK INSIGHT */}
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-black text-[#004A74] flex items-center gap-2">
@@ -704,144 +549,36 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   {isGeneratingInsights ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
                   {isGeneratingInsights ? 'Analyzing...' : 'Generate'}
                 </button>
-                {/* Visual loading indicator saat fetch data lama */}
                 {isFetchingStoredInsights && <ArrowPathIcon className="w-4 h-4 text-[#004A74] animate-spin" />}
-                <button onClick={() => setShowTips(true)} className="p-2 bg-[#FED400] text-[#004A74] rounded-xl shadow-md hover:rotate-12 transition-all">
-                  <LightBulbIcon className="w-4 h-4 stroke-[2.5]" />
-                </button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {showMethodologyBlock && (
-                <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
-                  <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><BeakerIcon className="w-3.5 h-3.5" /> Research Methodology</h3>
-                  {isAnyLoading ? <div className="h-12 w-full skeleton rounded-xl" /> : (
-                    <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: currentItem.researchMethodology || 'Methodology pending analysis.' }} />
-                  )}
-                </div>
-              )}
-              
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardDocumentListIcon className="w-3.5 h-3.5" /> Summary</h3>
-                {isAnyLoading ? (
-                  <div className="space-y-3">
-                    <div className="h-4 w-full skeleton rounded-md" />
-                    <div className="h-4 w-full skeleton rounded-md" />
-                    <div className="h-4 w-3/4 skeleton rounded-md" />
-                  </div>
-                ) : (
+                {isAnyLoading ? <div className="space-y-3"><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-3/4 skeleton rounded-md"/></div> : (
                   <div className="text-sm leading-relaxed text-[#004A74] font-medium" dangerouslySetInnerHTML={{ __html: currentItem.summary || 'Summary pending analysis.' }} />
                 )}
               </div>
 
               <div className="bg-green-50/20 p-6 rounded-[2rem] border border-green-100/50 shadow-sm space-y-3">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2">
-                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths
-                </h3>
+                <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2"><ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths</h3>
                 <ElegantList text={currentItem.strength} isLoading={isAnyLoading} />
               </div>
 
               <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
-                  <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses
-                </h3>
+                <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2"><ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses</h3>
                 <ElegantList text={currentItem.weakness} isLoading={isAnyLoading} />
               </div>
 
               <div className="bg-[#004A74]/5 p-6 rounded-[2rem] border border-[#004A74]/10 shadow-sm space-y-3 md:col-span-2">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
-                  <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
-                </h3>
-                <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isAnyLoading} />
+                <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology</h3>
+                <ElegantList text={currentItem.unfamiliarTerminology} isLoading={isAnyLoading} />
               </div>
             </div>
           </section>
-
-          {/* 6. BLOK SUPPORTING REFERENCE */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
-            <div className="space-y-4">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                <LinkIcon className="w-3.5 h-3.5" /> Supporting References
-              </h3>
-              <div className="space-y-3">
-                {isLoading && !isSyncing ? [...Array(2)].map((_, i) => <div key={i} className="h-20 w-full skeleton rounded-3xl" />) : (
-                  supportingData.references?.length > 0 ? supportingData.references.map((ref: string, idx: number) => {
-                    const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
-                    const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
-                    return (
-                      <div key={idx} className="bg-gray-50/50 p-4 rounded-3xl border border-gray-100 flex flex-col gap-3 transition-all hover:scale-[1.02] hover:shadow-md hover:bg-white group">
-                        <div className="flex gap-3">
-                          <span className="shrink-0 w-6 h-6 rounded-full bg-[#004A74] text-[#FED400] text-[10px] font-black flex items-center justify-center shadow-sm">
-                            {idx + 1}
-                          </span>
-                          <p className="text-xs font-semibold text-[#004A74]/80 leading-relaxed flex-1" dangerouslySetInnerHTML={{ __html: ref }} />
-                        </div>
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={(e) => handleCopy(e, ref.replace(/<[^>]*>/g, ''))}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-[#004A74] rounded-lg border border-gray-100 text-[9px] font-black uppercase tracking-tight shadow-sm hover:bg-[#FED400] transition-all"
-                          >
-                            <DocumentDuplicateIcon className="w-3 h-3" /> Copy
-                          </button>
-                          {url && (
-                            <button 
-                              onClick={() => handleOpenLink(url)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#004A74] text-white rounded-lg text-[9px] font-black uppercase tracking-tight shadow-sm hover:bg-[#003859] hover:scale-105 transition-all"
-                            >
-                              <ArrowTopRightOnSquareIcon className="w-3 h-3" /> Visit
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }) : <div className="py-6 text-center text-gray-300 text-[10px] font-bold uppercase italic">No supporting links.</div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-[#004A74] p-6 rounded-[2.5rem] shadow-xl space-y-4 flex flex-col">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-white/50 flex items-center gap-2">
-                <VideoCameraIcon className="w-3.5 h-3.5" /> Visual Insights
-              </h3>
-              <div className="flex-1 flex flex-col justify-center">
-                {isLoading && !isSyncing ? <div className="aspect-video w-full skeleton rounded-2xl" /> : (
-                  supportingData.videoUrl ? (
-                    <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl border-4 border-white/10 group transition-all hover:scale-[1.01]">
-                      <iframe className="w-full h-full" src={supportingData.videoUrl} frameBorder="0" allowFullScreen></iframe>
-                    </div>
-                  ) : (
-                    <div className="aspect-video rounded-2xl bg-white/5 flex flex-col items-center justify-center border-2 border-dashed border-white/10">
-                      <VideoCameraIcon className="w-10 h-10 text-white/10 mb-2" />
-                      <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Video stream unavailable</p>
-                    </div>
-                  )
-                )}
-                <p className="mt-4 text-[10px] text-[#FED400]/80 font-bold italic text-center px-4 leading-relaxed">
-                  "Conceptual visualization facilitates faster knowledge anchoring."
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <footer className="py-8 text-center">
-             <div className="w-10 h-0.5 bg-gray-100 mx-auto mb-4 rounded-full" />
-             <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.6em]">XEENAPS PKM SYSTEMS</p>
-          </footer>
         </div>
       </div>
-
-      {/* Quick Tips Modal */}
-      {showTips && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-[#004A74] text-white p-8 md:p-12 rounded-[3rem] max-w-lg shadow-2xl relative border border-white/10">
-            <button onClick={() => setShowTips(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all"><XMarkIcon className="w-6 h-6" /></button>
-            <LightBulbIcon className="w-10 h-10 text-[#FED400] mb-6 drop-shadow-[0_0_10px_rgba(254,212,0,0.5)]" />
-            <h3 className="text-xl font-black mb-4 uppercase tracking-widest">Knowledge Anchor Tips</h3>
-            <p className="text-sm font-medium italic leading-relaxed opacity-90 border-l-2 border-[#FED400] pl-4">"{currentItem.quickTipsForYou || 'Generate AI insights to unlock specific tips for this collection.'}"</p>
-          </div>
-        </div>
-      )}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
