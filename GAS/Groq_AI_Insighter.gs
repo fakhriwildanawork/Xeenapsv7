@@ -30,21 +30,30 @@ function handleGenerateInsight(item) {
     1. RESEARCH METHODOLOGY:
        - Identify the exact methodology used.
        - FORMAT: Use <b>Terminology</b>: Description.
+       - If methodology can not be identified at all, return empty
        
     2. SUMMARY LOGIC (EXTREMELY VERBOSE MODE - MINIMUM 500 WORDS):
-       - IF THE TEXT IS A RESEARCH PAPER: Use IMRaD+C (Introduction, Methods, Results, and Discussion + Conclusion).
-       - IF NOT: Create a VERY COMPREHENSIVE multi-paragraph summary covering every critical nuance and implication.
-       - STYLING (MANDATORY): 
+       - - IF THE TEXT CONTAIN Introduction, Methode, Result, Discussion, Conclusion Structure:
+         * Create a highly detailed, comprehensive and long enough (Minimal 3 sentences) summary using IMRaD+C (Introduction, Methods, Results, and Discussion + Conclusion) with our own summarizing style. Do Not copy identically from Asbtract
+         * Use only <b> tags for each sub-heading.
+         * Use <span style="background-color: #FED40030; color: #004A74; padding: 0 4px; border-radius: 4px;">...</span> to HIGHLIGHT only accurate and important critical terms, core concepts, or statistical significance BUT NOT FOR SUB HEADING
+         * Use single <br> to separate subheading with paragraph and Use double breaks to separate paragraph with next sub heading
+       - IF NOT A RESEARCH PAPER:
+         * Create a VERY COMPREHENSIVE multi-paragraph summary covering all critical points and every critical nuance with our own summarizing style. MUST BE AT LEAST 5-8 LONG PARAGRAPHS.
          * Use <b><i> tags for key findings and major breakthroughs.
-         * Use <span style="background-color: #FED40030; color: #004A74; padding: 0 4px; border-radius: 4px;">...</span> to HIGHLIGHT critical terms, core concepts, or statistical significance.
-         * Use <br/> for paragraph breaks. MUST BE AT LEAST 5-8 LONG PARAGRAPHS.
+         * Use <span style="background-color: #FED40030; color: #004A74; padding: 0 4px; border-radius: 4px;">...</span> to HIGHLIGHT only accurate and important critical terms, core concepts, or statistical significance.
+         * Use <br/> for paragraph breaks (Separate every paragraph).
 
-    3. STRENGTHS & WEAKNESSES: Numbered list with technical justification.
+    3. STRENGTHS & WEAKNESSES: 
+       - STRICT NARRATIVE HTML FORMAT ONLY. DILARANG MENGGUNAKAN NUMBERING (1, 2, 3) ATAU BULLET POINTS.
+       - Template: <b>[Point]</b><br/>[Explanation]<br/><br/>
+       - USE only <b> combine with <span style="background-color: #FED40030; color: #004A74; padding: 0 4px; border-radius: 4px;">...</span> RIGIDLY for main key point.
     
     4. UNFAMILIAR TERMINOLOGY (NARRATIVE FORMAT):
-       - Explain technical terms one by one.
-       - STRICT TEMPLATE: <b>[Terminology]</b><br/>[Explanation]<br/><br/>
-       - DILARANG MENGGUNAKAN NUMBERING (1, 2, 3) ATAU BULLET POINTS UNTUK BAGIAN INI.
+       - Explain technical terms one by one comprehensively.
+       - STRICT ONE TEMPLATE FOR ALL TERMINOLOGIES, EXACTLY following this rule for every terminology: <b>[Terminology]</b><br/>[Explanation]<br/><br/>
+       - DO NOT USE <i>
+       - STRICTLY DO NOT USE NUMBERING (1, 2, 3) OR BULLET POINTS FOR THIS PART.
 
     5. QUICK TIPS: Practical and strategic advice for the user.
 
@@ -59,8 +68,8 @@ function handleGenerateInsight(item) {
     {
       "researchMethodology": "string with HTML",
       "summary": "string with HTML (Min 500 words, multi-paragraph)",
-      "strength": "string (list or text)",
-      "weakness": "string (list or text)",
+      "strength": "string (narrative HTML format only: <b>Point</b><br/>Def<br/><br/>)",
+      "weakness": "string (narrative HTML format only: <b>Point</b><br/>Def<br/><br/>)",
       "unfamiliarTerminology": "string (narrative HTML format only: <b>Term</b><br/>Def<br/><br/>)",
       "quickTipsForYou": "string with HTML"
     }`;
