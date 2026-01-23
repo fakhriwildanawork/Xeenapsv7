@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LibraryItem, PubInfo, Identifiers } from '../../types';
 import { 
   XMarkIcon, 
@@ -33,11 +33,14 @@ import {
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
+import Header from '../Layout/Header';
 
 interface LibraryDetailViewProps {
   item: LibraryItem;
   onClose: () => void;
   isLoading?: boolean;
+  isMobileSidebarOpen?: boolean;
+  onRefresh?: () => Promise<void>;
 }
 
 /**
@@ -139,9 +142,10 @@ const ElegantList: React.FC<{ text?: string; className?: string; isLoading?: boo
   );
 };
 
-const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, isLoading }) => {
+const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, isLoading, isMobileSidebarOpen, onRefresh }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [dummySearch, setDummySearch] = useState('');
 
   const pubInfo: PubInfo = useMemo(() => parseJsonField(item.pubInfo), [item.pubInfo]);
   const identifiers: Identifiers = useMemo(() => parseJsonField(item.identifiers), [item.identifiers]);
@@ -162,47 +166,58 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden library-detail-overlay">
-      {/* Visual Leakage Protection Blur Layer - Triggers when mobile sidebar is open */}
-      <div className="absolute inset-0 z-[100] backdrop-blur-md bg-white/30 hidden detail-leakage-guard pointer-events-none" />
-      
-      {/* 1. BLOK TOMBOL (Navigation Bar) */}
-      <nav className="shrink-0 bg-white/95 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between z-[90] sticky top-0">
-        <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 px-3 py-2 rounded-xl transition-all">
-          <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
-        </button>
-
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all">
-            Cite
-          </button>
-          
-          <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EyeIcon className="w-5 h-5" /></button>
-          <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
-            {item.isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
-          </button>
-          <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
-            {item.isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
-          </button>
-          
-          <div className="relative">
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
-            {isMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-2 z-[90] animate-in fade-in zoom-in-95">
-                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ClipboardDocumentListIcon className="w-4 h-4" /> To-Do List</button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><AcademicCapIcon className="w-4 h-4" /> Export Metadata</button>
-                <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ShareIcon className="w-4 h-4" /> Share Entry</button>
-              </div>
-            )}
-          </div>
+    <div 
+      className={`fixed top-0 right-0 bottom-0 left-0 lg:left-16 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden transition-all ease-in-out border-l border-gray-100 ${isMobileSidebarOpen ? 'blur-[15px] opacity-40 pointer-events-none scale-[0.98]' : ''}`}
+    >
+      {/* 1. TOP STICKY AREA (Header + Action Bar) */}
+      <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
+        {/* Integrated Header Component */}
+        <div className="px-4 md:px-8">
+           <Header 
+            searchQuery={dummySearch} 
+            setSearchQuery={setDummySearch} 
+            onRefresh={onRefresh}
+           />
         </div>
-      </nav>
+
+        {/* Action Bar (Nav Buttons) */}
+        <nav className="px-4 md:px-8 py-3 flex items-center justify-between border-t border-gray-50/50">
+          <button onClick={onClose} className="flex items-center gap-2 text-[#004A74] font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 px-3 py-2 rounded-xl transition-all">
+            <ArrowLeftIcon className="w-4 h-4 stroke-[3]" /> Back
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all">
+              Cite
+            </button>
+            
+            <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EyeIcon className="w-5 h-5" /></button>
+            <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
+              {item.isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
+            </button>
+            <button className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all">
+              {item.isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
+            </button>
+            
+            <div className="relative">
+              <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
+              {isMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-2 z-[90] animate-in fade-in zoom-in-95">
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ClipboardDocumentListIcon className="w-4 h-4" /> To-Do List</button>
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><AcademicCapIcon className="w-4 h-4" /> Export Metadata</button>
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ShareIcon className="w-4 h-4" /> Share Entry</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </nav>
+      </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
         <div className="max-w-6xl mx-auto px-5 md:px-10 py-6 space-y-4">
           
-          {/* 2. BLOK HEADER */}
+          {/* 2. BLOK HEADER KONTEN */}
           <header className="bg-gray-50/50 p-6 md:p-10 rounded-[2.5rem] border border-gray-100 space-y-4 relative overflow-hidden">
             {isLoading ? (
               <div className="space-y-4">
@@ -230,7 +245,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
 
-                {/* Metadata Created/Updated at bottom-right */}
                 <div className="absolute bottom-4 right-8 flex flex-col items-end gap-0.5 opacity-60">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />
@@ -440,7 +454,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-[#004A74] text-white p-8 md:p-12 rounded-[3rem] max-w-lg shadow-2xl relative border border-white/10">
             <button onClick={() => setShowTips(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all"><XMarkIcon className="w-6 h-6" /></button>
-            {/* Fix: Replaced invalid item.icon with LightBulbIcon which is already imported */}
             <LightBulbIcon className="w-10 h-10 text-[#FED400] mb-6 drop-shadow-[0_0_10px_rgba(254,212,0,0.5)]" />
             <h3 className="text-xl font-black mb-4 uppercase tracking-widest">Knowledge Anchor Tips</h3>
             <p className="text-sm font-medium italic leading-relaxed opacity-90 border-l-2 border-[#FED400] pl-4">"{item.quickTipsForYou || 'Generate AI insights to unlock specific tips for this collection.'}"</p>
@@ -452,21 +465,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #004A7430; border-radius: 10px; }
-        
-        /* Fix: Enhanced blur coverage when mobile sidebar expands */
-        body:has(.z-[70]) .library-detail-overlay {
-           filter: blur(12px) brightness(0.9);
-           pointer-events: none;
-        }
-        
-        body:has(.z-[70]) .detail-leakage-guard {
-           display: block;
-        }
-
-        /* Ensure sticky nav within blurred container also looks blurred */
-        body:has(.z-[70]) .library-detail-overlay nav {
-           filter: blur(4px);
-        }
       `}</style>
     </div>
   );

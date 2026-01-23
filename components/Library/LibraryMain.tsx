@@ -45,6 +45,7 @@ import {
   StandardQuickActionButton, 
   StandardPrimaryButton as AddButton,
   StandardPrimaryButton, 
+  StandardPrimaryButton as PrimaryButton,
   StandardFilterButton 
 } from '../Common/ButtonComponents';
 import { TableSkeletonRows, CardGridSkeleton } from '../Common/LoadingComponents';
@@ -91,13 +92,14 @@ const ElegantTooltip: React.FC<{ text: string; children: React.ReactNode }> = ({
 interface LibraryMainProps {
   items: LibraryItem[];
   isLoading: boolean;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
   globalSearch: string;
+  isMobileSidebarOpen?: boolean;
 }
 
 type SortConfig = { key: keyof LibraryItem | 'none'; direction: 'asc' | 'desc' | null; };
 
-const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoading, onRefresh, globalSearch }) => {
+const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoading, onRefresh, globalSearch, isMobileSidebarOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const workflow = useAsyncWorkflow(30000);
@@ -230,6 +232,8 @@ const LibraryMain: React.FC<LibraryMainProps> = ({ items, isLoading: isGlobalLoa
           item={selectedItem} 
           onClose={() => setSelectedItem(null)} 
           isLoading={isGlobalLoading}
+          isMobileSidebarOpen={isMobileSidebarOpen}
+          onRefresh={onRefresh}
         />
       )}
 

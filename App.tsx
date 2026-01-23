@@ -76,15 +76,11 @@ const App: React.FC = () => {
           />
 
           <div className="mt-4 lg:mt-6 flex-1 pb-10 overflow-hidden relative">
-            {/* 
-              Fix: Keep Routes mounted during sync to allow persistent DetailView,
-              but show GlobalLoader if we are on a list view (handled inside LibraryMain).
-            */}
             <Routes>
-              <Route path="/" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-              <Route path="/favorite" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-              <Route path="/bookmark" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
-              <Route path="/research" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} />} />
+              <Route path="/" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} isMobileSidebarOpen={isMobileSidebarOpen} />} />
+              <Route path="/favorite" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} isMobileSidebarOpen={isMobileSidebarOpen} />} />
+              <Route path="/bookmark" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} isMobileSidebarOpen={isMobileSidebarOpen} />} />
+              <Route path="/research" element={<LibraryMain items={items} isLoading={isLoading} onRefresh={loadData} globalSearch={searchQuery} isMobileSidebarOpen={isMobileSidebarOpen} />} />
               
               <Route path="/add" element={isLoading ? <GlobalAppLoader /> : <LibraryForm onComplete={loadData} items={items} />} />
               <Route path="/settings" element={isLoading ? <GlobalAppLoader /> : <SettingsView />} />
