@@ -131,6 +131,35 @@ export interface LibraryItem {
   labels?: string[];
 }
 
+// --- NEW PRESENTATION TYPES ---
+
+export enum PresentationTemplate {
+  MODERN = 'Modern Minimalist',
+  CORPORATE = 'Corporate Professional',
+  CREATIVE = 'Creative Dynamic',
+  ACADEMIC = 'Academic Clean'
+}
+
+export interface PresentationThemeConfig {
+  primaryColor: string;
+  secondaryColor: string;
+  fontFamily: string;
+  headingFont: string;
+}
+
+export interface PresentationItem {
+  id: string;
+  collectionIds: string[]; // JSON Array for multi-source
+  gSlidesId: string;
+  title: string;
+  presenters: string[]; // JSON Array
+  templateName: PresentationTemplate;
+  themeConfig: PresentationThemeConfig;
+  slidesCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GASResponse<T> {
   status: 'success' | 'error';
   data?: T;

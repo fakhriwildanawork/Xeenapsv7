@@ -48,6 +48,18 @@ const CONFIG = {
       'createdAt', 
       'updatedAt',
       'supportingReferences'
+    ],
+    PRESENTATIONS: [
+      'id',
+      'collectionIds',
+      'gSlidesId',
+      'title',
+      'presenters',
+      'templateName',
+      'themeConfig',
+      'slidesCount',
+      'createdAt',
+      'updatedAt'
     ]
   }
 };

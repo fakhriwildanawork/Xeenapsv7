@@ -42,6 +42,7 @@ import { saveLibraryItem, deleteLibraryItem, generateCitations, generateInsight,
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
 import { FormDropdown } from '../Common/FormComponents';
 import Header from '../Layout/Header';
+import RelatedPresentations from '../Presenter/RelatedPresentations';
 
 interface LibraryDetailViewProps {
   item: LibraryItem;
@@ -342,6 +343,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [showCiteModal, setShowCiteModal] = useState(false);
+  const [showPresentations, setShowPresentations] = useState(false); // NEW STATE
   const [dummySearch, setDummySearch] = useState('');
   
   const [isBookmarked, setIsBookmarked] = useState(!!item.isBookmarked);
@@ -579,6 +581,14 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
       className={`fixed top-0 right-0 bottom-0 left-0 lg:left-16 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden transition-all ease-in-out border-l border-gray-100 ${isMobileSidebarOpen ? 'blur-[15px] opacity-40 pointer-events-none scale-[0.98]' : ''}`}
     >
       {showCiteModal && <CitationModal item={currentItem} onClose={() => setShowCiteModal(false)} />}
+      
+      {/* GALLERY FIRST PRESENTATION VIEW */}
+      {showPresentations && (
+        <RelatedPresentations 
+          collection={currentItem} 
+          onBack={() => setShowPresentations(false)} 
+        />
+      )}
 
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
         <div className="px-4 md:px-8">
@@ -596,8 +606,16 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setShowCiteModal(true)}
+              onClick={() => setShowPresentations(true)}
               className="flex items-center gap-2 px-5 py-2 bg-[#004A74] text-[#FED400] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all"
+            >
+              <PresentationChartBarIcon className="w-4 h-4" />
+              <span className="hidden md:inline">Presentation</span>
+            </button>
+            
+            <button 
+              onClick={() => setShowCiteModal(true)}
+              className="flex items-center gap-2 px-5 py-2 bg-[#FED400] text-[#004A74] text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md hover:scale-105 transition-all"
             >
               Cite
             </button>
@@ -641,7 +659,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all">
                     <PencilIcon className="w-4 h-4" /> Update
                   </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
+                  <button onClick={() => setShowPresentations(true)} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ClipboardDocumentListIcon className="w-4 h-4" /> To-Do List</button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><AcademicCapIcon className="w-4 h-4" /> Export Metadata</button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><ShareIcon className="w-4 h-4" /> Share Entry</button>

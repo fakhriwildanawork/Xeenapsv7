@@ -34,6 +34,14 @@ function doGet(e) {
       const result = getPaginatedItems(CONFIG.SPREADSHEETS.LIBRARY, "Collections", page, limit, search, type, path, sortKey, sortDir);
       return createJsonResponse({ status: 'success', data: result.items, totalCount: result.totalCount });
     }
+
+    // NEW: getRelatedPresentations
+    if (action === 'getRelatedPresentations') {
+      const collectionId = e.parameter.collectionId;
+      const presentations = getPresentationsByCollection(collectionId);
+      return createJsonResponse({ status: 'success', data: presentations });
+    }
+
     if (action === 'getAiConfig') return createJsonResponse({ status: 'success', data: getProviderModel('GEMINI') });
     return createJsonResponse({ status: 'error', message: 'Invalid action: ' + action });
   } catch (err) {
@@ -64,6 +72,11 @@ function doPost(e) {
     // NEW ACTION: generateInsight (AI Insighter)
     if (action === 'generateInsight') {
       return createJsonResponse(handleGenerateInsight(body.item));
+    }
+
+    // NEW ACTION: savePresentation (Conversion + Registry)
+    if (action === 'savePresentation') {
+      return createJsonResponse(handleSavePresentation(body));
     }
 
     // NEW ACTION: translateInsightSection (TRANSLATION + TOTAL REWRITE)
