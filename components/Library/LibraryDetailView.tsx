@@ -266,8 +266,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             <div className="relative group">
               <button 
                 onClick={() => handleToggleAction('isBookmarked')}
-                disabled={isSyncing}
-                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none disabled:opacity-50"
+                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"
               >
                 {isBookmarked ? <BookmarkSolid className="w-5 h-5 text-[#004A74]" /> : <BookmarkIcon className="w-5 h-5" />}
               </button>
@@ -277,8 +276,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             <div className="relative group">
               <button 
                 onClick={() => handleToggleAction('isFavorite')}
-                disabled={isSyncing}
-                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none disabled:opacity-50"
+                className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all outline-none"
               >
                 {isFavorite ? <StarSolid className="w-5 h-5 text-[#FED400]" /> : <StarIcon className="w-5 h-5" />}
               </button>
@@ -305,7 +303,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           
           {/* 2. BLOK HEADER KONTEN */}
           <header className="bg-gray-50/50 p-6 md:p-10 rounded-[2.5rem] border border-gray-100 space-y-4 relative overflow-hidden">
-            {isLoading ? (
+            {isLoading && !isSyncing ? (
               <div className="space-y-4">
                 <div className="flex gap-2"><div className="h-6 w-20 skeleton rounded-full"/><div className="h-6 w-20 skeleton rounded-full"/></div>
                 <div className="h-10 w-full skeleton rounded-2xl"/>
@@ -381,7 +379,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><HashtagIcon className="w-3 h-3" /> Keywords</h3>
-              {isLoading ? <div className="h-10 w-full skeleton rounded-xl" /> : (
+              {isLoading && !isSyncing ? <div className="h-10 w-full skeleton rounded-xl" /> : (
                 <div className="flex flex-wrap gap-1.5">
                   {tags.keywords?.length > 0 ? tags.keywords.map((k: string) => <span key={k} className="px-2.5 py-1 bg-[#004A74]/5 border border-[#004A74]/10 rounded-lg text-[9px] font-bold text-[#004A74]">{k}</span>) : <p className="text-[9px] text-gray-300 italic">No keywords.</p>}
                 </div>
@@ -389,7 +387,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             </div>
             <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><TagIcon className="w-3 h-3" /> Labels</h3>
-              {isLoading ? <div className="h-10 w-full skeleton rounded-xl" /> : (
+              {isLoading && !isSyncing ? <div className="h-10 w-full skeleton rounded-xl" /> : (
                 <div className="flex flex-wrap gap-1.5">
                   {tags.labels?.length > 0 ? tags.labels.map((l: string) => <span key={l} className="px-2.5 py-1 bg-[#FED400]/10 border border-[#FED400]/20 rounded-lg text-[9px] font-bold text-[#004A74]">{l}</span>) : <p className="text-[9px] text-gray-300 italic">No labels.</p>}
                 </div>
@@ -400,7 +398,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           {/* 4. BLOK ABSTRACT */}
           <section className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
             <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><BookOpenIcon className="w-3.5 h-3.5" /> Abstract</h3>
-            {isLoading ? (
+            {isLoading && !isSyncing ? (
                <div className="space-y-2"><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-3/4 skeleton rounded-md"/></div>
             ) : (
               <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: item.abstract || 'No abstract content found.' }} />
@@ -427,7 +425,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               {item.category === 'Original Research' && (
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                   <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><BeakerIcon className="w-3.5 h-3.5" /> Research Methodology</h3>
-                  {isLoading ? <div className="h-12 w-full skeleton rounded-xl" /> : (
+                  {isLoading && !isSyncing ? <div className="h-12 w-full skeleton rounded-xl" /> : (
                     <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: item.summary || 'Methodology pending analysis.' }} />
                   )}
                 </div>
@@ -435,7 +433,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardDocumentListIcon className="w-3.5 h-3.5" /> Summary</h3>
-                {isLoading ? <div className="h-24 w-full skeleton rounded-xl" /> : (
+                {isLoading && !isSyncing ? <div className="h-24 w-full skeleton rounded-xl" /> : (
                   <div className="text-sm leading-relaxed text-[#004A74] font-medium" dangerouslySetInnerHTML={{ __html: item.summary || 'Summary pending analysis.' }} />
                 )}
               </div>
@@ -444,21 +442,21 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2">
                   <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths
                 </h3>
-                <ElegantList text={item.strength} isLoading={isLoading} />
+                <ElegantList text={item.strength} isLoading={isLoading && !isSyncing} />
               </div>
 
               <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
                   <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses
                 </h3>
-                <ElegantList text={item.weakness} isLoading={isLoading} />
+                <ElegantList text={item.weakness} isLoading={isLoading && !isSyncing} />
               </div>
 
               <div className="bg-[#004A74]/5 p-6 rounded-[2rem] border border-[#004A74]/10 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
                   <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
                 </h3>
-                <ElegantList text={item.quickTipsForYou} isLoading={isLoading} />
+                <ElegantList text={item.quickTipsForYou} isLoading={isLoading && !isSyncing} />
               </div>
             </div>
           </section>
@@ -470,7 +468,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <LinkIcon className="w-3.5 h-3.5" /> Supporting References
               </h3>
               <div className="space-y-3">
-                {isLoading ? [...Array(2)].map((_, i) => <div key={i} className="h-20 w-full skeleton rounded-3xl" />) : (
+                {isLoading && !isSyncing ? [...Array(2)].map((_, i) => <div key={i} className="h-20 w-full skeleton rounded-3xl" />) : (
                   supportingData.references?.length > 0 ? supportingData.references.map((ref: string, idx: number) => {
                     const urlMatch = ref.match(/https?:\/\/[^\s<]+/);
                     const url = urlMatch ? urlMatch[0].replace(/[.,;)]+$/, '') : null;
@@ -510,7 +508,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <VideoCameraIcon className="w-3.5 h-3.5" /> Visual Insights
               </h3>
               <div className="flex-1 flex flex-col justify-center">
-                {isLoading ? <div className="aspect-video w-full skeleton rounded-2xl" /> : (
+                {isLoading && !isSyncing ? <div className="aspect-video w-full skeleton rounded-2xl" /> : (
                   supportingData.videoUrl ? (
                     <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl border-4 border-white/10 group transition-all hover:scale-[1.01]">
                       <iframe className="w-full h-full" src={supportingData.videoUrl} frameBorder="0" allowFullScreen></iframe>
