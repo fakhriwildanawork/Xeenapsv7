@@ -8,8 +8,8 @@
  */
 function getPresentationsByCollection(collectionId) {
   try {
-    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.LIBRARY);
-    let sheet = ss.getSheetByName("Presentations");
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
+    let sheet = ss.getSheetByName("Presentation");
     if (!sheet) {
       setupPresentationRegistry();
       return [];
@@ -92,12 +92,12 @@ function handleSavePresentation(body) {
     const convertedFile = Drive.Files.create(resource, blob);
     presentation.gSlidesId = convertedFile.id;
 
-    // 4. Catat ke Spreadsheet Registry Master
-    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.LIBRARY);
-    let sheet = ss.getSheetByName("Presentations");
+    // 4. Catat ke Spreadsheet Registry Master (Target: Spreadsheet Presentation Baru)
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
+    let sheet = ss.getSheetByName("Presentation");
     if (!sheet) {
       setupPresentationRegistry();
-      sheet = ss.getSheetByName("Presentations");
+      sheet = ss.getSheetByName("Presentation");
     }
 
     const headers = CONFIG.SCHEMAS.PRESENTATIONS;
@@ -114,13 +114,13 @@ function handleSavePresentation(body) {
 }
 
 /**
- * Setup tabel Presentations
+ * Setup tabel Presentation
  */
 function setupPresentationRegistry() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.LIBRARY);
-  let sheet = ss.getSheetByName("Presentations");
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
+  let sheet = ss.getSheetByName("Presentation");
   if (!sheet) {
-    sheet = ss.insertSheet("Presentations");
+    sheet = ss.insertSheet("Presentation");
     const headers = CONFIG.SCHEMAS.PRESENTATIONS;
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#f3f3f3");

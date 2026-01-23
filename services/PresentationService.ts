@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import pptxgen from 'https://esm.sh/pptxgenjs@3.12.0';
+import pptxgen from 'pptxgenjs';
 import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import { BRAND_ASSETS } from '../assets';
@@ -116,7 +116,7 @@ export const createPresentationWorkflow = async (
 
     // 3. EXPORT TO BASE64
     onProgress?.("Converting to Google Slides...");
-    const base64Pptx = await pptx.write('base64');
+    const base64Pptx = await pptx.write('base64') as string;
 
     // 4. SAVE TO GAS
     const presentationData: Partial<PresentationItem> = {
