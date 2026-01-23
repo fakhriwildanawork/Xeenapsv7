@@ -9,105 +9,96 @@ function handleGenerateInsight(item) {
     const extractedId = item.extractedJsonId;
     if (!extractedId) return { status: 'error', message: 'No extracted data found to analyze.' };
 
-    const nodeUrl = item.storageNodeUrl;
-    // FIX: Gunakan URL Web App untuk deteksi lokal yang lebih akurat daripada ScriptId
-    const currentWebAppUrl = ScriptApp.getService().getUrl();
-    const isLocal = !nodeUrl || nodeUrl === "" || nodeUrl === currentWebAppUrl;
-
-    let fullText = "";
-
-    // 1. Fetch Extracted Text (Local vs Remote Node)
-    if (isLocal) {
-      console.log("Processing locally on Master Node...");
-      const file = DriveApp.getFileById(extractedId);
-      const contentStr = file.getBlob().getDataAsString();
-      const content = JSON.parse(contentStr);
-      fullText = content.fullText || "";
-    } else {
-      console.log("Fetching remote content from Storage Node: " + nodeUrl);
-      // Remote Fetch from Slave Node via doGet/getFileContent
-      try {
-        const remoteRes = UrlFetchApp.fetch(nodeUrl + (nodeUrl.indexOf('?') === -1 ? '?' : '&') + "action=getFileContent&fileId=" + extractedId, { 
-          muteHttpExceptions: true 
-        });
-        const resJson = JSON.parse(remoteRes.getContentText());
-        if (resJson.status === 'success') {
-          const content = JSON.parse(resJson.content);
-          fullText = content.content ? JSON.parse(resJson.content).fullText : (content.fullText || "");
-        } else {
-          throw new Error(resJson.message || "Failed to fetch remote content");
-        }
-      } catch (remoteErr) {
-        return { status: 'error', message: 'Remote Node Access Failed: ' + remoteErr.toString() };
-      }
+    // 1. Fetch Extracted Text using specialized Service
+    const extractedData = StorageShardService.getJsonContent(extractedId, item.storageNodeUrl);
+    if (!extractedData || !extractedData.fullText) {
+      return { status: 'error', message: 'Failed to retrieve extracted content from storage.' };
     }
 
-    if (!fullText || fullText.length < 50) {
+    // UPGRADE: 100,000 Characters Limit
+    const fullText = extractedData.fullText || "";
+    if (fullText.length < 50) {
       return { status: 'error', message: 'Extracted content is too short for analysis.' };
     }
 
-    // 2. Prepare specialized Prompt
     const categoriesJournal = ["Original Research", "Systematic Review", "Meta-analysis", "Case Report", "Review Article", "Scoping Review", "Rapid Review", "Preprint"];
     const isAcademicJournal = categoriesJournal.includes(item.category);
 
+    // 2. Prepare Specialized Prompt (IMRaD+C vs Comprehensive Summary)
     const prompt = `ACT AS A SENIOR RESEARCH ANALYST AND ACADEMIC INSIGHTER (XEENAPS AI INSIGHTER).
     ANALYZE THE FOLLOWING TEXT EXTRACTED FROM A PKM ITEM TITLED "${item.title}".
 
     --- ANALYTICAL REQUIREMENTS ---
     1. RESEARCH METHODOLOGY:
-       - Find the methodology specifically within the ABSTRACT section.
-       - Describe it and its technical terminology.
+       - Identify the exact methodology used.
        - FORMAT: Use <b>Terminology</b>: Description.
-    2. SUMMARY (IMRaD+C):
-       - IF CATEGORY IS ACADEMIC JOURNAL ("${item.category}"), USE IMRaD+C STRUCTURE.
-       - EACH SUB-HEADING BOLDED WITH <b> tag.
-    3. STRENGTHS: Numbered list.
-    4. WEAKNESSES: Numbered list.
-    5. UNFAMILIAR TERMINOLOGY: 
-       - Technical terms explained in a numbered list.
+       
+    2. SUMMARY LOGIC:
+       - IF THE TEXT IS A RESEARCH PAPER (IMRaD Structure detected):
+         * Create a highly detailed summary using IMRaD+C (Introduction, Methods, Results, and Discussion + Conclusion).
+         * Use <b> tags for each sub-heading.
+       - IF NOT A RESEARCH PAPER:
+         * Create a VERY COMPREHENSIVE multi-paragraph summary covering all critical points.
+       - STYLING (MANDATORY): 
+         * Use <b><i> tags for key findings.
+         * Use <span style="background-color: #FED40030; color: #004A74; padding: 0 4px; border-radius: 4px;">...</span> to HIGHLIGHT critical terms, core concepts, or major breakthroughs.
+         * Use <br/> for paragraph breaks.
+
+    3. STRENGTHS & WEAKNESSES: Numbered list with technical justification.
+    4. UNFAMILIAR TERMINOLOGY: 
+       - Explain technical terms in a numbered list.
        - FORMAT: <b>Terminology</b><br/>Explanation.
-    6. QUICK TIPS: Practical advice.
+    5. QUICK TIPS: Practical and strategic advice for the user.
 
     --- FORMATTING RESTRICTIONS (STRICT) ---
     - DILARANG PAKAI TANDA BINTANG (*) ATAU TANDA KUTIP DUA ('').
-    - GUNAKAN TAG <b>, <i>, DAN <br/>.
     - NO MARKDOWN SYMBOLS. OUTPUT MUST BE RAW JSON.
+    - BE ARCHITECTURAL AND DEEP. NO SURFACE LEVEL ANALYSIS.
 
     TEXT TO ANALYZE:
-    ${fullText.substring(0, 12000)}
+    ${fullText.substring(0, 100000)}
 
     EXPECTED JSON OUTPUT:
     {
-      "researchMethodology": "string",
-      "summary": "string",
-      "strength": "string",
-      "weakness": "string",
-      "unfamiliarTerminology": "string",
-      "quickTipsForYou": "string"
+      "researchMethodology": "string with HTML",
+      "summary": "string with HTML",
+      "strength": "string (list or text)",
+      "weakness": "string (list or text)",
+      "unfamiliarTerminology": "string with HTML",
+      "quickTipsForYou": "string with HTML"
     }`;
 
     // 3. Call Groq Service
     const aiResult = callGroqLibrarian(prompt);
     if (aiResult.status !== 'success') return aiResult;
 
-    // FIX: Robust JSON Extraction menggunakan Regex untuk menangani AI yang "chatty"
+    // 4. Robust JSON Extraction & Normalization
     let rawData = aiResult.data;
-    console.log("Raw AI Response: " + rawData);
-    
     const jsonMatch = rawData.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("AI did not return a valid JSON object structure.");
-    }
+    if (!jsonMatch) throw new Error("AI did not return a valid JSON object.");
     
-    const insights = JSON.parse(jsonMatch[0]);
+    const rawInsights = JSON.parse(jsonMatch[0]);
+    
+    // Normalization Layer: Ensure keys match UI requirements
+    const insights = {
+      researchMethodology: rawInsights.researchMethodology || rawInsights.methodology || "",
+      summary: rawInsights.summary || rawInsights.abstract_summary || "",
+      strength: rawInsights.strength || rawInsights.strengths || "",
+      weakness: rawInsights.weakness || rawInsights.weaknesses || "",
+      unfamiliarTerminology: rawInsights.unfamiliarTerminology || rawInsights.terminology || "",
+      quickTipsForYou: rawInsights.quickTipsForYou || rawInsights.tips || ""
+    };
 
-    // 4. Persistence: Update insight_[id].json Shard (Local/Remote)
+    // 5. Persistence: Update insight_[id].json Shard
     if (item.insightJsonId) {
       const insightContent = JSON.stringify(insights);
+      const currentUrl = ScriptApp.getService().getUrl();
+      const isLocal = !item.storageNodeUrl || item.storageNodeUrl === "" || item.storageNodeUrl === currentUrl;
+
       if (isLocal) {
         DriveApp.getFileById(item.insightJsonId).setContent(insightContent);
       } else {
-        UrlFetchApp.fetch(nodeUrl, {
+        UrlFetchApp.fetch(item.storageNodeUrl, {
           method: 'post',
           contentType: 'application/json',
           payload: JSON.stringify({ 
@@ -120,11 +111,10 @@ function handleGenerateInsight(item) {
       }
     }
 
-    console.log("Insights generated and saved successfully.");
     return { status: 'success', data: insights };
 
   } catch (err) {
-    console.error("Insighter Error Log: " + err.toString());
+    console.error("Insighter Error: " + err.toString());
     return { status: 'error', message: 'Insighter Error: ' + err.toString() };
   }
 }

@@ -346,7 +346,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
-  // FIX: State baru untuk memisahkan proses fetch awal data JSON
+  // FIX: State baru untuk memisahkan proses fetch awal data JSON agar tombol generate tidak visual-bug
   const [isFetchingStoredInsights, setIsFetchingStoredInsights] = useState(false);
 
   // local item state to reflect AI updates immediately
@@ -356,7 +356,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   useEffect(() => {
     const loadJsonInsights = async () => {
       if (item.insightJsonId) {
-        // FIX: Menggunakan state fetching, bukan generating
+        // FIX: Menggunakan state fetching, bukan generating, sehingga tombol Generate tetap idle
         setIsFetchingStoredInsights(true);
         const jsonInsights = await fetchFileContent(item.insightJsonId, item.storageNodeUrl);
         if (jsonInsights && Object.keys(jsonInsights).length > 0) {
@@ -420,7 +420,9 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleGenerateInsights = async () => {
+    // Tombol hanya bisa di-trigger jika tidak sedang loading data lama dan tidak sedang running AI
     if (isGeneratingInsights || isFetchingStoredInsights) return;
+    
     setIsGeneratingInsights(true);
     showXeenapsToast('info', 'AI Insighter is analyzing content...');
 
@@ -438,7 +440,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           updatedAt: new Date().toISOString()
         };
         setCurrentItem(updated);
-        // Note: No spreadsheet update required for insights as per new vision
         showXeenapsToast('success', 'Deep Insights Generated!');
       } else {
         showXeenapsToast('error', 'Analysis failed on server');
@@ -495,7 +496,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const isJournalType = categoriesJournal.includes(currentItem.category);
   const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
 
-  // Combined data area loading state (Fetch awal OR Generate AI)
+  // UI Helper: Combined loading state for data areas (Fetch awal OR Generate AI)
   const isAnyLoading = isGeneratingInsights || isFetchingStoredInsights;
 
   return (
@@ -506,7 +507,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
       {/* 1. TOP STICKY AREA (Header + Action Bar) */}
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
-        {/* Integrated Header Component */}
         <div className="px-4 md:px-8">
            <Header 
             searchQuery={dummySearch} 
@@ -614,7 +614,6 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
 
-                {/* RESPONSIVE TIMESTAMPS: Relative on small screens, Absolute on desktop to avoid overlap */}
                 <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-0.5 opacity-60 md:absolute md:bottom-4 md:right-8 transition-all">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />
@@ -699,12 +698,14 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleGenerateInsights}
-                  disabled={isAnyLoading}
+                  disabled={isGeneratingInsights}
                   className="flex items-center gap-2 px-4 py-2 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[#004A74]/20 hover:scale-105 transition-all disabled:opacity-50"
                 >
                   {isGeneratingInsights ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
                   {isGeneratingInsights ? 'Analyzing...' : 'Generate'}
                 </button>
+                {/* Visual loading indicator saat fetch data lama */}
+                {isFetchingStoredInsights && <ArrowPathIcon className="w-4 h-4 text-[#004A74] animate-spin" />}
                 <button onClick={() => setShowTips(true)} className="p-2 bg-[#FED400] text-[#004A74] rounded-xl shadow-md hover:rotate-12 transition-all">
                   <LightBulbIcon className="w-4 h-4 stroke-[2.5]" />
                 </button>
