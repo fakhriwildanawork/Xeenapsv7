@@ -5,9 +5,11 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - TEXT ONLY "GAMMA-STYLE" EDITION
- * Fokus: Menghilangkan seluruh ketergantungan pada gambar (CORS/Proxy) 
- * untuk memastikan slide terisi dan memvalidasi alur builder.
+ * PresentationService - TEXT ONLY "PURE COMPATIBILITY" EDITION
+ * Strategi: 
+ * 1. Tanpa Master Slide (menghindari layering issue).
+ * 2. Koordinat Inci murni (menghindari mixed unit issue).
+ * 3. Layout Direct (styling langsung di tiap slide).
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -23,7 +25,7 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // 1. GENERATE BLUEPRINT (Materi Slide)
+    // 1. GENERATE BLUEPRINT
     onProgress?.("Generating AI Blueprint...");
     const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
@@ -31,7 +33,7 @@ export const createPresentationWorkflow = async (
     ADDITIONAL CONTEXT: ${config.context}
     
     REQUIREMENTS:
-    - EXACTLY ${config.slidesCount} CONTENT SLIDES (Excluding Title & Reference).
+    - EXACTLY ${config.slidesCount} CONTENT SLIDES.
     - LANGUAGE: ${config.language}.
     - FOR EACH SLIDE PROVIDE: "title", "content" (detailed bullet points).
     - OUTPUT RAW JSON ONLY.
@@ -44,10 +46,9 @@ export const createPresentationWorkflow = async (
     }`;
 
     let aiResText = await callAiProxy('groq', blueprintPrompt);
-    
-    if (!aiResText) throw new Error("AI Proxy failed to return blueprint.");
+    if (!aiResText) throw new Error("AI failed to return data.");
 
-    // Clean JSON
+    // Clean JSON Resiliently
     if (aiResText.includes('{')) {
       const start = aiResText.indexOf('{');
       const end = aiResText.lastIndexOf('}');
@@ -56,91 +57,80 @@ export const createPresentationWorkflow = async (
 
     let blueprint = JSON.parse(aiResText || '{"slides":[]}');
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
-    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid slide data structure.");
+    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid AI structure.");
     
     // 2. INITIALIZE PPTX
-    onProgress?.("Designing Visual Layout...");
+    onProgress?.("Building Slides...");
     const pptx = new pptxgen();
+    pptx.layout = 'LAYOUT_16x9'; // Standar Google Slides
+
+    // Theme Colors (Safe Hex)
+    const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
+    const headingFont = 'Arial'; // Gunakan font paling standar untuk tes
+    const bodyFont = 'Arial';
+
+    // --- SLIDE 1: COVER (Direct Styling) ---
+    const slide1 = pptx.addSlide();
+    // Background Accent (Gamma Style)
+    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.1, h: 5.625, fill: { color: primaryColor } });
     
-    // Font Configuration
-    const headingFont = config.theme.headingFont || 'Arial';
-    const bodyFont = config.theme.fontFamily || 'Arial';
-    const primaryColor = config.theme.primaryColor || '004A74';
-
-    // DEFINE MASTER (GEOMETRIC ACCENTS - NO IMAGES)
-    pptx.defineSlideMaster({
-      title: 'XEENAPS_TEXT_MASTER',
-      background: { color: 'FFFFFF' },
-      objects: [
-        // Top accent line
-        { rect: { x: 0.5, y: 0.8, w: 1, h: 0.05, fill: { color: primaryColor } } },
-        // Bottom footer accent
-        { rect: { x: 0, y: '95%', w: '100%', h: 0.05, fill: { color: primaryColor } } },
-        // Subtle Side Vertical Bar (Gamma Style)
-        { rect: { x: 0, y: 0, w: 0.1, h: '100%', fill: { color: primaryColor } } },
-        { 
-          text: { 
-            text: "XEENAPS PKM", 
-            options: { x: 0.5, y: '96%', fontSize: 8, fontFace: bodyFont, color: 'FFFFFF', align: 'left' } 
-          } 
-        }
-      ]
-    });
-
-    // SLIDE 1: COVER (Modern Centered Layout)
-    const slide1 = pptx.addSlide({ masterName: 'XEENAPS_TEXT_MASTER' });
+    // Title - Menggunakan Inci (x: 1 inci, y: 1.5 inci, w: 8 inci)
     slide1.addText(config.title.toUpperCase(), { 
-      x: 1, y: 2, w: '80%', fontSize: 42, fontFace: headingFont, 
-      color: primaryColor, bold: true, align: 'center' 
+      x: 1, y: 1.5, w: 8, h: 1.5, 
+      fontSize: 36, fontFace: headingFont, color: primaryColor, 
+      bold: true, align: 'center', valign: 'middle'
     });
     
-    // Decorative separator line under title
-    slide1.addShape(pptx.ShapeType.rect, { x: 4, y: 3, w: 2, h: 0.05, fill: { color: primaryColor } });
+    // Separator
+    slide1.addShape(pptx.ShapeType.rect, { x: 4, y: 3.2, w: 2, h: 0.04, fill: { color: primaryColor } });
 
-    slide1.addText(`PRESENTED BY\n${config.presenters.join(', ')}`, { 
-      x: 1, y: 3.5, w: '80%', fontSize: 16, fontFace: bodyFont, 
-      color: '666666', align: 'center', bold: true 
+    // Presenters
+    slide1.addText(`PRESENTED BY:\n${config.presenters.join(', ')}`, { 
+      x: 1, y: 3.8, w: 8, h: 1, 
+      fontSize: 14, fontFace: bodyFont, color: '666666', 
+      align: 'center', bold: true 
     });
 
-    // CONTENT SLIDES (Full Text Layout)
+    // --- CONTENT SLIDES ---
     for (const sData of blueprint.slides) {
-      onProgress?.(`Assembling: ${sData.title}...`);
-      const slide = pptx.addSlide({ masterName: 'XEENAPS_TEXT_MASTER' });
+      onProgress?.(`Building: ${sData.title}...`);
+      const slide = pptx.addSlide();
       
-      // Slide Heading
+      // Decorative Header Bar
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.3, w: 0.5, h: 0.05, fill: { color: primaryColor } });
+
+      // Slide Title
       slide.addText(sData.title, { 
-        x: 0.5, y: 0.3, w: '90%', fontSize: 32, fontFace: headingFont, 
-        color: primaryColor, bold: true 
+        x: 0.5, y: 0.5, w: 9, h: 0.8, 
+        fontSize: 28, fontFace: headingFont, color: primaryColor, 
+        bold: true, valign: 'top' 
       });
 
-      // Horizontal Divider
-      slide.addShape(pptx.ShapeType.line, { x: 0.5, y: 0.9, w: 9, h: 0, line: { color: primaryColor, width: 2 } });
-
-      // Body Content (Larger Text for Full Width)
+      // Body Content
       const contentText = Array.isArray(sData.content) ? sData.content.join('\n\n') : String(sData.content);
       slide.addText(contentText, { 
-        x: 0.5, y: 1.5, w: '90%', fontSize: 18, fontFace: bodyFont, 
-        color: '333333', bullet: { indent: 20 }, valign: 'top', lineSpacing: 28 
+        x: 0.5, y: 1.5, w: 9, h: 3.5, 
+        fontSize: 16, fontFace: bodyFont, color: '333333', 
+        bullet: { indent: 20 }, valign: 'top', lineSpacing: 24
+      });
+
+      // Simple Footer
+      slide.addText("XEENAPS PKM", { 
+        x: 0.5, y: 5.2, w: 4, h: 0.3, 
+        fontSize: 8, fontFace: bodyFont, color: 'CCCCCC', align: 'left' 
       });
     }
 
-    // FINAL SLIDE: SUMMARY & REFERENCE
-    const lastSlide = pptx.addSlide({ masterName: 'XEENAPS_TEXT_MASTER' });
-    lastSlide.addText("References", { x: 0.5, y: 0.5, fontSize: 28, bold: true, fontFace: headingFont, color: primaryColor });
-    lastSlide.addText(`Extracted Source: ${item.title}\nLibrary ID: ${item.id}`, { 
-      x: 0.5, y: 1.5, w: '90%', fontSize: 14, fontFace: bodyFont, color: '666666' 
-    });
-    
-    lastSlide.addText("END OF PRESENTATION", { 
-      x: 0.5, y: 4, w: '90%', fontSize: 24, fontFace: headingFont, 
-      color: primaryColor, bold: true, align: 'center', italic: true 
-    });
+    // --- FINAL SLIDE: SUMMARY ---
+    const lastSlide = pptx.addSlide();
+    lastSlide.addText("REFERENCE", { x: 0.5, y: 0.5, w: 9, h: 0.5, fontSize: 24, bold: true, color: primaryColor });
+    lastSlide.addText(`Source Material: ${item.title}`, { x: 0.5, y: 1.2, w: 9, h: 1, fontSize: 12, color: '666666' });
+    lastSlide.addText("END OF PRESENTATION", { x: 0, y: 2.5, w: 10, h: 1, fontSize: 32, bold: true, color: primaryColor, align: 'center' });
 
-    // 3. EXPORT TO BASE64
+    // 3. EXPORT & SAVE
     onProgress?.("Finalizing Cloud Sync...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
-    // 4. SAVE TO GAS
     const presentationData: Partial<PresentationItem> = {
       id: crypto.randomUUID(),
       collectionIds: [item.id],
@@ -164,10 +154,9 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    
-    throw new Error(result.message || "Failed to save presentation to cloud storage.");
+    throw new Error(result.message || "Failed to save.");
   } catch (error) {
-    console.error("Critical Presentation Error:", error);
+    console.error("Presentation Builder Error:", error);
     return null;
   }
 };
