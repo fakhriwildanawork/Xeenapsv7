@@ -6,8 +6,28 @@ import { BRAND_ASSETS } from '../assets';
 import { callAiProxy } from './gasService';
 
 /**
+ * Helper to fetch image and convert to Base64 to bypass CORS issues in pptxgenjs
+ */
+const imageUrlToBase64 = async (url: string): Promise<string | null> => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Network response was not ok');
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Failed to fetch image, using fallback:", url);
+    return null;
+  }
+};
+
+/**
  * PresentationService
- * Alur: Groq Blueprint (via GAS Proxy) -> Unsplash Images -> PptxGenJS Build -> GAS Save
+ * Alur: Groq Blueprint (via GAS Proxy) -> LoremFlickr Images (Base64) -> PptxGenJS Build -> GAS Save
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -24,8 +44,6 @@ export const createPresentationWorkflow = async (
 ): Promise<PresentationItem | null> => {
   try {
     // 1. GENERATE BLUEPRINT (Materi Slide)
-    // Sekarang menggunakan callAiProxy untuk memanggil GROQ via Backend (GAS)
-    // Ini memastikan API Key tetap rahasia di server dan rotasi key tetap berjalan.
     onProgress?.("Generating AI Blueprint...");
     const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
@@ -35,7 +53,7 @@ export const createPresentationWorkflow = async (
     REQUIREMENTS:
     - EXACTLY ${config.slidesCount} CONTENT SLIDES (Excluding Title & Reference).
     - LANGUAGE: ${config.language}.
-    - FOR EACH SLIDE PROVIDE: "title", "content" (bullet points), and "imageKeyword" (1-2 words for Unsplash).
+    - FOR EACH SLIDE PROVIDE: "title", "content" (bullet points), and "imageKeyword" (1-2 words for relevant image).
     - OUTPUT RAW JSON ONLY.
 
     FORMAT:
@@ -45,7 +63,6 @@ export const createPresentationWorkflow = async (
       ]
     }`;
 
-    // Memanggil backend proxy dengan provider 'groq'
     const aiResText = await callAiProxy('groq', blueprintPrompt);
     
     if (!aiResText) {
@@ -102,10 +119,18 @@ export const createPresentationWorkflow = async (
         color: '333333', bullet: true, valign: 'top' 
       });
 
-      // Fetch Image Placeholder (Simple keyword logic)
+      // Fetch Image (Using LoremFlickr as it's more stable for keyword search + CORS friendly via Base64 helper)
       if (sData.imageKeyword) {
-        const imgUrl = `https://source.unsplash.com/featured/800x600?${encodeURIComponent(sData.imageKeyword)}`;
-        slide.addImage({ x: '60%', y: 1.2, w: '35%', h: 3, path: imgUrl, sizing: { type: 'cover', w: 3, h: 3 } });
+        onProgress?.(`Loading asset for: ${sData.title}...`);
+        const imgUrl = `https://loremflickr.com/800/600/${encodeURIComponent(sData.imageKeyword)}`;
+        const base64Img = await imageUrlToBase64(imgUrl);
+        
+        // Use the base64 image if fetch was successful, otherwise fallback to Xeenaps Logo to prevent crash
+        slide.addImage({ 
+          x: '60%', y: 1.2, w: '35%', h: 3, 
+          path: base64Img || BRAND_ASSETS.LOGO_ICON, 
+          sizing: { type: 'cover', w: 3, h: 3 } 
+        });
       }
     }
 
