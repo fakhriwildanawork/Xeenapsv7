@@ -234,11 +234,9 @@ function deleteFromSheet(ssId, sheetName, id) {
         } else {
           // Perintahkan Slave untuk menghapus file fisik di Drive akunnya
           try {
-            const token = ScriptApp.getOAuthToken();
             UrlFetchApp.fetch(nodeUrl, {
               method: 'post',
               contentType: 'application/json',
-              headers: { "Authorization": "Bearer " + token },
               payload: JSON.stringify({ action: 'deleteRemoteFiles', fileIds: idsToDelete }),
               muteHttpExceptions: true
             });

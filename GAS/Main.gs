@@ -127,7 +127,6 @@ function doPost(e) {
       }
 
       item.storageNodeUrl = storageTarget.url;
-      const token = ScriptApp.getOAuthToken();
 
       // 1. SHARDING: Extracted Content JSON
       if (extractedText) {
@@ -141,7 +140,6 @@ function doPost(e) {
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
-            headers: { "Authorization": "Bearer " + token },
             payload: JSON.stringify({ action: 'saveJsonFile', fileName: jsonFileName, content: jsonContent, folderId: storageTarget.folderId }),
             muteHttpExceptions: true
           });
@@ -162,7 +160,6 @@ function doPost(e) {
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
-            headers: { "Authorization": "Bearer " + token },
             payload: JSON.stringify({ action: 'saveJsonFile', fileName: insightFileName, content: insightContent, folderId: storageTarget.folderId }),
             muteHttpExceptions: true
           });
@@ -183,7 +180,6 @@ function doPost(e) {
           const res = UrlFetchApp.fetch(storageTarget.url, {
             method: 'post',
             contentType: 'application/json',
-            headers: { "Authorization": "Bearer " + token },
             payload: JSON.stringify({ action: 'saveFileDirect', fileName: body.file.fileName, mimeType: mimeType, fileData: body.file.fileData, folderId: storageTarget.folderId }),
             muteHttpExceptions: true
           });
@@ -298,7 +294,7 @@ function doPost(e) {
     }
 
     if (action === 'searchByIdentifier') return createJsonResponse(handleIdentifierSearch(body.idValue));
-    if (action === 'aiProxy') return createJsonResponse(handleAiRequest(provider, body.prompt, body.modelOverride));
+    if (action === 'aiProxy') return createJsonResponse(handleAiRequest(body.provider, body.prompt, body.modelOverride));
     
     // NEW ACTION: getSupportingReferences
     if (action === 'getSupportingReferences') {

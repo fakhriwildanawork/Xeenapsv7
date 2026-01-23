@@ -269,7 +269,7 @@ const parseJsonField = (field: any, defaultValue: any = {}) => {
 
 /**
  * Enhanced List Component with Primary Circle and Yellow Text
- * FIX: Menangani format naratif HTML murni tanpa perlu split/trim regex yang berisiko.
+ * FIX: Menambahkan handling untuk Array dan pembersihan trim() yang aman.
  */
 const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolean }> = ({ text, className = "", isLoading }) => {
   if (isLoading) {
@@ -288,23 +288,13 @@ const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolea
   // Early return jika data kosong atau 'N/A'
   if (text === null || text === undefined || text === 'N/A') return null;
   
-  // Jika formatnya naratif murni (terdeteksi ada tag <b> dan <br>), render langsung menggunakan innerHTML.
-  if (typeof text === 'string' && (text.includes('<b>') || text.includes('<br'))) {
-    return (
-      <div 
-        className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} 
-        dangerouslySetInnerHTML={{ __html: text }} 
-      />
-    );
-  }
-
   let items: string[] = [];
 
   // Jika input adalah Array
   if (Array.isArray(text)) {
     items = text.map(i => String(i).trim()).filter(Boolean);
   } 
-  // Jika input adalah String (Fallback untuk format list lama)
+  // Jika input adalah String
   else if (typeof text === 'string') {
     const trimmedText = text.trim();
     if (trimmedText === '') return null;
@@ -314,6 +304,7 @@ const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolea
       .map(i => i.replace(/^\d+\.\s*|•\s*/, '').trim())
       .filter(Boolean);
   } 
+  // Fallback untuk tipe data lain (number, dsb)
   else {
     const strVal = String(text).trim();
     if (strVal === '') return null;
@@ -321,6 +312,13 @@ const ElegantList: React.FC<{ text?: any; className?: string; isLoading?: boolea
   }
 
   if (items.length === 0) return null;
+
+  // Render teks biasa jika hanya ada 1 item dan bukan format list
+  if (items.length === 1 && typeof text === 'string' && !text.match(/\n|(?=\d+\.)|(?=•)/)) {
+    return (
+      <div className={`text-sm leading-relaxed text-[#004A74] font-medium ${className}`} dangerouslySetInnerHTML={{ __html: text }} />
+    );
+  }
 
   return (
     <ol className={`space-y-3 list-none ${className}`}>
@@ -347,9 +345,8 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isBookmarked, setIsBookmarked] = useState(!!item.isBookmarked);
   const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  // FIX: Separasi state loading
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  // FIX: State baru untuk memisahkan proses fetch awal data JSON
   const [isFetchingStoredInsights, setIsFetchingStoredInsights] = useState(false);
 
   // local item state to reflect AI updates immediately
@@ -359,6 +356,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   useEffect(() => {
     const loadJsonInsights = async () => {
       if (item.insightJsonId) {
+        // FIX: Menggunakan state fetching, bukan generating
         setIsFetchingStoredInsights(true);
         const jsonInsights = await fetchFileContent(item.insightJsonId, item.storageNodeUrl);
         if (jsonInsights && Object.keys(jsonInsights).length > 0) {
@@ -422,9 +420,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleGenerateInsights = async () => {
-    // FIX: Tombol Generate murni dikontrol oleh isGeneratingInsights agar tetap idle saat fetch data lama
-    if (isGeneratingInsights) return;
-    
+    if (isGeneratingInsights || isFetchingStoredInsights) return;
     setIsGeneratingInsights(true);
     showXeenapsToast('info', 'AI Insighter is analyzing content...');
 
@@ -439,15 +435,10 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
           weakness: data.weakness,
           unfamiliarTerminology: data.unfamiliarTerminology,
           quickTipsForYou: data.quickTipsForYou,
-          updatedAt: data.updatedAt || new Date().toISOString()
+          updatedAt: new Date().toISOString()
         };
         setCurrentItem(updated);
-        
-        // SYNC MASTER: Update local state global (App.tsx) agar saat navigasi data baru tetap terbaca
-        if (onUpdateOptimistic) {
-          onUpdateOptimistic(updated);
-        }
-
+        // Note: No spreadsheet update required for insights as per new vision
         showXeenapsToast('success', 'Deep Insights Generated!');
       } else {
         showXeenapsToast('error', 'Analysis failed on server');
@@ -504,7 +495,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const isJournalType = categoriesJournal.includes(currentItem.category);
   const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
 
-  // UI Helper: Combined loading state for data areas (Fetch awal OR Generate AI)
+  // Combined data area loading state (Fetch awal OR Generate AI)
   const isAnyLoading = isGeneratingInsights || isFetchingStoredInsights;
 
   return (
@@ -515,6 +506,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
       {/* 1. TOP STICKY AREA (Header + Action Bar) */}
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
+        {/* Integrated Header Component */}
         <div className="px-4 md:px-8">
            <Header 
             searchQuery={dummySearch} 
@@ -573,7 +565,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400 hover:text-[#004A74] hover:bg-gray-50 rounded-xl transition-all"><EllipsisVerticalIcon className="w-5 h-5" /></button>
               {isMenuOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-2 z-[90] animate-in fade-in zoom-in-95">
-                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-0050 rounded-xl transition-all">
+                  <button onClick={handleUpdate} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all">
                     <PencilIcon className="w-4 h-4" /> Update
                   </button>
                   <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"><PresentationChartBarIcon className="w-4 h-4" /> Presentation Mode</button>
@@ -622,6 +614,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                   <p className="text-sm font-bold text-[#004A74]">{authorsText === 'N/A' ? 'Unknown' : authorsText}</p>
                 </div>
 
+                {/* RESPONSIVE TIMESTAMPS: Relative on small screens, Absolute on desktop to avoid overlap */}
                 <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-0.5 opacity-60 md:absolute md:bottom-4 md:right-8 transition-all">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />
@@ -706,14 +699,12 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleGenerateInsights}
-                  disabled={isGeneratingInsights}
+                  disabled={isAnyLoading}
                   className="flex items-center gap-2 px-4 py-2 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[#004A74]/20 hover:scale-105 transition-all disabled:opacity-50"
                 >
                   {isGeneratingInsights ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
                   {isGeneratingInsights ? 'Analyzing...' : 'Generate'}
                 </button>
-                {/* Visual loading indicator saat fetch data lama */}
-                {isFetchingStoredInsights && <ArrowPathIcon className="w-4 h-4 text-[#004A74] animate-spin" />}
                 <button onClick={() => setShowTips(true)} className="p-2 bg-[#FED400] text-[#004A74] rounded-xl shadow-md hover:rotate-12 transition-all">
                   <LightBulbIcon className="w-4 h-4 stroke-[2.5]" />
                 </button>
@@ -761,7 +752,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
                   <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
                 </h3>
-                <ElegantList text={currentItem.unfamiliarTerminology} isLoading={isAnyLoading} />
+                <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isAnyLoading} />
               </div>
             </div>
           </section>

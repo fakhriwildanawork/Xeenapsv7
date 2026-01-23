@@ -30,8 +30,6 @@ function getViableStorageTarget(threshold) {
     if (!sheet) return null;
     
     const data = sheet.getDataRange().getValues();
-    const token = ScriptApp.getOAuthToken();
-
     for (let i = 1; i < data.length; i++) {
       const nodeUrl = data[i][1];
       const nodeFolderId = data[i][2];
@@ -39,24 +37,16 @@ function getViableStorageTarget(threshold) {
       
       if (status === 'active' && nodeUrl) {
         try {
-          const res = UrlFetchApp.fetch(nodeUrl + "?action=checkQuota", { 
-            muteHttpExceptions: true,
-            headers: { "Authorization": "Bearer " + token }
-          });
-          
-          const text = res.getContentText();
-          // Safety Check: Ensure response is JSON before parsing
-          if (res.getResponseCode() === 200 && text && text.indexOf('{') === 0) {
-            const resJson = JSON.parse(text);
-            if (resJson.status === 'success' && resJson.remaining > threshold) {
-              return {
-                url: nodeUrl,
-                folderId: nodeFolderId,
-                isLocal: false
-              };
-            }
+          const res = UrlFetchApp.fetch(nodeUrl + "?action=checkQuota", { muteHttpExceptions: true });
+          const resJson = JSON.parse(res.getContentText());
+          if (resJson.status === 'success' && resJson.remaining > threshold) {
+            return {
+              url: nodeUrl,
+              folderId: nodeFolderId,
+              isLocal: false
+            };
           }
-        } catch (e) { console.log("Node check failed: " + nodeUrl + " Error: " + e.toString()); }
+        } catch (e) { console.log("Node check failed: " + nodeUrl); }
       }
     }
   } catch (e) { console.log("Registry check failed: " + e.toString()); }
