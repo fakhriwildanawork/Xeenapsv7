@@ -58,7 +58,8 @@ export const createPresentationWorkflow = async (
     const pptx = new pptxgen();
     
     // DEFINE MASTER (BRANDING LOGO)
-    pptx.defineMaster({
+    // Fix: Updated method name from defineMaster to defineSlideMaster
+    pptx.defineSlideMaster({
       title: 'XEENAPS_MASTER',
       background: { color: 'FFFFFF' },
       objects: [
@@ -116,7 +117,8 @@ export const createPresentationWorkflow = async (
 
     // 3. EXPORT TO BASE64
     onProgress?.("Converting to Google Slides...");
-    const base64Pptx = await pptx.write('base64') as string;
+    // Fix: Changed .write('base64') to .write({ outputType: 'base64' }) to match TypeScript props
+    const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     // 4. SAVE TO GAS
     const presentationData: Partial<PresentationItem> = {
