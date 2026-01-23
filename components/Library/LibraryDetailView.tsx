@@ -101,7 +101,7 @@ const CitationModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-6 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-white/90 backdrop-blur-2xl p-6 md:p-10 rounded-[3rem] w-full max-w-2xl shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] relative border border-white/20 flex flex-col max-h-[90vh]">
+      <div className="bg-white/90 backdrop-blur-2xl p-6 md:p-10 rounded-[3rem] w-full max-w-2xl shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] relative border border-white/20 flex flex-col max-h-[90vh] min-h-[500px] md:min-h-[650px]">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between mb-8">
@@ -123,7 +123,7 @@ const CitationModal: React.FC<{
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pr-2">
-          {/* Configuration Grid using Xeenaps FormDropdown */}
+          {/* Configuration Grid using Xeenaps FormDropdown (Search disabled for fixed options) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Citation Style</label>
@@ -133,6 +133,7 @@ const CitationModal: React.FC<{
                 options={styles} 
                 placeholder="Select style..."
                 allowCustom={false}
+                showSearch={false}
                 disabled={isGenerating}
               />
             </div>
@@ -144,6 +145,7 @@ const CitationModal: React.FC<{
                 options={languages} 
                 placeholder="Select language..."
                 allowCustom={false}
+                showSearch={false}
                 disabled={isGenerating}
               />
             </div>

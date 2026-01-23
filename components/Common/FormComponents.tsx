@@ -75,7 +75,6 @@ export const FormField: React.FC<{
 /**
  * Standard Searchable Dropdown
  */
-// Fix: Added 'disabled' prop and widened types (any/unknown) to support enums and complex values
 export const FormDropdown: React.FC<{
   value: string | any;
   onChange: (val: any) => void;
@@ -88,8 +87,9 @@ export const FormDropdown: React.FC<{
   error?: boolean;
   disabled?: boolean;
   allowCustom?: boolean;
+  showSearch?: boolean; // New Prop to toggle search visibility
 }> = ({ 
-  value, onChange, options, placeholder, isMulti, onAddMulti, onRemoveMulti, multiValues = [], error, disabled, allowCustom = true 
+  value, onChange, options, placeholder, isMulti, onAddMulti, onRemoveMulti, multiValues = [], error, disabled, allowCustom = true, showSearch = true 
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -106,13 +106,11 @@ export const FormDropdown: React.FC<{
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fix: Convert options to strings for filtering and logic to ensure compatibility with enums
   const filteredOptions = options.filter(opt => 
     String(opt).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSelect = (option: string) => {
-    // Fix: Guard against selection when component is disabled
     if (disabled) return;
     if (isMulti && onAddMulti) {
       if (!multiValues.includes(option)) onAddMulti(option);
@@ -125,7 +123,6 @@ export const FormDropdown: React.FC<{
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Fix: Disable keyboard interactions when disabled prop is true
     if (disabled) return;
     if (!isOpen) {
       if (e.key === 'Enter' || e.key === 'ArrowDown') setIsOpen(true);
@@ -157,12 +154,9 @@ export const FormDropdown: React.FC<{
   return (
     <div className="relative" ref={containerRef}>
       <div 
-        // Fix: Update tabIndex to prevent focusing when disabled
         tabIndex={disabled ? -1 : 0}
-        // Fix: Prevent toggle when disabled
         onClick={() => !disabled && setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        // Fix: Apply disabled styling (opacity, cursor)
         className={`group flex items-center justify-between w-full px-4 py-3 bg-gray-50 rounded-xl border ${error ? 'border-red-400' : 'border-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#004A74]/40 cursor-pointer'} focus:ring-2 focus:ring-[#004A74]/10 transition-all shadow-sm outline-none`}
       >
         <div className="flex flex-wrap gap-1.5 items-center overflow-hidden">
@@ -170,7 +164,6 @@ export const FormDropdown: React.FC<{
             multiValues.map(v => (
               <span key={v} className="px-2 py-0.5 bg-[#004A74] text-white text-[10px] font-bold rounded-md flex items-center gap-1">
                 {v}
-                {/* Fix: Hide or disable remove button interaction when disabled */}
                 <XMarkIcon 
                   className={`w-3 h-3 ${disabled ? 'pointer-events-none opacity-50' : 'hover:text-red-300 transition-colors'}`} 
                   onClick={(e) => { 
@@ -190,19 +183,20 @@ export const FormDropdown: React.FC<{
         <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isOpen && !disabled ? 'rotate-180' : ''}`} />
       </div>
 
-      {/* Fix: Ensure dropdown cannot be opened if disabled */}
       {isOpen && !disabled && (
         <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-2 bg-gray-50">
-            <input 
-              autoFocus
-              className="w-full px-3 py-2 bg-white rounded-lg text-sm outline-none border border-gray-200 focus:border-[#004A74]/30"
-              placeholder={allowCustom ? "Search or type new..." : "Search..."}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-          </div>
+          {showSearch && (
+            <div className="p-2 bg-gray-50">
+              <input 
+                autoFocus
+                className="w-full px-3 py-2 bg-white rounded-lg text-sm outline-none border border-gray-200 focus:border-[#004A74]/30"
+                placeholder={allowCustom ? "Search or type new..." : "Search..."}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+            </div>
+          )}
           <div className="max-h-60 overflow-y-auto p-1">
             {filteredOptions.map((opt, idx) => (
               <button
