@@ -24,7 +24,7 @@ const imageUrlToBase64 = async (url: string): Promise<string | null> => {
 
 /**
  * PresentationService
- * Alur: Groq Blueprint (via GAS Proxy) -> LoremFlickr Images (Base64) -> PptxGenJS Build -> GAS Save
+ * Alur: Groq Blueprint -> Image Proxy (Base64) -> PptxGenJS -> GAS Save (Slave Delegated)
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -40,7 +40,11 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // 1. GENERATE BLUEPRINT (Materi Slide)
+    // 0. PRE-FETCH MASTER ASSETS (Logo) - WAJIB BASE64 untuk Master Slide
+    onProgress?.("Loading Brand Assets...");
+    const logoBase64 = await imageUrlToBase64(BRAND_ASSETS.LOGO_ICON);
+
+    // 1. GENERATE BLUEPRINT
     onProgress?.("Generating AI Blueprint...");
     const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
@@ -62,11 +66,8 @@ export const createPresentationWorkflow = async (
 
     let aiResText = await callAiProxy('groq', blueprintPrompt);
     
-    if (!aiResText) {
-      throw new Error("AI Proxy failed to return blueprint text.");
-    }
+    if (!aiResText) throw new Error("AI Blueprint failed.");
 
-    // JSON Cleaning Logic: Ensure we only parse the JSON block
     if (aiResText.includes('{')) {
       const start = aiResText.indexOf('{');
       const end = aiResText.lastIndexOf('}');
@@ -74,26 +75,16 @@ export const createPresentationWorkflow = async (
     }
 
     let blueprint = JSON.parse(aiResText || '{"slides":[]}');
-    
-    // Robus check: Jika AI membungkusnya dalam root lain
-    if (blueprint.presentation && blueprint.presentation.slides) {
-      blueprint = blueprint.presentation;
-    }
-
-    if (!blueprint.slides || !Array.isArray(blueprint.slides)) {
-      console.error("Invalid blueprint structure:", blueprint);
-      throw new Error("AI returned invalid slide data structure.");
-    }
+    if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
+    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid AI data.");
     
     // 2. INITIALIZE PPTX
     onProgress?.("Assembling Slides...");
     const pptx = new pptxgen();
-    
-    // Font Fallback Logic: Standard fonts for better reliability
     const headingFont = config.theme.headingFont || 'Arial';
     const bodyFont = config.theme.fontFamily || 'Arial';
 
-    // DEFINE MASTER (BRANDING LOGO)
+    // DEFINE MASTER (Gunakan logoBase64 yang sudah di-fetch agar tidak CORS)
     pptx.defineSlideMaster({
       title: 'XEENAPS_MASTER',
       background: { color: 'FFFFFF' },
@@ -101,7 +92,7 @@ export const createPresentationWorkflow = async (
         { 
           image: { 
             x: '92%', y: '92%', w: 0.35, h: 0.35, 
-            path: BRAND_ASSETS.LOGO_ICON 
+            path: logoBase64 || undefined // Gunakan base64
           } 
         },
         {
@@ -123,47 +114,44 @@ export const createPresentationWorkflow = async (
 
     // CONTENT SLIDES
     for (const sData of blueprint.slides) {
-      onProgress?.(`Building: ${sData.title}...`);
+      onProgress?.(`Building Slide: ${sData.title}...`);
       const slide = pptx.addSlide({ masterName: 'XEENAPS_MASTER' });
       
-      // Title
       slide.addText(sData.title, { 
         x: 0.5, y: 0.4, w: '90%', fontSize: 24, fontFace: headingFont, 
         color: config.theme.primaryColor, bold: true 
       });
 
-      // Bullets
       const contentText = Array.isArray(sData.content) ? sData.content.join('\n\n') : String(sData.content);
       slide.addText(contentText, { 
         x: 0.5, y: 1.2, w: '55%', fontSize: 14, fontFace: bodyFont, 
         color: '333333', bullet: true, valign: 'top' 
       });
 
-      // Fetch Image (Using LoremFlickr via Backend Proxy)
       if (sData.imageKeyword) {
         const imgUrl = `https://loremflickr.com/800/600/${encodeURIComponent(sData.imageKeyword)}`;
         const base64Img = await imageUrlToBase64(imgUrl);
         
-        // Hanya add image jika data valid, jika tidak fallback ke logo agar tidak crash
-        slide.addImage({ 
-          x: '60%', y: 1.2, w: '35%', h: 3, 
-          path: base64Img || BRAND_ASSETS.LOGO_ICON, 
-          sizing: { type: 'cover', w: 3, h: 3 } 
-        });
+        // Selalu gunakan base64 untuk menjamin render
+        if (base64Img) {
+          slide.addImage({ 
+            x: '60%', y: 1.2, w: '35%', h: 3, 
+            path: base64Img, 
+            sizing: { type: 'cover', w: 3, h: 3 } 
+          });
+        }
       }
     }
 
-    // FINAL SLIDE: REFERENCE
+    // REFERENCE SLIDE
     const lastSlide = pptx.addSlide({ masterName: 'XEENAPS_MASTER' });
     lastSlide.addText("References & Source", { x: 0.5, y: 0.5, fontSize: 24, bold: true, fontFace: headingFont, color: config.theme.primaryColor });
-    lastSlide.addText(`Extracted from: ${item.title}`, { x: 0.5, y: 1.5, fontSize: 14, fontFace: bodyFont });
-    lastSlide.addText("Generated by Xeenaps PKM", { x: 0.5, y: 5, fontSize: 10, italic: true, fontFace: bodyFont, color: '999999', align: 'center', w: '90%' });
+    lastSlide.addText(`Source: ${item.title}`, { x: 0.5, y: 1.5, fontSize: 14, fontFace: bodyFont });
 
-    // 3. EXPORT TO BASE64
+    // 3. EXPORT & SAVE
     onProgress?.("Syncing with Cloud...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
-    // 4. SAVE TO GAS
     const presentationData: Partial<PresentationItem> = {
       id: crypto.randomUUID(),
       collectionIds: [item.id],
@@ -187,10 +175,9 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    
-    throw new Error(result.message || "Failed to save presentation to Drive.");
+    throw new Error(result.message || "Failed to save.");
   } catch (error) {
-    console.error("Presentation Generation Error:", error);
+    console.error("Presentation Error:", error);
     return null;
   }
 };

@@ -71,36 +71,34 @@ function handleSavePresentation(body) {
         method: 'post',
         contentType: 'application/json',
         payload: JSON.stringify({
-          action: 'savePresentation', // Panggil fungsi yang sama di Slave
+          action: 'savePresentation', // Delegasikan full alur ke Slave
           presentation: presentation,
           pptxFileData: pptxFileData
         })
       });
-      // Langsung kembalikan hasil dari Slave ke Frontend
+      // CRITICAL: Kembalikan response dari Slave dan BERHENTI di sini.
       return JSON.parse(res.getContentText());
     }
 
-    // 2. Simpan file PPTX fisik (Hanya dijalankan oleh Node yang menjadi target/Local)
+    // 2. Simpan file PPTX fisik (Hanya dijalankan oleh Node target yang Local)
     const fileName = `${presentation.title}.pptx`;
     const blob = Utilities.newBlob(Utilities.base64Decode(pptxFileData), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileName);
     
     const folder = DriveApp.getFolderById(storageTarget.folderId);
     const pptxFile = folder.createFile(blob);
-    const pptxFileId = pptxFile.getId();
 
-    // 3. Konversi ke Google Slides (Fix Drive API v3 Metadata)
-    // Kita berikan nama eksplisit pada resource agar tidak 'Untitled'
+    // 3. Konversi ke Google Slides (Fix Drive API v3 Metadata Naming)
     const resource = {
       name: presentation.title || "Xeenaps Presentation",
       mimeType: MimeType.GOOGLE_SLIDES,
       parents: [storageTarget.folderId]
     };
     
-    // Menggunakan Drive API v3 (Drive.Files.create)
+    // Drive API v3: Mengonversi blob PPTX ke Google Slides
     const convertedFile = Drive.Files.create(resource, blob);
     presentation.gSlidesId = convertedFile.id;
 
-    // 4. Catat ke Spreadsheet Registry Master ( Spreadsheet ID dari CONFIG )
+    // 4. Catat ke Spreadsheet Registry Master (Selalu dicatat di Master SS)
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
     let sheet = ss.getSheetByName("Presentation");
     if (!sheet) {
