@@ -87,7 +87,7 @@ export const FormDropdown: React.FC<{
   error?: boolean;
   disabled?: boolean;
   allowCustom?: boolean;
-  showSearch?: boolean; // New Prop to toggle search visibility
+  showSearch?: boolean; 
 }> = ({ 
   value, onChange, options, placeholder, isMulti, onAddMulti, onRemoveMulti, multiValues = [], error, disabled, allowCustom = true, showSearch = true 
 }) => {
@@ -184,7 +184,7 @@ export const FormDropdown: React.FC<{
       </div>
 
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[0_15px_35px_rgba(0,0,0,0.08)] border border-gray-100/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           {showSearch && (
             <div className="p-2 bg-gray-50">
               <input 
