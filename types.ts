@@ -104,6 +104,9 @@ export interface LibraryItem {
   summary?: string;
   strength?: string;
   weakness?: string;
+  // Fix: Added missing properties to support AI Insights view and generation
+  researchMethodology?: string;
+  unfamiliarTerminology?: string;
   quickTipsForYou?: string;
   supportingReferences?: SupportingData; // Updated to SupportingData object
 

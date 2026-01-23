@@ -37,7 +37,7 @@ import {
   StarIcon as StarSolid
 } from '@heroicons/react/24/solid';
 import { showXeenapsToast } from '../../utils/toastUtils';
-import { saveLibraryItem, deleteLibraryItem, generateCitations } from '../../services/gasService';
+import { saveLibraryItem, deleteLibraryItem, generateCitations, generateInsight } from '../../services/gasService';
 import { showXeenapsDeleteConfirm } from '../../utils/confirmUtils';
 import { FormDropdown } from '../Common/FormComponents';
 import Header from '../Layout/Header';
@@ -321,14 +321,22 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   const [isBookmarked, setIsBookmarked] = useState(!!item.isBookmarked);
   const [isFavorite, setIsFavorite] = useState(!!item.isFavorite);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
-  const pubInfo: PubInfo = useMemo(() => parseJsonField(item.pubInfo), [item.pubInfo]);
-  const identifiers: Identifiers = useMemo(() => parseJsonField(item.identifiers), [item.identifiers]);
-  const tags = useMemo(() => parseJsonField(item.tags, { keywords: [], labels: [] }), [item.tags]);
-  const supportingData = useMemo(() => parseJsonField(item.supportingReferences, { references: [], videoUrl: null }), [item.supportingReferences]);
+  // local item state to reflect AI updates immediately
+  const [currentItem, setCurrentItem] = useState(item);
+
+  useEffect(() => {
+    setCurrentItem(item);
+  }, [item]);
+
+  const pubInfo: PubInfo = useMemo(() => parseJsonField(currentItem.pubInfo), [currentItem.pubInfo]);
+  const identifiers: Identifiers = useMemo(() => parseJsonField(currentItem.identifiers), [currentItem.identifiers]);
+  const tags = useMemo(() => parseJsonField(currentItem.tags, { keywords: [], labels: [] }), [currentItem.tags]);
+  const supportingData = useMemo(() => parseJsonField(currentItem.supportingReferences, { references: [], videoUrl: null }), [currentItem.supportingReferences]);
   
-  const displayDate = formatDate(item.fullDate || item.year);
-  const authorsText = Array.isArray(item.authors) ? item.authors.join(', ') : (item.authors || 'Unknown');
+  const displayDate = formatDate(currentItem.fullDate || currentItem.year);
+  const authorsText = Array.isArray(currentItem.authors) ? currentItem.authors.join(', ') : (currentItem.authors || 'Unknown');
 
   const handleOpenLink = (url: string | null) => {
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
@@ -347,7 +355,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     if (property === 'isBookmarked') setIsBookmarked(newValue);
     else setIsFavorite(newValue);
     
-    const updatedItem = { ...item, [property]: newValue };
+    const updatedItem = { ...currentItem, [property]: newValue };
     
     // 2. Optimistic Parent Update (Table)
     if (onUpdateOptimistic) {
@@ -366,12 +374,43 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     }
   };
 
+  const handleGenerateInsights = async () => {
+    if (isGeneratingInsights) return;
+    setIsGeneratingInsights(true);
+    showXeenapsToast('info', 'AI Insighter is analyzing content...');
+
+    try {
+      const data = await generateInsight(currentItem);
+      if (data) {
+        const updated = {
+          ...currentItem,
+          researchMethodology: data.researchMethodology,
+          summary: data.summary,
+          strength: data.strength,
+          weakness: data.weakness,
+          unfamiliarTerminology: data.unfamiliarTerminology,
+          quickTipsForYou: data.quickTipsForYou,
+          updatedAt: new Date().toISOString()
+        };
+        setCurrentItem(updated);
+        if (onUpdateOptimistic) onUpdateOptimistic(updated);
+        showXeenapsToast('success', 'Deep Insights Generated!');
+      } else {
+        showXeenapsToast('error', 'Analysis failed on server');
+      }
+    } catch (e) {
+      showXeenapsToast('error', 'Connection error during analysis');
+    } finally {
+      setIsGeneratingInsights(false);
+    }
+  };
+
   const handleViewCollection = () => {
     let targetUrl = '';
-    if (item.fileId) {
-      targetUrl = `https://drive.google.com/file/d/${item.fileId}/view`;
-    } else if (item.url) {
-      targetUrl = item.url;
+    if (currentItem.fileId) {
+      targetUrl = `https://drive.google.com/file/d/${currentItem.fileId}/view`;
+    } else if (currentItem.url) {
+      targetUrl = currentItem.url;
     }
     
     if (targetUrl) {
@@ -380,7 +419,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
   };
 
   const handleUpdate = () => {
-    navigate(`/edit/${item.id}`);
+    navigate(`/edit/${currentItem.id}`);
   };
 
   const handleDelete = async () => {
@@ -388,7 +427,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     if (confirmed) {
       // 1. Optimistic Instant Redirect
       if (onDeleteOptimistic) {
-        onDeleteOptimistic(item.id);
+        onDeleteOptimistic(currentItem.id);
       }
       onClose();
       navigate('/');
@@ -396,7 +435,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
 
       // 2. Background Deletion
       try {
-        await deleteLibraryItem(item.id);
+        await deleteLibraryItem(currentItem.id);
       } catch (e) {
         showXeenapsToast('error', 'Critical Error: Deletion failed on server');
         if (onRefresh) onRefresh();
@@ -404,13 +443,18 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
     }
   };
 
-  const hasViewLink = !!(item.fileId || item.url);
+  const hasViewLink = !!(currentItem.fileId || currentItem.url);
+
+  // Methodology check: If not 'Original Research' category AND empty string, hide.
+  const categoriesJournal = ["Original Research", "Systematic Review", "Meta-analysis", "Case Report", "Review Article", "Scoping Review", "Rapid Review", "Preprint"];
+  const isJournalType = categoriesJournal.includes(currentItem.category);
+  const showMethodologyBlock = isJournalType && currentItem.researchMethodology && currentItem.researchMethodology.trim() !== "";
 
   return (
     <div 
       className={`fixed top-0 right-0 bottom-0 left-0 lg:left-16 z-[80] bg-white flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden transition-all ease-in-out border-l border-gray-100 ${isMobileSidebarOpen ? 'blur-[15px] opacity-40 pointer-events-none scale-[0.98]' : ''}`}
     >
-      {showCiteModal && <CitationModal item={item} onClose={() => setShowCiteModal(false)} />}
+      {showCiteModal && <CitationModal item={currentItem} onClose={() => setShowCiteModal(false)} />}
 
       {/* 1. TOP STICKY AREA (Header + Action Bar) */}
       <div className="sticky top-0 z-[90] bg-white/95 backdrop-blur-xl border-b border-gray-100">
@@ -509,13 +553,13 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             ) : (
               <>
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="px-3 py-1 bg-[#004A74] text-white text-[8px] font-black uppercase tracking-widest rounded-full">{item.type}</span>
-                  {item.category && <span className="px-3 py-1 bg-[#004A74]/10 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.category}</span>}
-                  <span className="px-3 py-1 bg-[#FED400] text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.topic}</span>
-                  {item.subTopic && <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{item.subTopic}</span>}
+                  <span className="px-3 py-1 bg-[#004A74] text-white text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.type}</span>
+                  {currentItem.category && <span className="px-3 py-1 bg-[#004A74]/10 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.category}</span>}
+                  <span className="px-3 py-1 bg-[#FED400] text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.topic}</span>
+                  {currentItem.subTopic && <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black uppercase tracking-widest rounded-full">{currentItem.subTopic}</span>}
                 </div>
 
-                <h1 className="text-xl md:text-2xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{item.title}</h1>
+                <h1 className="text-xl md:text-2xl font-black text-[#004A74] leading-[1.2] break-words uppercase">{currentItem.title}</h1>
                 
                 <div className="flex flex-col gap-1">
                   {displayDate && <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{displayDate}</p>}
@@ -526,19 +570,19 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-0.5 opacity-60 md:absolute md:bottom-4 md:right-8 transition-all">
                    <div className="flex items-center gap-1.5">
                       <ClockIcon className="w-2.5 h-2.5" />
-                      <span className="text-[7px] font-black uppercase tracking-tighter">Created: {formatTimeMeta(item.createdAt)}</span>
+                      <span className="text-[7px] font-black uppercase tracking-tighter">Created: {formatTimeMeta(currentItem.createdAt)}</span>
                    </div>
                    <div className="flex items-center gap-1.5">
                       <ArrowPathIcon className="w-2.5 h-2.5" />
-                      <span className="text-[7px] font-black uppercase tracking-tighter">Updated: {formatTimeMeta(item.updatedAt)}</span>
+                      <span className="text-[7px] font-black uppercase tracking-tighter">Updated: {formatTimeMeta(currentItem.updatedAt)}</span>
                    </div>
                 </div>
 
                 <div className="space-y-2 pt-4 border-t border-gray-100">
-                  {item.publisher && (
+                  {currentItem.publisher && (
                     <div className="flex items-start gap-2">
                       <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-20 shrink-0 mt-0.5">Publisher</span>
-                      <p className="text-[11px] font-bold text-gray-600">{item.publisher}</p>
+                      <p className="text-[11px] font-bold text-gray-600">{currentItem.publisher}</p>
                     </div>
                   )}
                   
@@ -594,7 +638,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             {isLoading && !isSyncing ? (
                <div className="space-y-2"><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-full skeleton rounded-md"/><div className="h-4 w-3/4 skeleton rounded-md"/></div>
             ) : (
-              <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: item.abstract || 'No abstract content found.' }} />
+              <div className="text-sm leading-relaxed text-[#004A74] font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: currentItem.abstract || 'No abstract content found.' }} />
             )}
           </section>
 
@@ -605,8 +649,13 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <SparklesIcon className="w-5 h-5 text-[#FED400]" /> KNOWLEDGE INSIGHTS
               </h2>
               <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[#004A74]/20 hover:scale-105 transition-all">
-                  <SparklesIcon className="w-3 h-3" /> Generate
+                <button 
+                  onClick={handleGenerateInsights}
+                  disabled={isGeneratingInsights}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#004A74] text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[#004A74]/20 hover:scale-105 transition-all disabled:opacity-50"
+                >
+                  {isGeneratingInsights ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
+                  {isGeneratingInsights ? 'Analyzing...' : 'Generate'}
                 </button>
                 <button onClick={() => setShowTips(true)} className="p-2 bg-[#FED400] text-[#004A74] rounded-xl shadow-md hover:rotate-12 transition-all">
                   <LightBulbIcon className="w-4 h-4 stroke-[2.5]" />
@@ -615,19 +664,25 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {item.category === 'Original Research' && (
+              {showMethodologyBlock && (
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                   <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2"><BeakerIcon className="w-3.5 h-3.5" /> Research Methodology</h3>
-                  {isLoading && !isSyncing ? <div className="h-12 w-full skeleton rounded-xl" /> : (
-                    <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: item.summary || 'Methodology pending analysis.' }} />
+                  {isGeneratingInsights ? <div className="h-12 w-full skeleton rounded-xl" /> : (
+                    <div className="text-sm font-medium italic text-[#004A74]/80" dangerouslySetInnerHTML={{ __html: currentItem.researchMethodology || 'Methodology pending analysis.' }} />
                   )}
                 </div>
               )}
               
               <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardDocumentListIcon className="w-3.5 h-3.5" /> Summary</h3>
-                {isLoading && !isSyncing ? <div className="h-24 w-full skeleton rounded-xl" /> : (
-                  <div className="text-sm leading-relaxed text-[#004A74] font-medium" dangerouslySetInnerHTML={{ __html: item.summary || 'Summary pending analysis.' }} />
+                {isGeneratingInsights ? (
+                  <div className="space-y-3">
+                    <div className="h-4 w-full skeleton rounded-md" />
+                    <div className="h-4 w-full skeleton rounded-md" />
+                    <div className="h-4 w-3/4 skeleton rounded-md" />
+                  </div>
+                ) : (
+                  <div className="text-sm leading-relaxed text-[#004A74] font-medium" dangerouslySetInnerHTML={{ __html: currentItem.summary || 'Summary pending analysis.' }} />
                 )}
               </div>
 
@@ -635,21 +690,21 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-green-600 flex items-center gap-2">
                   <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" /> Strengths
                 </h3>
-                <ElegantList text={item.strength} isLoading={isLoading && !isSyncing} />
+                <ElegantList text={currentItem.strength} isLoading={isGeneratingInsights} />
               </div>
 
               <div className="bg-red-50/20 p-6 rounded-[2rem] border border-red-100/50 shadow-sm space-y-3">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
                   <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Weaknesses
                 </h3>
-                <ElegantList text={item.weakness} isLoading={isLoading && !isSyncing} />
+                <ElegantList text={currentItem.weakness} isLoading={isGeneratingInsights} />
               </div>
 
               <div className="bg-[#004A74]/5 p-6 rounded-[2rem] border border-[#004A74]/10 shadow-sm space-y-3 md:col-span-2">
                 <h3 className="text-[9px] font-black uppercase tracking-widest text-[#004A74] flex items-center gap-2">
                   <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5" /> Unfamiliar Terminology
                 </h3>
-                <ElegantList text={item.quickTipsForYou} isLoading={isLoading && !isSyncing} />
+                <ElegantList text={currentItem.unfamiliarTerminology || currentItem.quickTipsForYou} isLoading={isGeneratingInsights} />
               </div>
             </div>
           </section>
@@ -734,7 +789,7 @@ const LibraryDetailView: React.FC<LibraryDetailViewProps> = ({ item, onClose, is
             <button onClick={() => setShowTips(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all"><XMarkIcon className="w-6 h-6" /></button>
             <LightBulbIcon className="w-10 h-10 text-[#FED400] mb-6 drop-shadow-[0_0_10px_rgba(254,212,0,0.5)]" />
             <h3 className="text-xl font-black mb-4 uppercase tracking-widest">Knowledge Anchor Tips</h3>
-            <p className="text-sm font-medium italic leading-relaxed opacity-90 border-l-2 border-[#FED400] pl-4">"{item.quickTipsForYou || 'Generate AI insights to unlock specific tips for this collection.'}"</p>
+            <p className="text-sm font-medium italic leading-relaxed opacity-90 border-l-2 border-[#FED400] pl-4">"{currentItem.quickTipsForYou || 'Generate AI insights to unlock specific tips for this collection.'}"</p>
           </div>
         </div>
       )}

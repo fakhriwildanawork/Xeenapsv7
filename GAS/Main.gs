@@ -53,6 +53,11 @@ function doPost(e) {
       return createJsonResponse({ status: 'success', data: result });
     }
 
+    // NEW ACTION: generateInsight (AI Insighter)
+    if (action === 'generateInsight') {
+      return createJsonResponse(handleGenerateInsight(body.item));
+    }
+
     // ACTION: checkQuota (POST support for Master-Slave communication)
     if (action === 'checkQuota') {
       const quota = Drive.About.get({fields: 'storageQuota'}).storageQuota;

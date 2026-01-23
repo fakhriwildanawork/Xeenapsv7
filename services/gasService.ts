@@ -237,3 +237,22 @@ export const generateCitations = async (item: LibraryItem, style: string, langua
     return null;
   }
 };
+
+/**
+ * NEW: Generate Deep Insights via AI Insighter (Groq)
+ */
+export const generateInsight = async (item: LibraryItem): Promise<any> => {
+  try {
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
+      body: JSON.stringify({ action: 'generateInsight', item }),
+    });
+    const result = await res.json();
+    return result.status === 'success' ? result.data : null;
+  } catch (error) {
+    console.error("Insight generation failed:", error);
+    return null;
+  }
+};
