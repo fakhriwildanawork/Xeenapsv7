@@ -64,34 +64,43 @@ function handleSavePresentation(body) {
     const storageTarget = getViableStorageTarget(CONFIG.STORAGE.THRESHOLD);
     if (!storageTarget) throw new Error("Storage full on all nodes.");
 
-    // 2. Simpan file PPTX fisik
-    const fileName = `${presentation.title}.pptx`;
-    const blob = Utilities.newBlob(Utilities.base64Decode(pptxFileData), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileName);
-    
-    let pptxFileId;
-    if (storageTarget.isLocal) {
-      const folder = DriveApp.getFolderById(storageTarget.folderId);
-      pptxFileId = folder.createFile(blob).getId();
-    } else {
+    // DELEGASI TOTAL KE SLAVE (Mencegah File Dobel & Masalah Ownership)
+    // Jika target bukan Local (Master), maka Master menyuruh Slave melakukan handleSavePresentation sepenuhnya.
+    if (!storageTarget.isLocal) {
       const res = UrlFetchApp.fetch(storageTarget.url, {
         method: 'post',
         contentType: 'application/json',
-        payload: JSON.stringify({ action: 'saveFileDirect', fileName: fileName, mimeType: blob.getContentType(), fileData: pptxFileData, folderId: storageTarget.folderId })
+        payload: JSON.stringify({
+          action: 'savePresentation', // Panggil fungsi yang sama di Slave
+          presentation: presentation,
+          pptxFileData: pptxFileData
+        })
       });
-      pptxFileId = JSON.parse(res.getContentText()).fileId;
+      // Langsung kembalikan hasil dari Slave ke Frontend
+      return JSON.parse(res.getContentText());
     }
 
-    // 3. Konversi ke Google Slides (Fix Drive API v3)
+    // 2. Simpan file PPTX fisik (Hanya dijalankan oleh Node yang menjadi target/Local)
+    const fileName = `${presentation.title}.pptx`;
+    const blob = Utilities.newBlob(Utilities.base64Decode(pptxFileData), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileName);
+    
+    const folder = DriveApp.getFolderById(storageTarget.folderId);
+    const pptxFile = folder.createFile(blob);
+    const pptxFileId = pptxFile.getId();
+
+    // 3. Konversi ke Google Slides (Fix Drive API v3 Metadata)
+    // Kita berikan nama eksplisit pada resource agar tidak 'Untitled'
     const resource = {
-      name: presentation.title,
+      name: presentation.title || "Xeenaps Presentation",
       mimeType: MimeType.GOOGLE_SLIDES,
       parents: [storageTarget.folderId]
     };
     
+    // Menggunakan Drive API v3 (Drive.Files.create)
     const convertedFile = Drive.Files.create(resource, blob);
     presentation.gSlidesId = convertedFile.id;
 
-    // 4. Catat ke Spreadsheet Registry Master (Target: Spreadsheet Presentation Baru)
+    // 4. Catat ke Spreadsheet Registry Master ( Spreadsheet ID dari CONFIG )
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
     let sheet = ss.getSheetByName("Presentation");
     if (!sheet) {
@@ -108,6 +117,7 @@ function handleSavePresentation(body) {
     sheet.appendRow(rowData);
     return { status: 'success', data: presentation };
   } catch (e) {
+    console.error("Save Presentation Error: " + e.toString());
     return { status: 'error', message: e.toString() };
   }
 }
