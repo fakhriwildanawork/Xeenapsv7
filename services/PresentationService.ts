@@ -5,9 +5,8 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - THE "ULTIMATE GAMMA" TEXT EDITION
- * Fokus: Estetika premium melalui desain geometris pekat & tipografi hierarkis.
- * Keamanan: 100% Inci murni & Tanpa Gambar untuk menjamin Google Slides Rendering.
+ * PresentationService - THE "ULTIMATE GAMMA" ENGINE V2
+ * Strategi: Multi-Layout Cards, Rounded Corners, and Adaptive Typography.
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -23,23 +22,28 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // 1. GENERATE BLUEPRINT (Materi Slide)
-    onProgress?.("Generating AI Blueprint...");
-    const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
+    // 1. GENERATE BLUEPRINT DENGAN INSTRUKSI LAYOUT
+    onProgress?.("AI is designing layouts...");
+    const blueprintPrompt = `ACT AS A SENIOR UI/UX & PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
     SOURCE MATERIAL: ${item.abstract || item.title}
     ADDITIONAL CONTEXT: ${config.context}
     
     REQUIREMENTS:
     - EXACTLY ${config.slidesCount} CONTENT SLIDES.
+    - FOR EACH SLIDE, ASSIGN A "layoutType" FROM: ["CENTER_CARD", "SPLIT_VIEW", "KEY_HIGHLIGHT", "MODERN_LIST"].
     - LANGUAGE: ${config.language}.
-    - FOR EACH SLIDE PROVIDE: "title", "content" (detailed bullet points).
     - OUTPUT RAW JSON ONLY.
 
     FORMAT:
     {
       "slides": [
-        { "title": "Slide Title", "content": ["Point 1", "Point 2", "Point 3"] }
+        { 
+          "title": "Slide Title", 
+          "content": ["Point 1", "Point 2"], 
+          "layoutType": "SPLIT_VIEW",
+          "highlight": "Optional key takeaway string" 
+        }
       ]
     }`;
 
@@ -54,104 +58,108 @@ export const createPresentationWorkflow = async (
 
     let blueprint = JSON.parse(aiResText || '{"slides":[]}');
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
-    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid AI structure.");
     
     // 2. INITIALIZE PPTX
-    onProgress?.("Designing Visual Layout...");
+    onProgress?.("Applying Premium Styling...");
     const pptx = new pptxgen();
     pptx.layout = 'LAYOUT_16x9';
 
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
     const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
-    const headingFont = 'Arial'; 
-    const bodyFont = 'Arial';
+    const cardBg = 'FFFFFF';
+    const softGray = 'F1F5F9';
 
-    // --- SLIDE 1: COVER (Modern Central Split) ---
+    // HELPER: Get Adaptive Font Size
+    const getFontSize = (text: string, baseSize: number) => {
+      if (text.length > 150) return baseSize * 0.6;
+      if (text.length > 80) return baseSize * 0.8;
+      return baseSize;
+    };
+
+    // --- SLIDE 1: COVER (HERO CARD) ---
     const slide1 = pptx.addSlide();
-    // Background Accents
-    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: 'F8F9FA' } });
-    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 3, h: 5.625, fill: { color: primaryColor } });
+    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: softGray } });
     
-    // Title Adaptive Logic
-    const titleFontSize = config.title.length > 100 ? 24 : (config.title.length > 60 ? 28 : 32);
-    
-    slide1.addText(config.title.toUpperCase(), { 
-      x: 3.5, y: 1.5, w: 6, h: 2, 
-      fontSize: titleFontSize, fontFace: headingFont, color: primaryColor, 
-      bold: true, align: 'left', valign: 'middle', lineSpacing: 34
+    // Main Hero Card
+    slide1.addShape(pptx.ShapeType.roundRect, { 
+      x: 1, y: 1, w: 8, h: 3.6, 
+      fill: { color: cardBg }, 
+      line: { color: primaryColor, width: 2 },
+      rectRadius: 0.2
     });
 
-    // Accent line
-    slide1.addShape(pptx.ShapeType.rect, { x: 3.5, y: 3.5, w: 1, h: 0.1, fill: { color: secondaryColor } });
+    const coverTitleSize = getFontSize(config.title, 36);
+    slide1.addText(config.title.toUpperCase(), { 
+      x: 1.5, y: 1.5, w: 7, h: 1.5, 
+      fontSize: coverTitleSize, fontFace: 'Arial', color: primaryColor, 
+      bold: true, align: 'center', valign: 'middle'
+    });
+
+    slide1.addShape(pptx.ShapeType.rect, { x: 4.5, y: 3.2, w: 1, h: 0.05, fill: { color: secondaryColor } });
 
     slide1.addText(`PRESENTED BY\n${config.presenters.join(', ')}`, { 
-      x: 3.5, y: 4, w: 6, h: 1, 
-      fontSize: 14, fontFace: bodyFont, color: '666666', 
-      align: 'left', bold: true 
+      x: 1.5, y: 3.5, w: 7, h: 0.8, 
+      fontSize: 12, fontFace: 'Arial', color: '64748B', 
+      align: 'center', bold: true 
     });
 
-    // Branding in sidebar
-    // Fix: Removed invalid 'opacity' property from TextPropsOptions
-    slide1.addText("XEENAPS\nMODERN PKM", { 
-      x: 0, y: 4.5, w: 3, h: 1, 
-      fontSize: 18, fontFace: headingFont, color: 'FFFFFF', 
-      align: 'center', bold: true
-    });
-
-    // --- CONTENT SLIDES (Gamma Split Style) ---
-    for (const sData of blueprint.slides) {
-      onProgress?.(`Polishing: ${sData.title}...`);
+    // --- CONTENT SLIDES (MULTI-LAYOUT ENGINE) ---
+    blueprint.slides.forEach((sData: any, idx: number) => {
+      onProgress?.(`Building Slide ${idx + 1}: ${sData.layoutType}...`);
       const slide = pptx.addSlide();
-      
-      // Sidebar Background
-      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 2.8, h: 5.625, fill: { color: primaryColor } });
-      
-      // Slide Title (In Sidebar)
-      slide.addText(sData.title, { 
-        x: 0.3, y: 0.5, w: 2.2, h: 4.6, 
-        fontSize: 24, fontFace: headingFont, color: 'FFFFFF', 
-        bold: true, valign: 'top', align: 'left'
-      });
+      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: softGray } });
 
-      // Decorative Element in Sidebar
-      slide.addShape(pptx.ShapeType.rect, { x: 0.3, y: 5, w: 0.5, h: 0.05, fill: { color: secondaryColor } });
-
-      // Body Content (In Main Area)
       const contentText = Array.isArray(sData.content) ? sData.content.join('\n\n') : String(sData.content);
-      slide.addText(contentText, { 
-        x: 3.2, y: 0.5, w: 6.3, h: 4.6, 
-        fontSize: 16, fontFace: bodyFont, color: '333333', 
-        bullet: { indent: 20 }, valign: 'top', lineSpacing: 28 
-      });
 
-      // Footer
-      slide.addText("XEENAPS PKM INSIGHT", { 
-        x: 3.2, y: 5.2, w: 4, h: 0.3, 
-        fontSize: 8, fontFace: bodyFont, color: 'CCCCCC', align: 'left', bold: true
-      });
-    }
+      if (sData.layoutType === 'SPLIT_VIEW') {
+        // Layout: Sidebar + Main Card
+        slide.addShape(pptx.ShapeType.roundRect, { x: 0.4, y: 0.4, w: 2.8, h: 4.8, fill: { color: primaryColor }, rectRadius: 0.15 });
+        slide.addText(sData.title, { x: 0.6, y: 0.6, w: 2.4, h: 4, fontSize: 22, color: 'FFFFFF', bold: true, valign: 'top' });
+        
+        slide.addShape(pptx.ShapeType.roundRect, { x: 3.4, y: 0.4, w: 6.2, h: 4.8, fill: { color: cardBg }, rectRadius: 0.15 });
+        slide.addText(contentText, { x: 3.8, y: 0.8, w: 5.4, h: 4, fontSize: 14, color: '334155', bullet: { indent: 20 }, lineSpacing: 24 });
+      } 
+      else if (sData.layoutType === 'CENTER_CARD') {
+        // Layout: Focused Center Card
+        slide.addShape(pptx.ShapeType.roundRect, { x: 1, y: 0.5, w: 8, h: 4.6, fill: { color: cardBg }, line: { color: primaryColor, width: 1 }, rectRadius: 0.2 });
+        slide.addText(sData.title, { x: 1.5, y: 0.8, w: 7, h: 0.6, fontSize: 24, color: primaryColor, bold: true, align: 'center' });
+        slide.addShape(pptx.ShapeType.rect, { x: 4.5, y: 1.5, w: 1, h: 0.03, fill: { color: secondaryColor } });
+        slide.addText(contentText, { x: 1.5, y: 1.8, w: 7, h: 3, fontSize: 14, color: '334155', align: 'center', lineSpacing: 22 });
+      }
+      else if (sData.layoutType === 'KEY_HIGHLIGHT') {
+        // Layout: Modern Banner + Dual Cards
+        slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 1.5, fill: { color: primaryColor } });
+        slide.addText(sData.title, { x: 0.5, y: 0.3, w: 9, h: 0.9, fontSize: 26, color: 'FFFFFF', bold: true, valign: 'middle' });
+        
+        slide.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.8, w: 4.3, h: 3.2, fill: { color: cardBg }, rectRadius: 0.15 });
+        slide.addText(contentText, { x: 0.8, y: 2.1, w: 3.7, h: 2.6, fontSize: 13, color: '334155', bullet: true });
 
-    // --- FINAL SLIDE: THE END ---
+        // Fix: Moved opacity to fill.transparency (opacity 10% = 90% transparency) as opacity is not a direct ShapeProps property
+        slide.addShape(pptx.ShapeType.roundRect, { x: 5.2, y: 1.8, w: 4.3, h: 3.2, fill: { color: primaryColor, transparency: 90 }, rectRadius: 0.15 });
+        slide.addText(sData.highlight || "Key Insight", { x: 5.5, y: 2.5, w: 3.7, h: 2, fontSize: 20, color: primaryColor, italic: true, bold: true, align: 'center' });
+      }
+      else {
+        // Default: MODERN_LIST
+        slide.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 0.4, w: 9, h: 4.8, fill: { color: cardBg }, rectRadius: 0.15 });
+        slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.4, w: 0.1, h: 4.8, fill: { color: primaryColor } });
+        slide.addText(sData.title, { x: 0.8, y: 0.7, w: 8, h: 0.6, fontSize: 24, color: primaryColor, bold: true });
+        slide.addText(contentText, { x: 0.8, y: 1.5, w: 8, h: 3.4, fontSize: 15, color: '334155', bullet: { indent: 20 }, lineSpacing: 26 });
+      }
+
+      // Consistent Footer
+      slide.addText(`Slide ${idx + 1} | XEENAPS INSIGHT`, { x: 0.5, y: 5.3, w: 9, h: 0.2, fontSize: 8, color: '94A3B8', align: 'right', bold: true });
+    });
+
+    // --- FINAL SLIDE: SUMMARY ---
     const lastSlide = pptx.addSlide();
     lastSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: primaryColor } });
-    
-    lastSlide.addText("THANK YOU", { 
-      x: 0, y: 1.5, w: 10, h: 1.5, 
-      fontSize: 54, fontFace: headingFont, color: 'FFFFFF', 
-      bold: true, align: 'center' 
-    });
-
-    lastSlide.addShape(pptx.ShapeType.rect, { x: 4.5, y: 3, w: 1, h: 0.05, fill: { color: secondaryColor } });
-
-    // Fix: Removed invalid 'opacity' property from TextPropsOptions
-    lastSlide.addText(`Reference: ${item.title}`, { 
-      x: 1, y: 4, w: 8, h: 1, 
-      fontSize: 10, fontFace: bodyFont, color: 'FFFFFF', 
-      align: 'center'
-    });
+    lastSlide.addText("THANK YOU", { x: 0, y: 2, w: 10, h: 1, fontSize: 48, color: 'FFFFFF', bold: true, align: 'center' });
+    lastSlide.addShape(pptx.ShapeType.rect, { x: 4.5, y: 3.2, w: 1, h: 0.05, fill: { color: secondaryColor } });
+    // Fix: Removed unsupported opacity property for text to comply with TextPropsOptions interface
+    lastSlide.addText(`Generated from: ${item.title}`, { x: 1, y: 4.5, w: 8, h: 0.5, fontSize: 10, color: 'FFFFFF', align: 'center' });
 
     // 3. EXPORT & SAVE
-    onProgress?.("Finalizing Cloud Sync...");
+    onProgress?.("Syncing with Google Drive...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
