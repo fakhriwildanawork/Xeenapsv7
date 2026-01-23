@@ -5,11 +5,9 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - TEXT ONLY "PURE COMPATIBILITY" EDITION
- * Strategi: 
- * 1. Tanpa Master Slide (menghindari layering issue).
- * 2. Koordinat Inci murni (menghindari mixed unit issue).
- * 3. Layout Direct (styling langsung di tiap slide).
+ * PresentationService - THE "ULTIMATE GAMMA" TEXT EDITION
+ * Fokus: Estetika premium melalui desain geometris pekat & tipografi hierarkis.
+ * Keamanan: 100% Inci murni & Tanpa Gambar untuk menjamin Google Slides Rendering.
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -25,7 +23,7 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // 1. GENERATE BLUEPRINT
+    // 1. GENERATE BLUEPRINT (Materi Slide)
     onProgress?.("Generating AI Blueprint...");
     const blueprintPrompt = `ACT AS AN EXPERT PRESENTATION DESIGNER.
     CREATE A DETAILED PRESENTATION BLUEPRINT IN JSON FORMAT FOR: "${config.title}"
@@ -48,7 +46,6 @@ export const createPresentationWorkflow = async (
     let aiResText = await callAiProxy('groq', blueprintPrompt);
     if (!aiResText) throw new Error("AI failed to return data.");
 
-    // Clean JSON Resiliently
     if (aiResText.includes('{')) {
       const start = aiResText.indexOf('{');
       const end = aiResText.lastIndexOf('}');
@@ -60,72 +57,98 @@ export const createPresentationWorkflow = async (
     if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid AI structure.");
     
     // 2. INITIALIZE PPTX
-    onProgress?.("Building Slides...");
+    onProgress?.("Designing Visual Layout...");
     const pptx = new pptxgen();
-    pptx.layout = 'LAYOUT_16x9'; // Standar Google Slides
+    pptx.layout = 'LAYOUT_16x9';
 
-    // Theme Colors (Safe Hex)
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
-    const headingFont = 'Arial'; // Gunakan font paling standar untuk tes
+    const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
+    const headingFont = 'Arial'; 
     const bodyFont = 'Arial';
 
-    // --- SLIDE 1: COVER (Direct Styling) ---
+    // --- SLIDE 1: COVER (Modern Central Split) ---
     const slide1 = pptx.addSlide();
-    // Background Accent (Gamma Style)
-    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.1, h: 5.625, fill: { color: primaryColor } });
+    // Background Accents
+    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: 'F8F9FA' } });
+    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 3, h: 5.625, fill: { color: primaryColor } });
     
-    // Title - Menggunakan Inci (x: 1 inci, y: 1.5 inci, w: 8 inci)
+    // Title Adaptive Logic
+    const titleFontSize = config.title.length > 100 ? 24 : (config.title.length > 60 ? 28 : 32);
+    
     slide1.addText(config.title.toUpperCase(), { 
-      x: 1, y: 1.5, w: 8, h: 1.5, 
-      fontSize: 36, fontFace: headingFont, color: primaryColor, 
-      bold: true, align: 'center', valign: 'middle'
+      x: 3.5, y: 1.5, w: 6, h: 2, 
+      fontSize: titleFontSize, fontFace: headingFont, color: primaryColor, 
+      bold: true, align: 'left', valign: 'middle', lineSpacing: 34
     });
-    
-    // Separator
-    slide1.addShape(pptx.ShapeType.rect, { x: 4, y: 3.2, w: 2, h: 0.04, fill: { color: primaryColor } });
 
-    // Presenters
-    slide1.addText(`PRESENTED BY:\n${config.presenters.join(', ')}`, { 
-      x: 1, y: 3.8, w: 8, h: 1, 
+    // Accent line
+    slide1.addShape(pptx.ShapeType.rect, { x: 3.5, y: 3.5, w: 1, h: 0.1, fill: { color: secondaryColor } });
+
+    slide1.addText(`PRESENTED BY\n${config.presenters.join(', ')}`, { 
+      x: 3.5, y: 4, w: 6, h: 1, 
       fontSize: 14, fontFace: bodyFont, color: '666666', 
-      align: 'center', bold: true 
+      align: 'left', bold: true 
     });
 
-    // --- CONTENT SLIDES ---
+    // Branding in sidebar
+    // Fix: Removed invalid 'opacity' property from TextPropsOptions
+    slide1.addText("XEENAPS\nMODERN PKM", { 
+      x: 0, y: 4.5, w: 3, h: 1, 
+      fontSize: 18, fontFace: headingFont, color: 'FFFFFF', 
+      align: 'center', bold: true
+    });
+
+    // --- CONTENT SLIDES (Gamma Split Style) ---
     for (const sData of blueprint.slides) {
-      onProgress?.(`Building: ${sData.title}...`);
+      onProgress?.(`Polishing: ${sData.title}...`);
       const slide = pptx.addSlide();
       
-      // Decorative Header Bar
-      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.3, w: 0.5, h: 0.05, fill: { color: primaryColor } });
-
-      // Slide Title
+      // Sidebar Background
+      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 2.8, h: 5.625, fill: { color: primaryColor } });
+      
+      // Slide Title (In Sidebar)
       slide.addText(sData.title, { 
-        x: 0.5, y: 0.5, w: 9, h: 0.8, 
-        fontSize: 28, fontFace: headingFont, color: primaryColor, 
-        bold: true, valign: 'top' 
+        x: 0.3, y: 0.5, w: 2.2, h: 4.6, 
+        fontSize: 24, fontFace: headingFont, color: 'FFFFFF', 
+        bold: true, valign: 'top', align: 'left'
       });
 
-      // Body Content
+      // Decorative Element in Sidebar
+      slide.addShape(pptx.ShapeType.rect, { x: 0.3, y: 5, w: 0.5, h: 0.05, fill: { color: secondaryColor } });
+
+      // Body Content (In Main Area)
       const contentText = Array.isArray(sData.content) ? sData.content.join('\n\n') : String(sData.content);
       slide.addText(contentText, { 
-        x: 0.5, y: 1.5, w: 9, h: 3.5, 
+        x: 3.2, y: 0.5, w: 6.3, h: 4.6, 
         fontSize: 16, fontFace: bodyFont, color: '333333', 
-        bullet: { indent: 20 }, valign: 'top', lineSpacing: 24
+        bullet: { indent: 20 }, valign: 'top', lineSpacing: 28 
       });
 
-      // Simple Footer
-      slide.addText("XEENAPS PKM", { 
-        x: 0.5, y: 5.2, w: 4, h: 0.3, 
-        fontSize: 8, fontFace: bodyFont, color: 'CCCCCC', align: 'left' 
+      // Footer
+      slide.addText("XEENAPS PKM INSIGHT", { 
+        x: 3.2, y: 5.2, w: 4, h: 0.3, 
+        fontSize: 8, fontFace: bodyFont, color: 'CCCCCC', align: 'left', bold: true
       });
     }
 
-    // --- FINAL SLIDE: SUMMARY ---
+    // --- FINAL SLIDE: THE END ---
     const lastSlide = pptx.addSlide();
-    lastSlide.addText("REFERENCE", { x: 0.5, y: 0.5, w: 9, h: 0.5, fontSize: 24, bold: true, color: primaryColor });
-    lastSlide.addText(`Source Material: ${item.title}`, { x: 0.5, y: 1.2, w: 9, h: 1, fontSize: 12, color: '666666' });
-    lastSlide.addText("END OF PRESENTATION", { x: 0, y: 2.5, w: 10, h: 1, fontSize: 32, bold: true, color: primaryColor, align: 'center' });
+    lastSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: primaryColor } });
+    
+    lastSlide.addText("THANK YOU", { 
+      x: 0, y: 1.5, w: 10, h: 1.5, 
+      fontSize: 54, fontFace: headingFont, color: 'FFFFFF', 
+      bold: true, align: 'center' 
+    });
+
+    lastSlide.addShape(pptx.ShapeType.rect, { x: 4.5, y: 3, w: 1, h: 0.05, fill: { color: secondaryColor } });
+
+    // Fix: Removed invalid 'opacity' property from TextPropsOptions
+    lastSlide.addText(`Reference: ${item.title}`, { 
+      x: 1, y: 4, w: 8, h: 1, 
+      fontSize: 10, fontFace: bodyFont, color: 'FFFFFF', 
+      align: 'center'
+    });
 
     // 3. EXPORT & SAVE
     onProgress?.("Finalizing Cloud Sync...");
