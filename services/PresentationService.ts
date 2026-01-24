@@ -46,7 +46,7 @@ class XBEEngine {
   }
 
   /**
-   * Render kartu dengan border lembut, bukan shadow hitam.
+   * Render kartu dengan border lembut.
    */
   addModernCard(slide: pptxgen.Slide, x: number, y: number, w: number, h: number, isPrimary = false) {
     return slide.addShape(this.pptx.ShapeType.rect, {
@@ -80,27 +80,54 @@ class XBEEngine {
   }
 }
 
+/**
+ * FETCH RELATED PRESENTATIONS
+ * Memperbaiki error TS2305 dengan mengekspor kembali fungsi ini.
+ */
+export const fetchRelatedPresentations = async (collectionId: string): Promise<PresentationItem[]> => {
+  try {
+    if (!GAS_WEB_APP_URL) return [];
+    const res = await fetch(`${GAS_WEB_APP_URL}?action=getRelatedPresentations&collectionId=${collectionId}`);
+    const result = await res.json();
+    return result.status === 'success' ? result.data : [];
+  } catch (error) {
+    console.error("Fetch Presentations Error:", error);
+    return [];
+  }
+};
+
+/**
+ * CREATE PRESENTATION WORKFLOW
+ */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
-  config: { title: string; context: string; presenters: string[]; template: PresentationTemplate; theme: PresentationThemeConfig; slidesCount: number; language: string; },
+  config: { 
+    title: string; 
+    context: string; 
+    presenters: string[]; 
+    template: PresentationTemplate; 
+    theme: PresentationThemeConfig; 
+    slidesCount: number; 
+    language: string; 
+  },
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
     onProgress?.("Architecting Gamma-style layouts...");
 
-    // PROMPT AI: Fokus pada kepadatan konten yang seimbang
-    const systemPrompt = `ACT AS A SENIOR UI/UX DESIGNER.
+    const systemPrompt = `ACT AS A SENIOR UI/UX DESIGNER FOR GAMMA.AI.
     Create a ${config.slidesCount}-slide presentation in ${config.language}.
     Title: ${config.title}
-    Abstract: ${item.abstract || item.title} [cite: 4, 5]
+    Abstract: ${item.abstract || item.title}
     
     RULES:
-    1. Maximum 5 bullet points per slide.
-    2. Use Layouts: "FEATURE_SPLIT" (70/30), "THREE_COL", "CENTER_MINIMAL".
-    3. Keep sentences punchy and professional. [cite: 27]
-    4. Output JSON only: { "slides": [{ "title": "", "points": [""], "layout": "" }] }`;
+    1. Diversity in layouts: "HERO", "FEATURE_SPLIT", "CENTER_MINIMAL".
+    2. Professional academic tone.
+    3. Output JSON only: { "slides": [{ "title": "", "points": [""], "layout": "" }] }`;
 
     const aiRes = await callAiProxy('groq', systemPrompt);
+    if (!aiRes) throw new Error("AI Refusal");
+
     const blueprint = JSON.parse(aiRes.substring(aiRes.indexOf('{'), aiRes.lastIndexOf('}') + 1));
     const slidesData = blueprint.slides || [];
 
@@ -108,7 +135,7 @@ export const createPresentationWorkflow = async (
     pptx.layout = 'LAYOUT_16x9';
     
     const colors = {
-      primary: config.theme.primaryColor?.replace('#', '') || '0F172A', // Navy Slate
+      primary: config.theme.primaryColor?.replace('#', '') || '0F172A',
       text: { primary: '1E293B', secondary: '64748B' }
     };
 
@@ -116,51 +143,65 @@ export const createPresentationWorkflow = async (
 
     slidesData.forEach((s: any, idx: number) => {
       const slide = pptx.addSlide();
-      // Set Slide Background ke Off-White agar kartu putih terlihat kontras
       slide.background = { color: XBE.STYLE.BG_ACCENT };
 
       const points = s.points || [];
       const layout = s.layout;
 
-      // --- RENDER LOGIC: ASYMMETRIC ---
       if (idx === 0) {
-        // COVER: Full Primary Card
         engine.addModernCard(slide, 0.4, 0.4, 9.2, 4.8, true);
-        engine.addTextToCard(slide, s.title.toUpperCase(), 0.4, 0.4, 9.2, 3.5, { 
+        engine.addTextToCard(slide, config.title.toUpperCase(), 0.4, 0.4, 9.2, 3.5, { 
           fontSize: 32, color: 'FFFFFF', bold: true, align: 'center', valign: 'middle' 
+        });
+        engine.addTextToCard(slide, config.presenters.join(' • '), 0.4, 4.2, 9.2, 0.5, {
+          fontSize: 10, color: 'FFFFFF', align: 'center', bold: true
         });
       } 
       else if (layout === "FEATURE_SPLIT" || idx % 2 === 0) {
-        // 70/30 Layout (Main Content / Highlight)
         const main = engine.getGridDim(0, 8);
         const side = engine.getGridDim(8, 4);
 
-        // Main Card
         engine.addModernCard(slide, main.x, 1.0, main.w, 4.2);
         engine.addTextToCard(slide, s.title, main.x, 1.0, main.w, 0.8, { fontSize: 20, bold: true, color: colors.primary });
         engine.addTextToCard(slide, points.map((p:string) => ({ text: p, options: { bullet: true } })), main.x, 1.6, main.w, 3.4);
 
-        // Side Highlight (Colored)
         engine.addModernCard(slide, side.x, 1.0, side.w, 4.2, true);
-        engine.addTextToCard(slide, "KEY INSIGHT", side.x, 1.0, side.w, 3.0, { color: 'FFFFFF', bold: true, fontSize: 14, align: 'center' });
+        engine.addTextToCard(slide, "KEY INSIGHT", side.x, 1.0, side.w, 1.0, { color: 'FFFFFF', bold: true, fontSize: 14, align: 'center' });
       }
       else {
-        // Center Minimalist
         const center = engine.getGridDim(2, 8);
         engine.addModernCard(slide, center.x, 0.8, center.w, 4.4);
         engine.addTextToCard(slide, s.title, center.x, 0.8, center.w, 0.8, { fontSize: 22, bold: true, align: 'center' });
         engine.addTextToCard(slide, points.map((p:string) => ({ text: p, options: { bullet: true } })), center.x, 1.6, center.w, 3.6);
       }
 
-      // Minimalist Footer
-      slide.addText(`© ${new Date().getFullYear()} • ${config.title.substring(0, 30)}...`, { 
+      slide.addText(`© ${new Date().getFullYear()} • XEENAPS PKM • PAGE ${idx + 1}`, { 
         x: 0.5, y: 5.3, w: 5, fontSize: 8, color: '94A3B8' 
       });
     });
 
+    onProgress?.("Exporting to Google Slides...");
     const base64 = await pptx.write({ outputType: 'base64' }) as string;
-    // ... rest of the saving logic
-    return null; // Update as per original return
+
+    const presentation: Partial<PresentationItem> = {
+      id: crypto.randomUUID(),
+      collectionIds: [item.id],
+      title: config.title,
+      presenters: config.presenters,
+      templateName: config.template,
+      themeConfig: config.theme,
+      slidesCount: config.slidesCount,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'savePresentation', presentation, pptxFileData: base64 })
+    });
+
+    const out = await res.json();
+    return out.status === 'success' ? out.data : null;
 
   } catch (error) {
     console.error("XBE v3 Error:", error);
