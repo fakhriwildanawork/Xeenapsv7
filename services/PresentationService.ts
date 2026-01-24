@@ -5,8 +5,8 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS UNIVERSAL ARCHITECT V7
- * Focus: Inter Typography, Glassmorphism, Deep Academic Synthesis.
+ * PresentationService - XEENAPS UNIVERSAL ARCHITECT V7.5
+ * Focus: Dynamic Grid Layouts, Precision Auto-fit, & Smart Color Contrast.
  */
 
 export const createPresentationWorkflow = async (
@@ -32,54 +32,69 @@ export const createPresentationWorkflow = async (
     // Global Constants
     const FONT_MAIN = 'Inter';
     const BG_GLOBAL = 'FBFDFF'; 
-    const CARD_GLASS = 'FFFFFFD9'; // 85% opacity for glass effect
+    const CARD_GLASS = 'FFFFFFE6'; // 90% opacity for better contrast
 
     const cleanText = (text: string) => text.replace(/[\*_#]/g, '').trim();
 
-    // Helper: Glass Card Drawing
-    const drawGlassCard = (slide: any, x: number, y: number, w: number, h: number) => {
+    // Helper: Draw Enhanced Glass Card with Left Accent Border
+    const drawContentCard = (slide: any, x: number, y: number, w: number, h: number, lines: string[]) => {
+      // 1. Shadow Layer
       slide.addShape(pptx.ShapeType.roundRect, {
         x, y, w, h,
         fill: { color: CARD_GLASS },
         line: { color: 'E2E8F0', width: 0.5 },
-        rectRadius: 0.15,
-        shadow: {
-          type: 'outer',
-          color: '64748B',
-          blur: 15,
-          offset: { x: 0, y: 6 },
-          transparency: 92
+        rectRadius: 0.1,
+        shadow: { type: 'outer', color: '64748B', blur: 15, offset: { x: 0, y: 5 }, transparency: 90 }
+      });
+
+      // 2. Left Accent Border (Primary Color)
+      slide.addShape(pptx.ShapeType.rect, {
+        x: x + 0.02, y: y + 0.15, w: 0.04, h: h - 0.3,
+        fill: { color: primaryColor }
+      });
+
+      // 3. Text Content
+      const textObjects = lines.map(line => ({
+        text: cleanText(line),
+        options: {
+          fontSize: lines.length > 5 ? 10 : 11,
+          fontFace: FONT_MAIN,
+          color: '1E293B', // High contrast dark blue-gray
+          lineSpacing: 24,
+          bullet: { type: 'bullet', color: primaryColor },
+          breakLine: true
         }
+      }));
+
+      slide.addText(textObjects, {
+        x: x + 0.25, y: y + 0.2, w: w - 0.45, h: h - 0.4,
+        valign: 'top', wrap: true
       });
     };
 
     // ==========================================
-    // 1. AI PROMPT (Deep Synthesis Engine)
+    // 1. DEEP AI SYNTHESIS (Layout-Aware)
     // ==========================================
-    onProgress?.("AI is conducting a profound analytical synthesis...");
+    onProgress?.("AI is architecting multi-layered layouts...");
     
-    const blueprintPrompt = `ACT AS A SENIOR STRATEGIC ANALYST AND RESEARCH ARCHITECT.
-    TRANSFORM THIS SOURCE INTO A PROFOUND KNOWLEDGE PRESENTATION: "${config.title}"
-    
-    SOURCE MATERIAL: ${item.abstract || item.title}
+    const blueprintPrompt = `ACT AS A SENIOR STRATEGIC ANALYST.
+    SYNTHESIZE THIS SOURCE INTO A DEEP KNOWLEDGE PRESENTATION: "${config.title}"
+    SOURCE: ${item.abstract || item.title}
     CONTEXT: ${config.context}
     
-    CRITICAL REQUIREMENTS:
+    REQUIREMENTS:
     - EXACTLY ${config.slidesCount} CONTENT SLIDES.
-    - DEPTH: Provide highly technical, strategic, and theoretical insights. NO GENERIC POINTS.
-    - STYLE: Dense academic narrative, structured in actionable points.
+    - DEPTH: Highly technical and strategic.
+    - LAYOUT STRATEGY: For each slide, choose one: "SINGLE", "DUO_COL", "TRI_COL", or "STACKED_ROWS" based on content density.
     - LANGUAGE: ${config.language}.
     - FORMAT: RAW JSON ONLY.
 
     {
       "slides": [
         { 
-          "title": "A Profound Strategic Heading", 
-          "content": [
-            "Comprehensive technical implication 1...",
-            "Deep methodological analysis 2...",
-            "Strategic framework or future projection 3..."
-          ]
+          "title": "Strategic Heading", 
+          "layoutStrategy": "DUO_COL",
+          "content": ["Point A...", "Point B...", "Point C...", "Point D..."]
         }
       ]
     }`;
@@ -97,90 +112,88 @@ export const createPresentationWorkflow = async (
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
 
     // ==========================================
-    // 2. SLIDE BUILDING (The Universal Layout)
+    // 2. SLIDE BUILDING
     // ==========================================
     
-    // --- COVER SLIDE (Centered Gravity) ---
-    onProgress?.("Designing Cover Slide...");
+    // --- COVER SLIDE (Enhanced Center Gravity) ---
+    onProgress?.("Finalizing Cover Precision...");
     const cover = pptx.addSlide();
     cover.background = { color: '0F172A' }; 
 
     // Decor
-    cover.addShape(pptx.ShapeType.ellipse, { x: 7, y: -1, w: 5, h: 5, fill: { color: primaryColor, transparency: 80 } });
+    cover.addShape(pptx.ShapeType.ellipse, { x: 7.5, y: -0.5, w: 4, h: 4, fill: { color: primaryColor, transparency: 85 } });
+    cover.addShape(pptx.ShapeType.rect, { x: 4.5, y: 4.2, w: 1, h: 0.04, fill: { color: secondaryColor } });
     
-    // Title Box (Fixed size, Auto-fit font)
+    // Title Box (Large Centered Box, Shrink Text to Fit)
     cover.addText(config.title.toUpperCase(), {
-      x: 1.0, y: 1.8, w: 8.0, h: 1.5,
-      fontSize: 36, fontFace: FONT_MAIN, color: 'FFFFFF', bold: true,
+      x: 0.5, y: 1.5, w: 9.0, h: 2.5,
+      fontSize: 40, fontFace: FONT_MAIN, color: 'FFFFFF', bold: true,
       align: 'center', valign: 'middle', 
-      autoFit: true, breakLine: true
+      autoFit: true, wrap: true
     });
 
     // Presenter Box
     cover.addText(config.presenters.join(' • '), {
-      x: 1.0, y: 3.5, w: 8.0, h: 0.4,
+      x: 1.0, y: 4.5, w: 8.0, h: 0.4,
       fontSize: 11, fontFace: FONT_MAIN, color: '94A3B8', align: 'center', bold: true
     });
 
-    // --- CONTENT SLIDES ---
+    // --- CONTENT SLIDES (Dynamic Grid Engine) ---
     blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Architecting Slide ${idx + 1}...`);
+      onProgress?.(`Building Adaptive Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
       slide.background = { color: BG_GLOBAL };
 
-      // Header: Left Border Box + Title
-      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.5, w: 0.1, h: 0.6, fill: { color: primaryColor } });
+      // Header UI
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.4, w: 0.1, h: 0.7, fill: { color: primaryColor } });
       slide.addText(sData.title, {
-        x: 0.75, y: 0.5, w: 8.5, h: 0.6,
-        fontSize: 22, fontFace: FONT_MAIN, color: '1E293B', bold: true, align: 'left', valign: 'middle'
+        x: 0.75, y: 0.4, w: 8.5, h: 0.7,
+        fontSize: 24, fontFace: FONT_MAIN, color: '1E293B', bold: true, align: 'left', valign: 'middle'
       });
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.1, w: 9, h: 0.01, fill: { color: secondaryColor, transparency: 50 } });
 
-      // Line Separator
-      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.15, w: 9, h: 0.01, fill: { color: 'E2E8F0' } });
+      const strategy = sData.layoutStrategy || 'SINGLE';
+      const content = sData.content || [];
+      const margin = 0.5;
+      const startY = 1.4;
+      const totalW = 9.0;
+      const totalH = 3.8;
 
-      // Body Card (Glassmorphism)
-      drawGlassCard(slide, 0.5, 1.4, 9.0, 3.8);
+      if (strategy === 'DUO_COL') {
+        const half = Math.ceil(content.length / 2);
+        drawContentCard(slide, margin, startY, 4.4, totalH, content.slice(0, half));
+        drawContentCard(slide, margin + 4.6, startY, 4.4, totalH, content.slice(half));
+      } else if (strategy === 'TRI_COL') {
+        const third = Math.ceil(content.length / 3);
+        drawContentCard(slide, margin, startY, 2.9, totalH, content.slice(0, third));
+        drawContentCard(slide, margin + 3.05, startY, 2.9, totalH, content.slice(third, third * 2));
+        drawContentCard(slide, margin + 6.1, startY, 2.9, totalH, content.slice(third * 2));
+      } else if (strategy === 'STACKED_ROWS') {
+        const half = Math.ceil(content.length / 2);
+        drawContentCard(slide, margin, startY, totalW, 1.8, content.slice(0, half));
+        drawContentCard(slide, margin, startY + 2.0, totalW, 1.8, content.slice(half));
+      } else {
+        drawContentCard(slide, margin, startY, totalW, totalH, content);
+      }
 
-      const textObjects = sData.content.map((line: string) => ({
-        text: cleanText(line),
-        options: {
-          fontSize: 12,
-          fontFace: FONT_MAIN,
-          color: '334155',
-          lineSpacing: 24, // Consistent 1.0 spacing
-          bullet: { type: 'bullet', color: primaryColor },
-          breakLine: true
-        }
-      }));
-
-      slide.addText(textObjects, {
-        x: 0.8, y: 1.7, w: 8.4, h: 3.2,
-        valign: 'top', wrap: true
-      });
-
+      // Branding Footer
       slide.addText(`XEENAPS KNOWLEDGE ANCHOR • 0${idx + 1}`, {
         x: 0.5, y: 5.3, w: 9, h: 0.3,
         fontSize: 7, fontFace: FONT_MAIN, color: '94A3B8', align: 'right', bold: true
       });
     });
 
-    // --- BIBLIOGRAPHY SLIDE ---
-    onProgress?.("Finalizing Bibliography...");
+    // --- CLOSING: BIBLIOGRAPHY ---
     const bibSlide = pptx.addSlide();
     bibSlide.background = { color: 'F8FAFC' };
-
     bibSlide.addText("BIBLIOGRAPHY", {
       x: 1, y: 0.6, w: 8, h: 0.6,
       fontSize: 26, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
     });
-
-    drawGlassCard(bibSlide, 1, 1.4, 8, 3.5);
     
-    const citation = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
-    bibSlide.addText(cleanText(citation), {
-      x: 1.4, y: 1.8, w: 7.2, h: 2.8,
-      fontSize: 12, fontFace: FONT_MAIN, color: '475569', align: 'left', italic: true, lineSpacing: 26
-    });
+    // Large elegant bibliography card
+    const bibText = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
+    drawContentCard(bibSlide, 1, 1.5, 8, 3.2, [bibText]);
 
     bibSlide.addText("Knowledge Anchored by Xeenaps", {
       x: 0, y: 5.2, w: 10, h: 0.3,
@@ -190,7 +203,7 @@ export const createPresentationWorkflow = async (
     // ==========================================
     // 3. EXPORT & SAVE
     // ==========================================
-    onProgress?.("Syncing to Cloud...");
+    onProgress?.("Syncing to Cloud Drive...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -221,7 +234,7 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Failed to save presentation.");
+    throw new Error(result.message || "Failed to save.");
 
   } catch (error) {
     console.error("Presentation Engine Error:", error);
