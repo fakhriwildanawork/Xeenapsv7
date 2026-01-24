@@ -1,3 +1,4 @@
+
 import pptxgen from 'pptxgenjs';
 import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
@@ -40,11 +41,12 @@ export const createPresentationWorkflow = async (
     const BG_CARD = 'FFFFFF';
 
     // Layout Strategy Mapping (Sistem Mengontrol Visual, Bukan AI)
+    // Menggunakan Enum value langsung sebagai key untuk type-safety
     const TEMPLATE_LAYOUT_STRATEGY: Record<string, string[]> = {
-      'GAMMA_MODERN': ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
-      'CORPORATE_CLEAN': ['EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST'],
-      'CREATIVE_STUDIO': ['HERO_CARD', 'DUO_GRID', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
-      // Fallback default
+      [PresentationTemplate.MODERN]: ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
+      [PresentationTemplate.CORPORATE]: ['EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST'],
+      [PresentationTemplate.CREATIVE]: ['HERO_CARD', 'DUO_GRID', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
+      [PresentationTemplate.ACADEMIC]: ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST'],
       'DEFAULT': ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST']
     };
 
@@ -65,7 +67,6 @@ export const createPresentationWorkflow = async (
     };
 
     // Fungsi Universal untuk membuat Kartu Cantik (Gamma Style)
-    // Mengembalikan posisi Y akhir dari kartu untuk chaining (jika perlu)
     const createCard = (
       slide: any, 
       textLines: string[], 
@@ -77,14 +78,11 @@ export const createPresentationWorkflow = async (
       const textContent = textLines.map(cleanText);
       const fullText = textContent.join(' ');
       
-      // 1. Hitung Height dinamis agar muat
-      // Estimasi: Setiap baris butuh ~0.35 inch, + padding
       const estimatedHeight = Math.min(4.0, (textContent.length * 0.35) + 0.8);
       
-      // 2. Styling Background Card
       const cardOpts: any = {
         x: x, y: y, w: w, h: estimatedHeight,
-        fill: { color: options?.accent ? primaryColor + '10' : BG_CARD }, // Primary color 10% opacity jika accent
+        fill: { color: options?.accent ? primaryColor + '10' : BG_CARD }, 
         line: { color: options?.accent ? primaryColor : '#E2E8F0', width: options?.accent ? 1 : 1 },
         rectRadius: 0.2,
         shadow: {
@@ -92,16 +90,14 @@ export const createPresentationWorkflow = async (
           color: '64748B',
           blur: 12,
           offset: { x: 2, y: 4 },
-          transparency: 85 // Halus
+          transparency: 85
         }
       };
       slide.addShape(pptx.ShapeType.roundRect, cardOpts);
 
-      // 3. Typography Settings
       const fontSize = getSmartFontSize(fullText, 13);
-      const lineSpacing = fullText.length > 500 ? 24 : 30; // Rapatkan jika teks panjang
+      const lineSpacing = fullText.length > 500 ? 24 : 30;
 
-      // 4. Title Inside Card (Optional)
       let textStartY = y + 0.25;
       if (options?.title) {
         slide.addText(options.title, {
@@ -111,13 +107,12 @@ export const createPresentationWorkflow = async (
         textStartY += 0.5;
       }
 
-      // 5. Body Text
       slide.addText(textContent, {
         x: x + 0.25, y: textStartY, w: w - 0.5, h: estimatedHeight - (textStartY - y) - 0.2,
         fontSize: fontSize, fontFace: FONT_BODY, color: '#334155',
         lineSpacing: lineSpacing,
         bullet: { type: options?.accent ? 'number' : 'bullet', color: primaryColor },
-        bodyProp: { wrap: true } // PENTING: Agar teks tidak keluar
+        bodyProp: { wrap: true }
       });
     };
 
@@ -125,85 +120,53 @@ export const createPresentationWorkflow = async (
     // 3. LAYOUT BUILDERS (Visual Components)
     // ==========================================
 
-    // A. GLOBAL HEADER (Konsisten di semua slide kecuali Cover)
     const addGlobalHeader = (slide: any, title: string, slideNumber: number) => {
-      // Aksen Bar Kiri
       slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.15, h: 5.625, fill: { color: primaryColor } });
-      
-      // Nomor Halaman Kecil
       slide.addText(`0${slideNumber}`, { 
         x: 0.4, y: 0.4, w: 0.5, h: 0.4, 
         fontSize: 9, fontFace: FONT_TITLE, color: '#94A3B8', bold: true 
       });
-
-      // Judul Besar
       slide.addText(title, { 
         x: 1.2, y: 0.4, w: 8.3, h: 0.8, 
         fontSize: 28, fontFace: FONT_TITLE, color: '#1E293B', bold: true, 
         lineSpacing: 34 
       });
-
-      // Garis Pemisah (Separator)
       slide.addShape(pptx.ShapeType.rect, { x: 1.2, y: 1.1, w: 8.3, h: 0.02, fill: { color: '#CBD5E1' } });
-
-      return 1.3; // Return Y posisi awal konten
+      return 1.3;
     };
 
-    // B. LAYOUT: VERTICAL STACK (List Rapi ke Bawah)
     const layoutVerticalStack = (slide: any, sData: any, slideNum: number) => {
       const startY = addGlobalHeader(slide, sData.title, slideNum);
-      
-      // Kita bagi konten menjadi 2 blok jika terlalu panjang, atau 1 blok jika pendek
       const splitIndex = Math.ceil(sData.content.length / 2);
-      
-      // Card 1 (Bagian Atas)
       createCard(slide, sData.content.slice(0, splitIndex), 1.2, startY, 7.6);
-      
-      // Card 2 (Bagian Bawah) - Hanya jika konten cukup banyak
       if (sData.content.length > 4) {
          const card1Height = (splitIndex * 0.35) + 0.8;
          createCard(slide, sData.content.slice(splitIndex), 1.2, startY + card1Height + 0.4, 7.6);
       }
     };
 
-    // C. LAYOUT: DUO GRID (Kolom Kiri-Kanan)
     const layoutDuoGrid = (slide: any, sData: any, slideNum: number) => {
       const startY = addGlobalHeader(slide, sData.title, slideNum);
       const gap = 0.4;
       const colWidth = 3.8;
       const midPoint = Math.ceil(sData.content.length / 2);
-
-      // Kiri (Clean)
       createCard(slide, sData.content.slice(0, midPoint), 1.2, startY, colWidth);
-      
-      // Kanan (Accent Style)
       createCard(slide, sData.content.slice(midPoint), 1.2 + colWidth + gap, startY, colWidth, { accent: true });
     };
 
-    // D. LAYOUT: SPLIT FOCUS (Judul Kiri Besar, Isi Kanan)
     const layoutSplitFocus = (slide: any, sData: any, slideNum: number) => {
-      // Header Custom untuk Split: Judul dipindah ke kiri, bukan atas
       slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 3.5, h: 5.625, fill: { color: primaryColor } });
       slide.addShape(pptx.ShapeType.ellipse, { x: 2, y: 4.5, w: 3, h: 3, fill: { color: secondaryColor, transparency: 90 } });
-      
-      // Title di Kiri (Vertikal)
       slide.addText(sData.title, {
         x: 0.5, y: 1, w: 2.5, h: 4,
         fontSize: 32, fontFace: FONT_TITLE, color: 'FFFFFF', bold: true, align: 'left', valign: 'top'
       });
-
-      // Konten di Kanan ( dalam Card)
       createCard(slide, sData.content, 4.0, 1.0, 5.5, { title: 'Key Insights' });
     };
 
-    // E. LAYOUT: HERO CARD (Satu Kartu Besar Tengah)
     const layoutHeroCard = (slide: any, sData: any, slideNum: number) => {
       const startY = addGlobalHeader(slide, sData.title, slideNum);
-      
-      // Latar belakang abstrak
       slide.addShape(pptx.ShapeType.rect, { x: 1, y: startY, w: 8, h: 4, fill: { color: secondaryColor, transparency: 95 } });
-      
-      // Kartu Hero
       createCard(slide, sData.content, 2.0, startY + 0.5, 6.0, { title: 'Strategic Overview' });
     };
 
@@ -212,7 +175,6 @@ export const createPresentationWorkflow = async (
     // ==========================================
     onProgress?.("AI is synthesizing deep knowledge...");
     
-    // Perhatikan: Prompt TIDAK lagi meminta 'layoutType'. Itu urusan System.
     const blueprintPrompt = `ACT AS A TOP-TIER PRESENTATION ARCHITECT.
     ANALYZE AND SYNTHESIZE THIS MATERIAL INTO A HIGH-LEVEL STRATEGIC PRESENTATION: "${config.title}"
     SOURCE: ${item.abstract || item.title}
@@ -258,13 +220,12 @@ export const createPresentationWorkflow = async (
     const slide1 = pptx.addSlide();
     
     // Design Cover Template-Aware
-    if (config.template.name === 'CORPORATE_CLEAN') {
+    if (config.template === PresentationTemplate.CORPORATE) {
       slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: 'FFFFFF' } });
       slide1.addShape(pptx.ShapeType.rect, { x: 1, y: 4.5, w: 8, h: 0.05, fill: { color: primaryColor } });
       slide1.addText(config.title, { x: 1, y: 2, w: 8, h: 1.5, fontSize: 40, fontFace: FONT_TITLE, color: primaryColor, bold: true, align: 'center' });
     } else {
-      // Modern/Gamma Default
-      slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: '0F172A' } }); // Dark Theme Cover
+      slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: '0F172A' } }); 
       slide1.addShape(pptx.ShapeType.ellipse, { x: 7, y: -1, w: 5, h: 5, fill: { color: secondaryColor, transparency: 80 } });
       slide1.addShape(pptx.ShapeType.rect, { x: 1, y: 4.5, w: 1, h: 0.1, fill: { color: secondaryColor } });
       slide1.addText(config.title, { x: 1, y: 1.5, w: 8, h: 2.5, fontSize: 44, fontFace: FONT_TITLE, color: 'FFFFFF', bold: true, align: 'left', lineSpacing: 50 });
@@ -277,13 +238,11 @@ export const createPresentationWorkflow = async (
       const slide = pptx.addSlide();
       slide.background = { color: BG_GLOBAL };
 
-      // Tentukan Layout berdasarkan STRATEGY SYSTEM
-      // User config.template.name menentukan pola urutan layout
-      const strategyKey = TEMPLATE_LAYOUT_STRATEGY[config.template.name] ? config.template.name : 'DEFAULT';
+      // Dispatch Layout - config.template adalah string Enum value
+      const strategyKey = TEMPLATE_LAYOUT_STRATEGY[config.template] ? config.template : 'DEFAULT';
       const layoutSequence = TEMPLATE_LAYOUT_STRATEGY[strategyKey];
-      const currentLayout = layoutSequence[idx % layoutSequence.length]; // Looping pola jika slide kebanyakan
+      const currentLayout = layoutSequence[idx % layoutSequence.length];
 
-      // Dispatch Layout
       if (currentLayout === 'DUO_GRID') {
         layoutDuoGrid(slide, sData, idx + 2);
       } else if (currentLayout === 'SPLIT_FOCUS') {
@@ -291,11 +250,9 @@ export const createPresentationWorkflow = async (
       } else if (currentLayout === 'HERO_CARD') {
         layoutHeroCard(slide, sData, idx + 2);
       } else {
-        // Default selalu aman dengan Vertical Stack
         layoutVerticalStack(slide, sData, idx + 2);
       }
 
-      // Footer Branding
       slide.addText(`XEENAPS KNOWLEDGE SERIES • SLIDE ${idx + 2}`, { 
         x: 0.5, y: 5.25, w: 9, h: 0.3, 
         fontSize: 8, fontFace: FONT_BODY, color: '#94A3B8', align: 'right' 
@@ -313,7 +270,6 @@ export const createPresentationWorkflow = async (
     
     lastSlide.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.5, w: 9, h: 3, fill: { color: BG_CARD }, line: { color: '#E2E8F0' }, rectRadius: 0.2 });
     lastSlide.addText(cleanText(citation), { x: 1, y: 2, w: 8, h: 2, fontSize: 12, fontFace: FONT_BODY, color: '#475569', italic: true, lineSpacing: 20 });
-
     lastSlide.addText("Knowledge Anchored by Xeenaps PKM", { x: 0, y: 5.1, w: 10, h: 0.3, fontSize: 9, fontFace: FONT_TITLE, color: primaryColor, bold: true, align: 'center' });
 
     // ==========================================
@@ -327,7 +283,7 @@ export const createPresentationWorkflow = async (
       collectionIds: [item.id],
       title: config.title,
       presenters: config.presenters,
-      templateName: config.template.name,
+      templateName: config.template,
       themeConfig: config.theme,
       slidesCount: config.slidesCount,
       createdAt: new Date().toISOString(),
