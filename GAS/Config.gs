@@ -18,22 +18,49 @@ const CONFIG = {
     STORAGE_REGISTRY: '1qBzgjhUv_aAFh5cLb8SqIt83bOdUFRfRXZz4TxyEZDw',
     PRESENTATION: '1Sfng6xCz2d4NAmBZFgyjZ9Fy8X1k149c7ohXS9uO2r8'
   },
-  SHEETS: {
-    DEEPSEEK: 'Deepseek'
-  },
   SCHEMAS: {
     LIBRARY: [
-      'id', 'title', 'type', 'category', 'topic', 'subTopic', 
-      'authors', 'publisher', 'year', 'fullDate', 'pubInfo', 
-      'identifiers', 'source', 'format', 'url', 'fileId', 
-      'imageView', 'youtubeId', 'tags', 'abstract', 'mainInfo', 
-      'extractedJsonId', 'insightJsonId', 'storageNodeUrl',
-      'isFavorite', 'isBookmarked', 'createdAt', 'updatedAt',
+      'id', 
+      'title', 
+      'type', 
+      'category', 
+      'topic', 
+      'subTopic', 
+      'authors', // Merged JSON Array
+      'publisher', 
+      'year', 
+      'fullDate',
+      'pubInfo', // Merged JSON Object (journal, vol, issue, pages)
+      'identifiers', // Merged JSON Object (doi, issn, isbn, pmid, arxiv, bibcode)
+      'source', 
+      'format', 
+      'url', 
+      'fileId', 
+      'imageView', 
+      'youtubeId', 
+      'tags', // Merged JSON Object (keywords, labels)
+      'abstract', 
+      'mainInfo', // Search Indexer (Plain Text)
+      'extractedJsonId', 
+      'insightJsonId', 
+      'storageNodeUrl',
+      'isFavorite', 
+      'isBookmarked', 
+      'createdAt', 
+      'updatedAt',
       'supportingReferences'
     ],
     PRESENTATIONS: [
-      'id', 'collectionIds', 'gSlidesId', 'title', 'presenters', 
-      'templateName', 'themeConfig', 'slidesCount', 'createdAt', 'updatedAt'
+      'id',
+      'collectionIds',
+      'gSlidesId',
+      'title',
+      'presenters',
+      'templateName',
+      'themeConfig',
+      'slidesCount',
+      'createdAt',
+      'updatedAt'
     ]
   }
 };

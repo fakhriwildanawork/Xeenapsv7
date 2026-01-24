@@ -1,6 +1,6 @@
 
 /**
- * XEENAPS PKM - PRESENTATION REGISTRY MODULE
+ * XEENAPS PKM - PRESENTATION REGISTRY & NATIVE BUILDER
  */
 
 /**
@@ -54,57 +54,46 @@ function getPresentationsByCollection(collectionId) {
 }
 
 /**
- * Menyimpan presentasi baru ke registry dan mengonversi file ke Google Slides
+ * Handle Save Presentation - Support for Blueprint or PPTX
  */
 function handleSavePresentation(body) {
   try {
-    const { presentation, pptxFileData } = body;
+    const { presentation, blueprint, pptxFileData } = body;
     
-    // 1. Sharding Aware: Tentukan target penyimpanan
     const storageTarget = getViableStorageTarget(CONFIG.STORAGE.THRESHOLD);
     if (!storageTarget) throw new Error("Storage full on all nodes.");
 
-    // DELEGASI TOTAL KE SLAVE (Mencegah File Dobel & Masalah Ownership)
-    // Jika target bukan Local (Master), maka Master menyuruh Slave melakukan handleSavePresentation sepenuhnya.
+    // DELEGASI KE SLAVE JIKA PERLU
     if (!storageTarget.isLocal) {
       const res = UrlFetchApp.fetch(storageTarget.url, {
         method: 'post',
         contentType: 'application/json',
         payload: JSON.stringify({
-          action: 'savePresentation', // Delegasikan full alur ke Slave
+          action: 'savePresentation',
           presentation: presentation,
+          blueprint: blueprint,
           pptxFileData: pptxFileData
         })
       });
-      // CRITICAL: Kembalikan response dari Slave dan BERHENTI di sini.
       return JSON.parse(res.getContentText());
     }
 
-    // 2. Simpan file PPTX fisik (Hanya dijalankan oleh Node target yang Local)
-    const fileName = `${presentation.title}.pptx`;
-    const blob = Utilities.newBlob(Utilities.base64Decode(pptxFileData), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileName);
-    
-    const folder = DriveApp.getFolderById(storageTarget.folderId);
-    const pptxFile = folder.createFile(blob);
+    // ALUR NATIVE (BLUEPRINT)
+    if (blueprint) {
+      presentation.gSlidesId = buildNativeSlidesFromBlueprint(presentation, blueprint, storageTarget.folderId);
+    } 
+    // ALUR LEGACY (PPTX CONVERSION)
+    else if (pptxFileData) {
+      const blob = Utilities.newBlob(Utilities.base64Decode(pptxFileData), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', `${presentation.title}.pptx`);
+      const resource = { name: presentation.title, mimeType: MimeType.GOOGLE_SLIDES, parents: [storageTarget.folderId] };
+      const convertedFile = Drive.Files.create(resource, blob);
+      presentation.gSlidesId = convertedFile.id;
+    }
 
-    // 3. Konversi ke Google Slides (Fix Drive API v3 Metadata Naming)
-    const resource = {
-      name: presentation.title || "Xeenaps Presentation",
-      mimeType: MimeType.GOOGLE_SLIDES,
-      parents: [storageTarget.folderId]
-    };
-    
-    // Drive API v3: Mengonversi blob PPTX ke Google Slides
-    const convertedFile = Drive.Files.create(resource, blob);
-    presentation.gSlidesId = convertedFile.id;
-
-    // 4. Catat ke Spreadsheet Registry Master (Selalu dicatat di Master SS)
+    // CATAT KE REGISTRY
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
     let sheet = ss.getSheetByName("Presentation");
-    if (!sheet) {
-      setupPresentationRegistry();
-      sheet = ss.getSheetByName("Presentation");
-    }
+    if (!sheet) { setupPresentationRegistry(); sheet = ss.getSheetByName("Presentation"); }
 
     const headers = CONFIG.SCHEMAS.PRESENTATIONS;
     const rowData = headers.map(h => {
@@ -118,6 +107,88 @@ function handleSavePresentation(body) {
     console.error("Save Presentation Error: " + e.toString());
     return { status: 'error', message: e.toString() };
   }
+}
+
+/**
+ * THE BUILDER: Native Google Slides Constructor
+ */
+function buildNativeSlidesFromBlueprint(presentation, blueprint, folderId) {
+  const deck = SlidesApp.create(presentation.title);
+  const deckId = deck.getId();
+  
+  // Clean initial slide
+  deck.getSlides()[0].remove();
+
+  const primaryColor = '#' + (presentation.themeConfig.primaryColor || '004A74');
+  const accentColor = '#' + (presentation.themeConfig.secondaryColor || 'FED400');
+
+  // 1. TITLE SLIDE
+  const titleSlide = deck.appendSlide(SlidesApp.PredefinedLayout.TITLE_ONLY);
+  const titleBox = titleSlide.getShapes()[0];
+  titleBox.getText().setText(presentation.title.toUpperCase());
+  titleBox.getText().getTextStyle().setFontSize(36).setBold(true).setForegroundColor(primaryColor);
+  titleBox.setTop(150);
+  
+  const presenterText = titleSlide.insertTextBox(`Presented by: ${presentation.presenters.join(', ')}`);
+  presenterText.setTop(220).setLeft(0).setWidth(720).setHeight(30);
+  presenterText.getText().getParagraphStyle().setAlignment(SlidesApp.Alignment.CENTER);
+  presenterText.getText().getTextStyle().setFontSize(14).setForegroundColor('#666666');
+
+  // 2. CONTENT SLIDES
+  blueprint.slides.forEach((sData) => {
+    const slide = deck.appendSlide();
+    
+    // Header
+    const header = slide.insertTextBox(sData.title);
+    header.setTop(20).setLeft(40).setWidth(640).setHeight(50);
+    header.getText().getTextStyle().setFontSize(24).setBold(true).setForegroundColor(primaryColor);
+
+    // Layout Interpretation
+    if (sData.layout === 'CARD_GRID' && sData.cards) {
+      const cardWidth = 180;
+      const cardHeight = 220;
+      const spacing = 20;
+      let startX = 40;
+
+      sData.cards.slice(0, 3).forEach((card, cIdx) => {
+        // Card Shape (Rounded)
+        const shape = slide.insertShape(SlidesApp.ShapeType.ROUND_RECTANGLE, startX, 100, cardWidth, cardHeight);
+        shape.getFill().setSolidFill('#F8FAFC');
+        shape.getBorder().setTransparent();
+
+        // Card Title
+        const cTitle = slide.insertTextBox(card.title, startX + 10, 110, cardWidth - 20, 30);
+        cTitle.getText().getTextStyle().setFontSize(12).setBold(true).setForegroundColor(primaryColor);
+
+        // Card Body
+        const cBody = slide.insertTextBox(card.body, startX + 10, 145, cardWidth - 20, cardHeight - 50);
+        cBody.getText().getTextStyle().setFontSize(10).setForegroundColor('#333333');
+        
+        startX += cardWidth + spacing;
+      });
+    } else {
+      // DEFAULT / SPLIT CONTENT
+      const body = slide.insertTextBox(Array.isArray(sData.content) ? sData.content.join('\n\n') : (sData.content || ""));
+      body.setTop(100).setLeft(40).setWidth(400).setHeight(250);
+      body.getText().getTextStyle().setFontSize(13).setForegroundColor('#333333');
+
+      if (sData.imageKeyword) {
+        try {
+          const imgUrl = `https://loremflickr.com/800/600/${encodeURIComponent(sData.imageKeyword)}`;
+          slide.insertImage(imgUrl).setTop(100).setLeft(460).setWidth(220).setHeight(220);
+        } catch(e) {}
+      }
+    }
+  });
+
+  // 3. FINAL SETUP: Move to target folder
+  const file = DriveApp.getFileById(deckId);
+  if (folderId) {
+    const destFolder = DriveApp.getFolderById(folderId);
+    file.moveTo(destFolder);
+  }
+
+  return deckId;
 }
 
 /**

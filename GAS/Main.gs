@@ -1,3 +1,4 @@
+
 /**
  * XEENAPS PKM - MAIN ROUTER
  */
@@ -76,74 +77,6 @@ function doPost(e) {
     // NEW ACTION: savePresentation (Conversion + Registry)
     if (action === 'savePresentation') {
       return createJsonResponse(handleSavePresentation(body));
-    }
-
-    // NEW ACTION: generateProfessionalPresentation (Deepseek + Google Slides Native)
-    if (action === 'generateProfessionalPresentation') {
-      const { item, config } = body;
-      
-      // 1. Fetch Extracted Text (Sharding Aware)
-      const extractedId = item.extractedJsonId;
-      const nodeUrl = item.storageNodeUrl;
-      const currentWebAppUrl = ScriptApp.getService().getUrl();
-      const isLocal = !nodeUrl || nodeUrl === "" || nodeUrl === currentWebAppUrl;
-      
-      let fullText = "";
-      if (isLocal) {
-        fullText = JSON.parse(DriveApp.getFileById(extractedId).getBlob().getDataAsString()).fullText || "";
-      } else {
-        const separator = nodeUrl.indexOf('?') === -1 ? '?' : '&';
-        const remoteRes = UrlFetchApp.fetch(nodeUrl + separator + "action=getFileContent&fileId=" + extractedId);
-        fullText = JSON.parse(JSON.parse(remoteRes.getContentText()).content).fullText || "";
-      }
-
-      // 2. Groq: Condense Content
-      const groqPrompt = `Summarize this text into ${config.slidesCount} slides for a professional presentation in ${config.language}. 
-      Make it punchy and impactful. Format: Slide 1: Title\n- Point 1\n- Point 2...\n\nText: ${fullText.substring(0, 50000)}`;
-      const groqRes = callGroqLibrarian(groqPrompt);
-      if (groqRes.status !== 'success') throw new Error("Groq Condensation Failed");
-
-      // 3. Deepseek: Create Visual Blueprint
-      const deepseekPrompt = `Based on this condensed content, create a visual slide blueprint in JSON for a "${config.template}" presentation.
-      Content: ${groqRes.data}`;
-      const deepseekRes = callDeepseekService(deepseekPrompt);
-      if (deepseekRes.status !== 'success') throw new Error("Deepseek Design Failed: " + deepseekRes.message);
-
-      const blueprintMatch = deepseekRes.data.match(/\{[\s\S]*\}/);
-      if (!blueprintMatch) throw new Error("Invalid Deepseek JSON output");
-      const blueprint = JSON.parse(blueprintMatch[0]);
-
-      // 4. Render to Google Slides Native
-      const gSlidesId = renderToGoogleSlides(blueprint, config);
-
-      // 5. Save to Registry
-      const presentation = {
-        id: Utilities.getUuid(),
-        collectionIds: [item.id],
-        gSlidesId: gSlidesId,
-        title: config.title,
-        presenters: config.presenters,
-        templateName: config.template,
-        themeConfig: config.theme,
-        slidesCount: config.slidesCount,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
-      let sheet = ss.getSheetByName("Presentation");
-      if (!sheet) {
-        setupPresentationRegistry();
-        sheet = ss.getSheetByName("Presentation");
-      }
-      const headers = CONFIG.SCHEMAS.PRESENTATIONS;
-      const rowData = headers.map(h => {
-        const val = presentation[h];
-        return (Array.isArray(val) || (typeof val === 'object' && val !== null)) ? JSON.stringify(val) : (val !== undefined ? val : '');
-      });
-      sheet.appendRow(rowData);
-
-      return createJsonResponse({ status: 'success', data: presentation });
     }
 
     // NEW ACTION: translateInsightSection (TRANSLATION + TOTAL REWRITE)
