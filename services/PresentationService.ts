@@ -5,168 +5,155 @@ import { callAiProxy } from './gasService';
 
 /**
  * EDITORIAL DESIGN SYSTEM CONSTANTS
+ * Inspired by Gamma.ai's boxed and grid-based aesthetic.
  */
 const EDITORIAL_CONSTANTS = {
-  // Grid System (12-column inspired)
   GRID: {
-    MARGIN_X: 0.5,      // Inch from slide edges
+    MARGIN_X: 0.5,      // Standard safe margin
     MARGIN_Y: 0.5,
-    GUTTER: 0.3,        // Space between columns
-    COLUMN_WIDTH: 0.7,  // Base column width
+    GUTTER: 0.25,       // Space between cards
+    SAFE_CONTENT_W: 9.0, // 10 - (2 * 0.5)
   },
   
-  // Typography Scale (Modular Scale: 1.25)
   TYPOGRAPHY: {
-    H1: { size: 32, weight: 700, lineHeight: 1.2 },
-    H2: { size: 26, weight: 700, lineHeight: 1.3 },
-    H3: { size: 20, weight: 600, lineHeight: 1.3 },
-    BODY_LARGE: { size: 16, weight: 400, lineHeight: 1.6 },
-    BODY: { size: 14, weight: 400, lineHeight: 1.5 },
-    BODY_SMALL: { size: 12, weight: 400, lineHeight: 1.4 },
-    CAPTION: { size: 10, weight: 400, lineHeight: 1.3 },
+    H1: { size: 34, weight: 700, lineSpacing: 1.1 },
+    H2: { size: 28, weight: 700, lineSpacing: 1.2 },
+    H3: { size: 22, weight: 600, lineSpacing: 1.3 },
+    BODY: { size: 16, weight: 400, lineSpacing: 1.5 },
+    CAPTION: { size: 10, weight: 700, lineSpacing: 1.3 },
   },
   
-  // Spacing System (8px base)
-  SPACING: {
-    XS: 0.1,   // 8px
-    S: 0.2,    // 16px
-    M: 0.3,    // 24px
-    L: 0.4,    // 32px
-    XL: 0.6,   // 48px
-    XXL: 0.8,  // 64px
-  },
-  
-  // Visual Elements
-  BORDER_RADIUS: {
-    SM: 0.1,
-    MD: 0.2,
-    LG: 0.3,
-    PILL: 2.0,
-  },
-  
-  // Shadows (x, y, blur, opacity)
-  SHADOW: {
-    SM: { x: 0, y: 0.04, blur: 0.08, color: '000000', opacity: 0.08 },
-    MD: { x: 0, y: 0.08, blur: 0.2, color: '000000', opacity: 0.12 },
-    LG: { x: 0, y: 0.12, blur: 0.4, color: '000000', opacity: 0.15 },
-  },
+  VISUAL: {
+    RADIUS: 0.2,       // Soft rounded corners
+    PADDING: 0.3,      // Internal card padding (Inset)
+    BORDER_WIDTH: 1,
+    SHADOW_OPACITY: 0.1,
+  }
 };
 
 /**
  * EDITORIAL LAYOUT ENGINE
+ * Handles dynamic positioning, content-aware scaling, and container management.
  */
 class EditorialLayoutEngine {
-  constructor(private pptx: any, private colors: any) {}
-  
-  // Grid Position Calculator
-  calculateGridPosition(cols: number = 12, start: number = 0): { x: number; w: number } {
-    const availableWidth = 10 - (EDITORIAL_CONSTANTS.GRID.MARGIN_X * 2);
-    const columnWidth = availableWidth / cols;
-    const gutter = EDITORIAL_CONSTANTS.GRID.GUTTER;
-    
-    return {
-      x: EDITORIAL_CONSTANTS.GRID.MARGIN_X + (start * (columnWidth + gutter)),
-      w: (columnWidth * cols) - gutter,
-    };
+  private currentY: number = 0;
+
+  constructor(private pptx: any, private colors: any) {
+    this.resetY();
   }
-  
-  // Safe Area Container (ensures no overflow)
-  addSafeContainer(slide: any, y: number, h: number) {
-    return slide.addShape(this.pptx.ShapeType.rect, {
-      x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-      y: y,
-      w: 10 - (EDITORIAL_CONSTANTS.GRID.MARGIN_X * 2),
-      h: h,
-      fill: { color: 'FFFFFF', transparency: 100 },
-      line: { width: 0 },
-    });
+
+  resetY() {
+    this.currentY = EDITORIAL_CONSTANTS.GRID.MARGIN_Y;
   }
-  
-  // Modern Card with Shadow
+
+  setCurrentY(y: number) {
+    this.currentY = y;
+  }
+
+  getCurrentY() {
+    return this.currentY;
+  }
+
+  // Content-Aware Scaling: Adjust font based on text density
+  getScaledFontSize(text: string, baseSize: number, maxLength: number = 300): number {
+    if (text.length > maxLength * 1.5) return baseSize * 0.75;
+    if (text.length > maxLength) return baseSize * 0.85;
+    return baseSize;
+  }
+
+  /**
+   * adds a "Boxed" container (Gamma-style card)
+   */
   addModernCard(slide: any, x: number, y: number, w: number, h: number, options: any = {}) {
-    const shadow = EDITORIAL_CONSTANTS.SHADOW.MD;
-    
-    // Shadow layer (subtle behind)
-    slide.addShape(this.pptx.ShapeType.roundRect, {
-      x: x + shadow.x,
-      y: y + shadow.y,
+    // Subtle Shadow Layer
+    slide.addShape(this.pptx.ShapeType.rect, {
+      x: x + 0.05,
+      y: y + 0.05,
       w: w,
       h: h,
-      fill: { color: shadow.color, transparency: (1 - shadow.opacity) * 100 },
+      fill: { color: '000000', transparency: 90 },
       line: { width: 0 },
-      rectRadius: options.radius || EDITORIAL_CONSTANTS.BORDER_RADIUS.MD,
+      rectRadius: EDITORIAL_CONSTANTS.VISUAL.RADIUS,
     });
-    
-    // Main card
-    return slide.addShape(this.pptx.ShapeType.roundRect, {
+
+    // Main Card Body
+    return slide.addShape(this.pptx.ShapeType.rect, {
       x: x,
       y: y,
       w: w,
       h: h,
       fill: options.fill || { color: 'FFFFFF' },
-      line: options.border || { color: 'E5E7EB', width: 1 },
-      rectRadius: options.radius || EDITORIAL_CONSTANTS.BORDER_RADIUS.MD,
+      line: options.border || { color: this.colors.surface.border, width: EDITORIAL_CONSTANTS.VISUAL.BORDER_WIDTH },
+      rectRadius: EDITORIAL_CONSTANTS.VISUAL.RADIUS,
     });
   }
-  
-  // Typography System
-  addEditorialText(slide: any, text: string, options: any) {
-    const defaultStyle = {
-      fontFace: 'Inter',
-      align: 'left' as const,
-      color: this.colors.text.primary || '1F2937',
-      ...options,
-    };
+
+  /**
+   * Adds text with precise editorial styling (LineSpacing, Inset, Shrink)
+   */
+  addText(slide: any, text: string, options: any) {
+    const fontSize = options.fontSize || EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size;
+    const lineSpacing = options.lineSpacing || EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.lineSpacing;
     
-    return slide.addText(text, defaultStyle);
+    const finalOptions = {
+      fontFace: 'Inter',
+      color: this.colors.text.primary,
+      align: 'left',
+      valign: 'top',
+      shrinkText: true,
+      lineSpacing: lineSpacing * 10, // PPTXGenJS scaling
+      inset: [EDITORIAL_CONSTANTS.VISUAL.PADDING, EDITORIAL_CONSTANTS.VISUAL.PADDING, EDITORIAL_CONSTANTS.VISUAL.PADDING, EDITORIAL_CONSTANTS.VISUAL.PADDING],
+      ...options,
+      fontSize: fontSize
+    };
+
+    return slide.addText(text, finalOptions);
   }
-  
-  // Decorative Accent Line
-  addAccentLine(slide: any, x: number, y: number, w: number, thickness: number = 0.02) {
-    return slide.addShape(this.pptx.ShapeType.rect, {
-      x: x,
-      y: y,
-      w: w,
-      h: thickness,
-      fill: { color: this.colors.accent || this.colors.secondary },
+
+  /**
+   * Smart Render: Automatically spaces elements and returns ending Y
+   */
+  renderFlow(slide: any, content: string[], x: number, yStart: number, w: number, cardOptions: any = {}): number {
+    let internalY = yStart;
+    const padding = EDITORIAL_CONSTANTS.VISUAL.PADDING;
+    
+    // Estimate total height needed
+    const charCount = content.join(' ').length;
+    const estimatedHeight = Math.max(2.5, (charCount / 200) * 1.5);
+    
+    // Render Card Background
+    this.addModernCard(slide, x, internalY, w, estimatedHeight, cardOptions);
+    
+    // Render Points
+    content.forEach((point, idx) => {
+      const fontSize = this.getScaledFontSize(point, EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size);
+      this.addText(slide, point, {
+        x: x,
+        y: internalY,
+        w: w,
+        h: 1.0, // Floating height handled by overlap logic & shrink
+        fontSize: fontSize,
+        bullet: { type: 'number' },
+        color: cardOptions.textColor || this.colors.text.primary
+      });
+      internalY += (fontSize / 10) * 0.45; // Manual offset for spacing rhythm
     });
+
+    return internalY + 0.5;
   }
 }
 
 /**
- * IMPROVED CONTENT SANITIZER
+ * CONTENT OPTIMIZER
  */
 class ContentSanitizer {
-  static cleanText(text: string): string {
-    if (!text) return "";
-    return text
-      .replace(/[\*_#`]/g, '')  // Remove all markdown
-      .replace(/\s+/g, ' ')     // Normalize whitespace
-      .replace(/\.{3,}/g, '…')  // Replace multiple dots with ellipsis
-      .trim();
-  }
-  
-  static chunkContent(content: string[], maxItems: number = 4): string[][] {
-    if (content.length <= maxItems) return [content];
-    
-    const chunkSize = Math.ceil(content.length / Math.ceil(content.length / maxItems));
-    const chunks: string[][] = [];
-    
-    for (let i = 0; i < content.length; i += chunkSize) {
-      chunks.push(content.slice(i, i + chunkSize));
-    }
-    
-    return chunks;
-  }
-  
-  static truncateForSlide(text: string, maxChars: number = 1200): string {
-    if (text.length <= maxChars) return text;
-    return text.substring(0, maxChars).trim() + '…';
+  static clean(text: string): string {
+    return text ? text.replace(/[\*_#`]/g, '').trim() : "";
   }
 }
 
 /**
- * UPDATED PRESENTATION SERVICE V6
+ * PRESENTATION SERVICE V7 - EDITORIAL EDITION
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -182,203 +169,89 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // 1. ENHANCED AI PROMPT WITH LAYOUT CONSTRAINTS
-    onProgress?.("AI is designing editorial layouts...");
-    const blueprintPrompt = `ACT AS AN EDITORIAL DESIGNER + SUBJECT MATTER EXPERT.
-    CREATE A PROFESSIONAL PRESENTATION WITH PERFECT VISUAL HIERARCHY.
+    onProgress?.("Architecting editorial layout...");
+    const systemPrompt = `ACT AS A SENIOR EDITORIAL DESIGNER FOR GAMMA.AI.
+    CREATE A HIGH-LEVEL ACADEMIC PRESENTATION.
 
-    SOURCE MATERIAL: ${item.abstract || item.title}
-    PRESENTATION TITLE: ${config.title}
-    CONTEXT: ${config.context}
+    MATERIAL: ${item.abstract || item.title}
+    TITLE: ${config.title}
     
-    CRITICAL DESIGN REQUIREMENTS:
-    1. EXACTLY ${config.slidesCount} content slides
-    2. EACH SLIDE MUST HAVE CLEAR VISUAL STRUCTURE
-    3. MAX 4 key points per slide (for readability)
-    4. Each point should be 1-2 sentences (dense but scannable)
-    5. Natural language flow between slides
-    6. NO markdown characters (*, _, #, \`)
-    7. Language: ${config.language}
+    CONSTRAINTS:
+    1. Exactly ${config.slidesCount} content slides.
+    2. Zero markdown symbols. 
+    3. Hierarchy: Dense enough for reading, scannable for presenting.
+    4. Language: ${config.language}.
     
-    AVAILABLE LAYOUTS (choose based on content type):
-    - "GAMMA_SPLIT": For thesis/argument with supporting evidence
-    - "CARD_GRID_DEEP": For comparative analysis or multi-faceted topics
-    - "EDITORIAL_COLUMN": For narrative/storytelling content
-    - "ZIGZAG_FLOW": For process/methodology explanation
-    
-    OUTPUT FORMAT (RAW JSON ONLY):
-    {
-      "slides": [
-        {
-          "title": "Clear, concise title (max 10 words)",
-          "content": [
-            "Point 1: Clear statement with supporting detail",
-            "Point 2: Another distinct idea with evidence",
-            "Point 3: Logical progression from previous points",
-            "Point 4: Conclusion or transition point"
-          ],
-          "layoutType": "CHOOSE_FROM_ABOVE",
-          "visualHint": "data | process | comparison | narrative",
-          "takeaway": "One memorable insight for audience"
-        }
-      ]
-    }`;
+    LAYOUTS: 
+    - "EDITORIAL_LEFT": Title left box, content right cards.
+    - "SPLIT_GRID": Balanced 2-column grid.
+    - "HERO_CENTER": Large centered statement card.
 
-    let aiResText = await callAiProxy('groq', blueprintPrompt);
-    if (!aiResText) throw new Error("AI Proxy returned no content.");
-    
-    // Parse and validate AI response
-    const startIdx = aiResText.indexOf('{');
-    const endIdx = aiResText.lastIndexOf('}');
-    if (startIdx === -1 || endIdx === -1) throw new Error("AI did not return valid JSON.");
-    
-    const cleanedJson = aiResText.substring(startIdx, endIdx + 1);
-    const blueprint = JSON.parse(cleanedJson);
-    const slidesData = blueprint.presentation?.slides || blueprint.slides || [];
+    OUTPUT RAW JSON ONLY.`;
 
-    // 2. INITIALIZE WITH MODERN DESIGN SYSTEM
+    const aiRes = await callAiProxy('groq', systemPrompt);
+    if (!aiRes) throw new Error("AI design failed.");
+    
+    const blueprint = JSON.parse(aiRes.substring(aiRes.indexOf('{'), aiRes.lastIndexOf('}') + 1));
+    const slidesData = blueprint.slides || [];
+
     const pptx = new pptxgen();
     pptx.layout = 'LAYOUT_16x9';
     
-    // Color system
     const colors = {
       primary: config.theme.primaryColor?.replace('#', '') || '004A74',
       secondary: config.theme.secondaryColor?.replace('#', '') || 'FED400',
-      accent: '7C3AED',
-      background: 'FDFDFD',
-      text: {
-        primary: '1F2937',
-        secondary: '4B5563',
-        muted: '6B7280',
-      },
-      surface: {
-        card: 'FFFFFF',
-        panel: 'F9FAFB',
-        border: 'E5E7EB',
-      }
+      text: { primary: '1F2937', secondary: '6B7280' },
+      surface: { background: 'FFFFFF', border: 'E5E7EB', card: 'F9FAFB' }
     };
 
-    const layoutEngine = new EditorialLayoutEngine(pptx, colors);
+    const engine = new EditorialLayoutEngine(pptx, colors);
 
-    // 3. COVER SLIDE - EDITORIAL STYLE
-    onProgress?.("Designing editorial cover...");
-    const coverSlide = pptx.addSlide();
-    
-    coverSlide.addShape(pptx.ShapeType.rect, {
-      x: 0, y: 0, w: 10, h: 5.625,
-      fill: { color: colors.primary }
+    // COVER SLIDE
+    const cover = pptx.addSlide();
+    engine.addModernCard(cover, 0, 0, 10, 5.625, { fill: { color: colors.primary }, border: { width: 0 } });
+    engine.addText(cover, ContentSanitizer.clean(config.title).toUpperCase(), {
+      x: 1, y: 1.5, w: 8, h: 2, fontSize: 36, color: 'FFFFFF', bold: true, align: 'center', valign: 'middle'
+    });
+    engine.addText(cover, config.presenters.join(' • '), {
+      x: 1, y: 4, w: 8, fontSize: 12, color: colors.secondary, align: 'center', bold: true, charSpacing: 1.5
     });
 
-    const cleanTitle = ContentSanitizer.cleanText(config.title);
-    layoutEngine.addEditorialText(coverSlide, cleanTitle.toUpperCase(), {
-      x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-      y: 2,
-      w: 10 - (EDITORIAL_CONSTANTS.GRID.MARGIN_X * 2),
-      h: 1.5,
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.H1.size,
-      color: 'FFFFFF',
-      bold: true,
-      align: 'center',
-      valign: 'middle',
-    });
-
-    layoutEngine.addAccentLine(
-      coverSlide,
-      10/2 - 1, 
-      3.6,
-      2,
-      0.03
-    );
-
-    layoutEngine.addEditorialText(coverSlide, config.presenters.join(' • '), {
-      x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-      y: 4,
-      w: 10 - (EDITORIAL_CONSTANTS.GRID.MARGIN_X * 2),
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size,
-      color: 'FFFFFF',
-      align: 'center',
-      bold: true,
-      charSpacing: 1.5,
-    });
-
-    // 4. CONTENT SLIDES
-    slidesData.forEach((slideData: any, index: number) => {
-      onProgress?.(`Crafting slide ${index + 1}: ${slideData.layoutType}...`);
-      
+    // CONTENT SLIDES
+    slidesData.forEach((s: any, i: number) => {
+      onProgress?.(`Rendering slide ${i+1}...`);
       const slide = pptx.addSlide();
-      const sanitizedTitle = ContentSanitizer.cleanText(slideData.title);
-      const sanitizedContent = Array.isArray(slideData.content) 
-        ? slideData.content.map(ContentSanitizer.cleanText)
-        : [ContentSanitizer.cleanText(slideData.content)];
+      const title = ContentSanitizer.clean(s.title);
+      const points = (s.content || []).map(ContentSanitizer.clean);
       
-      const contentChunks = ContentSanitizer.chunkContent(sanitizedContent, 4);
-
-      switch(slideData.layoutType) {
-        case 'GAMMA_SPLIT':
-          createGammaSplitSlide(layoutEngine, slide, sanitizedTitle, contentChunks, colors);
-          break;
-        case 'CARD_GRID_DEEP':
-          createCardGridSlide(layoutEngine, slide, sanitizedTitle, contentChunks, colors);
-          break;
-        case 'EDITORIAL_COLUMN':
-          createEditorialColumnSlide(layoutEngine, slide, sanitizedTitle, contentChunks, colors);
-          break;
-        default:
-          createModernColumnSlide(layoutEngine, slide, sanitizedTitle, contentChunks, colors);
+      engine.resetY();
+      
+      if (s.layoutType === 'EDITORIAL_LEFT') {
+        // Boxed Title on Left
+        engine.addModernCard(slide, 0.4, 0.4, 3.2, 4.8, { fill: { color: colors.primary } });
+        engine.addText(slide, title, { x: 0.6, y: 1.5, w: 2.8, h: 2, fontSize: 24, color: 'FFFFFF', bold: true });
+        
+        // Right Column Cards
+        engine.renderFlow(slide, points, 3.8, 0.4, 5.8, { fill: { color: colors.surface.card } });
+      } else if (s.layoutType === 'HERO_CENTER') {
+        engine.addText(slide, title.toUpperCase(), { x: 1, y: 0.5, w: 8, fontSize: 18, bold: true, align: 'center', color: colors.primary });
+        engine.renderFlow(slide, points, 1.5, 1.5, 7, { fill: { color: colors.surface.card } });
+      } else {
+        // Default Split Grid
+        engine.addText(slide, title, { x: 0.5, y: 0.3, w: 9, fontSize: 22, bold: true, color: colors.primary });
+        const mid = Math.ceil(points.length / 2);
+        engine.renderFlow(slide, points.slice(0, mid), 0.5, 1.0, 4.4, { fill: { color: 'FFFFFF' } });
+        engine.renderFlow(slide, points.slice(mid), 5.1, 1.0, 4.4, { fill: { color: colors.surface.card } });
       }
 
-      addSlideFooter(layoutEngine, slide, index + 1, colors);
+      // Footer
+      engine.addText(slide, `© XEENAPS • ${i+1}`, { x: 8, y: 5.3, w: 1.5, fontSize: 8, align: 'right', color: colors.text.secondary });
     });
 
-    // 5. BIBLIOGRAPHY SLIDE
-    onProgress?.("Adding archival references...");
-    const bibSlide = pptx.addSlide();
-    
-    layoutEngine.addModernCard(bibSlide, 0, 0, 10, 1, {
-      fill: { color: colors.primary },
-      radius: 0,
-    });
+    onProgress?.("Exporting to Google Slides...");
+    const base64 = await pptx.write({ outputType: 'base64' }) as string;
 
-    layoutEngine.addEditorialText(bibSlide, "REFERENCES & SOURCES", {
-      x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-      y: 0.2,
-      w: 9,
-      h: 0.6,
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.H2.size,
-      color: 'FFFFFF',
-      bold: true,
-    });
-
-    const citation = item.bibHarvard || 
-      `${item.authors?.join(', ')} (${item.year}). ${item.title}. ${item.publisher || 'Source'}.`;
-
-    layoutEngine.addModernCard(
-      bibSlide,
-      EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-      1.5,
-      10 - (EDITORIAL_CONSTANTS.GRID.MARGIN_X * 2),
-      3,
-      {
-        fill: { color: colors.surface.card },
-        border: { color: colors.surface.border, width: 1 },
-      }
-    );
-
-    layoutEngine.addEditorialText(bibSlide, ContentSanitizer.cleanText(citation), {
-      x: EDITORIAL_CONSTANTS.GRID.MARGIN_X + EDITORIAL_CONSTANTS.SPACING.M,
-      y: 1.8,
-      w: 9 - (EDITORIAL_CONSTANTS.SPACING.M * 2),
-      h: 2.4,
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size,
-      color: colors.text.secondary,
-      italic: true,
-    });
-
-    // 6. EXPORT & SAVE
-    onProgress?.("Finalizing presentation...");
-    const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
-
-    const presentationData: Partial<PresentationItem> = {
+    const presentation: Partial<PresentationItem> = {
       id: crypto.randomUUID(),
       collectionIds: [item.id],
       title: config.title,
@@ -392,206 +265,22 @@ export const createPresentationWorkflow = async (
 
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({
-        action: 'savePresentation',
-        presentation: presentationData,
-        pptxFileData: base64Pptx
-      })
+      body: JSON.stringify({ action: 'savePresentation', presentation, pptxFileData: base64 })
     });
 
-    const result = await res.json();
-    if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Failed to save.");
+    const out = await res.json();
+    return out.status === 'success' ? out.data : null;
 
   } catch (error) {
-    console.error("Editorial Presentation Builder Error:", error);
+    console.error("Editorial PPT Error:", error);
     return null;
   }
 };
-
-/**
- * LAYOUT TEMPLATE IMPLEMENTATIONS
- */
-function createGammaSplitSlide(
-  engine: EditorialLayoutEngine,
-  slide: any,
-  title: string,
-  contentChunks: string[][],
-  colors: any
-) {
-  engine.addModernCard(slide, 0, 0, 3.8, 5.625, {
-    fill: { color: colors.primary },
-    radius: 0,
-  });
-
-  engine.addEditorialText(slide, title, {
-    x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-    y: 1.5,
-    w: 3.8 - (EDITORIAL_CONSTANTS.GRID.MARGIN_X * 2),
-    h: 2.5,
-    fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.H2.size,
-    color: 'FFFFFF',
-    bold: true,
-    valign: 'middle',
-  });
-
-  engine.addAccentLine(slide, 3.7, 1.5, 0.02, 2.5);
-
-  engine.addModernCard(slide, 4.2, 0.8, 5.3, 4, {
-    fill: { color: colors.surface.card },
-    border: { color: colors.surface.border, width: 1 },
-  });
-
-  contentChunks[0]?.forEach((point, i) => {
-    engine.addEditorialText(slide, `• ${point}`, {
-      x: 4.5,
-      y: 1.2 + (i * 0.8),
-      w: 4.7,
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size,
-      color: colors.text.primary,
-    });
-  });
-}
-
-function createCardGridSlide(
-  engine: EditorialLayoutEngine,
-  slide: any,
-  title: string,
-  contentChunks: string[][],
-  colors: any
-) {
-  engine.addEditorialText(slide, title, {
-    x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-    y: 0.5,
-    w: 9,
-    fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.H2.size,
-    color: colors.primary,
-    bold: true,
-  });
-
-  const cardWidth = 4.3;
-  const cardHeight = 3.5;
-  const gutter = EDITORIAL_CONSTANTS.SPACING.M;
-
-  contentChunks.forEach((chunk, i) => {
-    if (i > 3) return;
-    const row = Math.floor(i / 2);
-    const col = i % 2;
-    const x = EDITORIAL_CONSTANTS.GRID.MARGIN_X + (col * (cardWidth + gutter));
-    const y = 1.6 + (row * (cardHeight + gutter));
-
-    engine.addModernCard(slide, x, y, cardWidth, cardHeight, {
-      fill: { color: i % 2 === 0 ? colors.surface.card : colors.primary + '08' },
-      border: { color: colors.surface.border, width: 1 },
-    });
-
-    chunk.forEach((point, j) => {
-      engine.addEditorialText(slide, point, {
-        x: x + 0.3,
-        y: y + 0.3 + (j * 0.7),
-        w: cardWidth - 0.6,
-        fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY_SMALL.size,
-        color: colors.text.primary,
-        bullet: true,
-      });
-    });
-  });
-}
-
-function createEditorialColumnSlide(
-  engine: EditorialLayoutEngine,
-  slide: any,
-  title: string,
-  contentChunks: string[][],
-  colors: any
-) {
-  engine.addEditorialText(slide, title, {
-    x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-    y: 0.5,
-    w: 9,
-    fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.H2.size,
-    color: colors.primary,
-    bold: true,
-  });
-
-  const contentWidth = 8;
-  const contentX = (10 - contentWidth) / 2;
-
-  engine.addModernCard(slide, contentX, 1.5, contentWidth, 3.5, {
-    fill: { color: colors.surface.card },
-    border: { color: colors.surface.border, width: 1 },
-  });
-
-  contentChunks[0]?.forEach((point, i) => {
-    engine.addEditorialText(slide, point, {
-      x: contentX + 0.4,
-      y: 1.8 + (i * 0.8),
-      w: contentWidth - 0.8,
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size,
-      color: colors.text.primary,
-      bullet: true,
-    });
-  });
-}
-
-function createModernColumnSlide(
-  engine: EditorialLayoutEngine,
-  slide: any,
-  title: string,
-  contentChunks: string[][],
-  colors: any
-) {
-  engine.addEditorialText(slide, title.toUpperCase(), {
-    x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-    y: 0.8,
-    w: 9,
-    fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.H2.size,
-    color: colors.primary,
-    bold: true,
-    align: 'center',
-  });
-
-  engine.addModernCard(slide, 1.5, 2, 7, 2.8, {
-    fill: { color: colors.surface.card },
-    border: { color: colors.surface.border, width: 1 },
-  });
-
-  contentChunks[0]?.forEach((point, i) => {
-    engine.addEditorialText(slide, point, {
-      x: 1.8,
-      y: 2.3 + (i * 0.7),
-      w: 6.4,
-      fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.BODY.size,
-      color: colors.text.primary,
-      align: 'center',
-    });
-  });
-}
-
-function addSlideFooter(
-  engine: EditorialLayoutEngine,
-  slide: any,
-  slideNumber: number,
-  colors: any
-) {
-  engine.addEditorialText(slide, `XEENAPS KNOWLEDGE ARCHIVE • SLIDE ${slideNumber}`, {
-    x: EDITORIAL_CONSTANTS.GRID.MARGIN_X,
-    y: 5.3,
-    w: 9,
-    h: 0.3,
-    fontSize: EDITORIAL_CONSTANTS.TYPOGRAPHY.CAPTION.size,
-    color: colors.text.muted,
-    align: 'right',
-    bold: true,
-  });
-}
 
 export const fetchRelatedPresentations = async (collectionId: string): Promise<PresentationItem[]> => {
   try {
     const res = await fetch(`${GAS_WEB_APP_URL}?action=getRelatedPresentations&collectionId=${collectionId}`);
     const result = await res.json();
     return result.status === 'success' ? result.data : [];
-  } catch (error) {
-    return [];
-  }
+  } catch (error) { return []; }
 };
