@@ -5,8 +5,8 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - THE "GAMMA ARCHITECT" ENGINE V6.1
- * Focus: Correct PptxGenJS v4.x Implementation for Multi-line Text & Bullets.
+ * PresentationService - XEENAPS ELEGANT ARCHITECT V7
+ * Focus: High-Density Knowledge, Glassmorphism UI, Standardized Excellence.
  */
 
 export const createPresentationWorkflow = async (
@@ -15,7 +15,6 @@ export const createPresentationWorkflow = async (
     title: string;
     context: string;
     presenters: string[];
-    template: PresentationTemplate;
     theme: PresentationThemeConfig;
     slidesCount: number;
     language: string;
@@ -23,193 +22,83 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    // ==========================================
-    // 1. CONFIGURATION & CONSTANTS
-    // ==========================================
     const pptx = new pptxgen();
     pptx.layout = 'LAYOUT_16x9';
     pptx.author = 'Xeenaps PKM';
-    pptx.company = 'Xeenaps';
 
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
     const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
     
-    const FONT_TITLE = 'Montserrat';
-    const FONT_BODY = 'Open Sans';
-    const BG_GLOBAL = 'F8FAFC';
-    const BG_CARD = 'FFFFFF';
+    // Global Styling Constants
+    const FONT_MAIN = 'Inter';
+    const BG_GLOBAL = 'FBFDFF'; // Ultra-clean off-white
+    const CARD_GLASS = 'FFFFFFD9'; // 85% opacity white for glass effect
 
-    const TEMPLATE_LAYOUT_STRATEGY: Record<string, string[]> = {
-      [PresentationTemplate.MODERN]: ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
-      [PresentationTemplate.CORPORATE]: ['EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST'],
-      [PresentationTemplate.CREATIVE]: ['HERO_CARD', 'DUO_GRID', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
-      [PresentationTemplate.ACADEMIC]: ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST'],
-      'DEFAULT': ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST']
-    };
-
-    // ==========================================
-    // 2. HELPER FUNCTIONS (The "Smart" Engine)
-    // ==========================================
-
+    // Helper: Clean Text
     const cleanText = (text: string) => text.replace(/[\*_#]/g, '').trim();
 
-    const getSmartFontSize = (text: string, baseSize: number) => {
+    // Helper: Smart Font Resizer
+    const getSmartFontSize = (text: string, base: number) => {
       const len = text.length;
-      if (len > 800) return Math.max(10, baseSize - 5);
-      if (len > 500) return Math.max(11, baseSize - 2);
-      if (len > 300) return baseSize - 1;
-      return baseSize;
+      if (len > 1000) return Math.max(9, base - 4);
+      if (len > 600) return Math.max(10, base - 2);
+      return base;
     };
 
-    const createCard = (
-      slide: any, 
-      textLines: string[], 
-      x: number, 
-      y: number, 
-      w: number, 
-      options?: { accent?: boolean, title?: string }
-    ) => {
-      const textContent = textLines.map(cleanText).filter(t => t.length > 0);
-      const fullText = textContent.join(' ');
-      
-      const estimatedHeight = Math.min(4.0, (textContent.length * 0.35) + 0.8);
-      
-      const cardOpts: any = {
-        x: x, y: y, w: w, h: estimatedHeight,
-        fill: { color: options?.accent ? primaryColor + '10' : BG_CARD }, 
-        line: { color: options?.accent ? primaryColor : 'E2E8F0', width: 1 },
-        rectRadius: 0.2,
+    // Helper: Create Glass Card
+    const drawGlassCard = (slide: any, x: number, y: number, w: number, h: number) => {
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x, y, w, h,
+        fill: { color: CARD_GLASS },
+        line: { color: 'E2E8F0', width: 0.5 },
+        rectRadius: 0.15,
         shadow: {
           type: 'outer',
           color: '64748B',
-          blur: 12,
-          offset: { x: 2, y: 4 },
-          transparency: 85
+          blur: 20,
+          offset: { x: 0, y: 8 },
+          transparency: 90
         }
-      };
-      slide.addShape(pptx.ShapeType.roundRect, cardOpts);
-
-      const fontSize = getSmartFontSize(fullText, 13);
-      const lineSpacing = fullText.length > 500 ? 24 : 30;
-
-      let textStartY = y + 0.25;
-      if (options?.title) {
-        slide.addText(options.title, {
-          x: x + 0.25, y: textStartY, w: w - 0.5, h: 0.4,
-          fontSize: 16, fontFace: FONT_TITLE, color: primaryColor, bold: true
-        });
-        textStartY += 0.5;
-      }
-
-      // FIX: Konversi array string menjadi array objek teks (PptxGenJS v4 requirement)
-      const textObjects = textContent.map(line => ({
-        text: line,
-        options: {
-          fontSize: fontSize,
-          fontFace: FONT_BODY,
-          color: '334155',
-          lineSpacing: lineSpacing,
-          bullet: options?.accent ? { type: 'number', color: primaryColor } : { type: 'bullet', color: primaryColor },
-          breakLine: true
-        }
-      }));
-
-      slide.addText(textObjects, {
-        x: x + 0.25, 
-        y: textStartY, 
-        w: w - 0.5, 
-        h: estimatedHeight - (textStartY - y) - 0.2,
-        valign: 'top',
-        wrap: true
       });
     };
 
     // ==========================================
-    // 3. LAYOUT BUILDERS (Visual Components)
+    // 1. AI PROMPT (Deep Synthesis)
     // ==========================================
-
-    const addGlobalHeader = (slide: any, title: string, slideNumber: number) => {
-      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.15, h: 5.625, fill: { color: primaryColor } });
-      slide.addText(`0${slideNumber}`, { 
-        x: 0.4, y: 0.4, w: 0.5, h: 0.4, 
-        fontSize: 9, fontFace: FONT_TITLE, color: '94A3B8', bold: true 
-      });
-      slide.addText(title, { 
-        x: 1.2, y: 0.4, w: 8.3, h: 0.8, 
-        fontSize: 28, fontFace: FONT_TITLE, color: '1E293B', bold: true, 
-        lineSpacing: 34 
-      });
-      slide.addShape(pptx.ShapeType.rect, { x: 1.2, y: 1.1, w: 8.3, h: 0.02, fill: { color: 'CBD5E1' } });
-      return 1.3;
-    };
-
-    const layoutVerticalStack = (slide: any, sData: any, slideNum: number) => {
-      const startY = addGlobalHeader(slide, sData.title, slideNum);
-      const splitIndex = Math.ceil(sData.content.length / 2);
-      createCard(slide, sData.content.slice(0, splitIndex), 1.2, startY, 7.6);
-      if (sData.content.length > 4) {
-         const card1Height = (splitIndex * 0.35) + 0.8;
-         createCard(slide, sData.content.slice(splitIndex), 1.2, startY + card1Height + 0.4, 7.6);
-      }
-    };
-
-    const layoutDuoGrid = (slide: any, sData: any, slideNum: number) => {
-      const startY = addGlobalHeader(slide, sData.title, slideNum);
-      const gap = 0.4;
-      const colWidth = 3.8;
-      const midPoint = Math.ceil(sData.content.length / 2);
-      createCard(slide, sData.content.slice(0, midPoint), 1.2, startY, colWidth);
-      createCard(slide, sData.content.slice(midPoint), 1.2 + colWidth + gap, startY, colWidth, { accent: true });
-    };
-
-    const layoutSplitFocus = (slide: any, sData: any, slideNum: number) => {
-      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 3.5, h: 5.625, fill: { color: primaryColor } });
-      slide.addShape(pptx.ShapeType.ellipse, { x: 2, y: 4.5, w: 3, h: 3, fill: { color: secondaryColor, transparency: 90 } });
-      slide.addText(sData.title, {
-        x: 0.5, y: 1, w: 2.5, h: 4,
-        fontSize: 32, fontFace: FONT_TITLE, color: 'FFFFFF', bold: true, align: 'left', valign: 'top'
-      });
-      createCard(slide, sData.content, 4.0, 1.0, 5.5, { title: 'Key Insights' });
-    };
-
-    const layoutHeroCard = (slide: any, sData: any, slideNum: number) => {
-      const startY = addGlobalHeader(slide, sData.title, slideNum);
-      slide.addShape(pptx.ShapeType.rect, { x: 1, y: startY, w: 8, h: 4, fill: { color: secondaryColor, transparency: 95 } });
-      createCard(slide, sData.content, 2.0, startY + 0.5, 6.0, { title: 'Strategic Overview' });
-    };
-
-    // ==========================================
-    // 4. AI PROMPT & GENERATION
-    // ==========================================
-    onProgress?.("AI is synthesizing deep knowledge...");
+    onProgress?.("AI is conducting a profound analysis...");
     
-    const blueprintPrompt = `ACT AS A TOP-TIER PRESENTATION ARCHITECT.
-    ANALYZE AND SYNTHESIZE THIS MATERIAL INTO A HIGH-LEVEL STRATEGIC PRESENTATION: "${config.title}"
-    SOURCE: ${item.abstract || item.title}
+    const blueprintPrompt = `ACT AS A SENIOR STRATEGIC ANALYST AND ACADEMIC ARCHITECT.
+    SYNTHESIZE THE FOLLOWING MATERIAL INTO A COMPREHENSIVE, DEEP, AND STRATEGIC PRESENTATION: "${config.title}"
+    
+    SOURCE MATERIAL: ${item.abstract || item.title}
     CONTEXT: ${config.context}
     
-    REQUIREMENTS:
+    CRITICAL REQUIREMENTS:
     - EXACTLY ${config.slidesCount} CONTENT SLIDES.
-    - CONTENT DEPTH: Comprehensive and dense. Use professional terminology. NO GENERIC POINTS.
-    - STYLE: Actionable bullet points. NOT paragraphs.
-    - MAX LINES per slide: 7 lines.
-    - NO MARKDOWN: No asterisks (*), underscores (_), or hashes (#). Use plain text.
+    - CONTENT DEPTH: Use highly professional, academic, and strategic language. 
+    - AVOID: Simple bullet points or generic summaries.
+    - FOCUS: Deep insights, theoretical implications, and complex conceptual frameworks.
+    - STYLE: Dense but readable. Provide actionable high-level points.
     - LANGUAGE: ${config.language}.
-    - OUTPUT RAW JSON ONLY.
+    - FORMAT: RAW JSON ONLY.
 
-    FORMAT:
     {
       "slides": [
         { 
-          "title": "Deep Strategic Title", 
-          "content": ["Discovery 1", "Detailed implication 2", "Technical methodology 3"]
+          "title": "A Profound Strategic Heading", 
+          "content": [
+            "Comprehensive technical implication or insight 1...",
+            "Deep methodological analysis or discovery 2...",
+            "Strategic framework or future projection 3..."
+          ]
         }
       ]
     }`;
 
     let aiResText = await callAiProxy('groq', blueprintPrompt);
-    if (!aiResText) throw new Error("AI failed to return data.");
+    if (!aiResText) throw new Error("AI Synthesis failed.");
 
+    // Extract JSON from potential noise
     if (aiResText.includes('{')) {
       const start = aiResText.indexOf('{');
       const end = aiResText.lastIndexOf('}');
@@ -220,66 +109,105 @@ export const createPresentationWorkflow = async (
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
 
     // ==========================================
-    // 5. SLIDE GENERATION LOOP
+    // 2. SLIDE BUILDING (The Universal Layout)
     // ==========================================
     
-    onProgress?.("Designing Cover Slide...");
-    const slide1 = pptx.addSlide();
-    
-    if (config.template === PresentationTemplate.CORPORATE) {
-      slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: 'FFFFFF' } });
-      slide1.addShape(pptx.ShapeType.rect, { x: 1, y: 4.5, w: 8, h: 0.05, fill: { color: primaryColor } });
-      slide1.addText(config.title, { x: 1, y: 2, w: 8, h: 1.5, fontSize: 40, fontFace: FONT_TITLE, color: primaryColor, bold: true, align: 'center' });
-    } else {
-      slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: '0F172A' } }); 
-      slide1.addShape(pptx.ShapeType.ellipse, { x: 7, y: -1, w: 5, h: 5, fill: { color: secondaryColor, transparency: 80 } });
-      slide1.addShape(pptx.ShapeType.rect, { x: 1, y: 4.5, w: 1, h: 0.1, fill: { color: secondaryColor } });
-      slide1.addText(config.title, { x: 1, y: 1.5, w: 8, h: 2.5, fontSize: 44, fontFace: FONT_TITLE, color: 'FFFFFF', bold: true, align: 'left', lineSpacing: 50 });
-    }
-    slide1.addText(config.presenters.join(' • '), { x: 1, y: 5, w: 8, h: 0.4, fontSize: 12, fontFace: FONT_BODY, color: '64748B', align: 'center' });
+    // --- COVER SLIDE (Centered Gravity) ---
+    onProgress?.("Designing Cover...");
+    const cover = pptx.addSlide();
+    cover.background = { color: '0F172A' }; // Dark Premium Background
 
+    // Decorative Shapes
+    cover.addShape(pptx.ShapeType.ellipse, { x: 6, y: -1, w: 6, h: 6, fill: { color: primaryColor, transparency: 85 } });
+    cover.addShape(pptx.ShapeType.rect, { x: 1, y: 4.8, w: 0.5, h: 0.05, fill: { color: secondaryColor } });
+
+    // Title Center
+    cover.addText(config.title.toUpperCase(), {
+      x: 1, y: 1.5, w: 8, h: 2,
+      fontSize: 38, fontFace: FONT_MAIN, color: 'FFFFFF', bold: true,
+      align: 'center', valign: 'middle', breakLine: true
+    });
+
+    // Presenters
+    cover.addText(config.presenters.join(' • '), {
+      x: 1, y: 3.8, w: 8, h: 0.5,
+      fontSize: 12, fontFace: FONT_MAIN, color: '94A3B8', align: 'center', bold: true
+    });
+
+    // --- CONTENT SLIDES ---
     blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Architecting Slide ${idx + 2}...`);
+      onProgress?.(`Architecting Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
       slide.background = { color: BG_GLOBAL };
 
-      const strategyKey = TEMPLATE_LAYOUT_STRATEGY[config.template] ? config.template : 'DEFAULT';
-      const layoutSequence = TEMPLATE_LAYOUT_STRATEGY[strategyKey];
-      const currentLayout = layoutSequence[idx % layoutSequence.length];
+      // Header: Left Accent Box + Title
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.5, w: 0.08, h: 0.6, fill: { color: primaryColor } });
+      slide.addText(sData.title, {
+        x: 0.75, y: 0.5, w: 8.5, h: 0.6,
+        fontSize: 24, fontFace: FONT_MAIN, color: '1E293B', bold: true, align: 'left', valign: 'middle'
+      });
 
-      if (currentLayout === 'DUO_GRID') {
-        layoutDuoGrid(slide, sData, idx + 2);
-      } else if (currentLayout === 'SPLIT_FOCUS') {
-        layoutSplitFocus(slide, sData, idx + 2);
-      } else if (currentLayout === 'HERO_CARD') {
-        layoutHeroCard(slide, sData, idx + 2);
-      } else {
-        layoutVerticalStack(slide, sData, idx + 2);
-      }
+      // Line Separator
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.2, w: 9, h: 0.01, fill: { color: 'CBD5E1' } });
 
-      slide.addText(`XEENAPS KNOWLEDGE SERIES • SLIDE ${idx + 2}`, { 
-        x: 0.5, y: 5.25, w: 9, h: 0.3, 
-        fontSize: 8, fontFace: FONT_BODY, color: '94A3B8', align: 'right' 
+      // Body: Glassmorphism Card
+      const cardX = 0.5;
+      const cardY = 1.5;
+      const cardW = 9.0;
+      const cardH = 3.6;
+      drawGlassCard(slide, cardX, cardY, cardW, cardH);
+
+      const textObjects = sData.content.map((line: string) => ({
+        text: cleanText(line),
+        options: {
+          fontSize: getSmartFontSize(sData.content.join(' '), 13),
+          fontFace: FONT_MAIN,
+          color: '334155',
+          lineSpacing: 22,
+          bullet: { type: 'bullet', color: primaryColor },
+          breakLine: true
+        }
+      }));
+
+      slide.addText(textObjects, {
+        x: cardX + 0.3, y: cardY + 0.3, w: cardW - 0.6, h: cardH - 0.6,
+        valign: 'top', wrap: true
+      });
+
+      // Branding Footer
+      slide.addText(`XEENAPS KNOWLEDGE ANCHOR • 0${idx + 1}`, {
+        x: 0.5, y: 5.2, w: 9, h: 0.3,
+        fontSize: 8, fontFace: FONT_MAIN, color: '94A3B8', align: 'right', bold: true
       });
     });
 
-    // --- BIBLIOGRAPHY SLIDE ---
-    onProgress?.("Generating Bibliography...");
-    const lastSlide = pptx.addSlide();
-    lastSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: BG_GLOBAL } });
-    lastSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 1, fill: { color: primaryColor } });
-    lastSlide.addText("BIBLIOGRAPHY & SOURCES", { x: 0.5, y: 0.2, w: 9, h: 0.6, fontSize: 24, fontFace: FONT_TITLE, color: 'FFFFFF', bold: true });
+    // --- CLOSING: BIBLIOGRAPHY ---
+    onProgress?.("Finalizing Bibliography...");
+    const bibSlide = pptx.addSlide();
+    bibSlide.background = { color: 'F1F5F9' };
+
+    bibSlide.addText("BIBLIOGRAPHY", {
+      x: 1, y: 0.8, w: 8, h: 0.5,
+      fontSize: 28, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
+    });
+
+    drawGlassCard(bibSlide, 1, 1.5, 8, 3);
     
-    const citation = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}. ${item.publisher || 'Internal Repository'}.`;
-    
-    lastSlide.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.5, w: 9, h: 3, fill: { color: BG_CARD }, line: { color: 'E2E8F0' }, rectRadius: 0.2 });
-    lastSlide.addText(cleanText(citation), { x: 1, y: 2, w: 8, h: 2, fontSize: 12, fontFace: FONT_BODY, color: '475569', italic: true, lineSpacing: 20 });
-    lastSlide.addText("Knowledge Anchored by Xeenaps PKM", { x: 0, y: 5.1, w: 10, h: 0.3, fontSize: 9, fontFace: FONT_TITLE, color: primaryColor, bold: true, align: 'center' });
+    const citation = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
+    bibSlide.addText(cleanText(citation), {
+      x: 1.3, y: 1.8, w: 7.4, h: 2.4,
+      fontSize: 12, fontFace: FONT_MAIN, color: '475569', align: 'left', italic: true, lineSpacing: 24
+    });
+
+    bibSlide.addText("Knowledge Anchored by Xeenaps", {
+      x: 0, y: 5.1, w: 10, h: 0.3,
+      fontSize: 9, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
+    });
 
     // ==========================================
-    // 6. EXPORT & SAVE
+    // 3. EXPORT & SAVE
     // ==========================================
-    onProgress?.("Finalizing and Syncing...");
+    onProgress?.("Syncing to Cloud...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -287,8 +215,13 @@ export const createPresentationWorkflow = async (
       collectionIds: [item.id],
       title: config.title,
       presenters: config.presenters,
-      templateName: config.template,
-      themeConfig: config.theme,
+      templateName: PresentationTemplate.MODERN, // Default internal mapping
+      themeConfig: {
+        primaryColor: `#${primaryColor}`,
+        secondaryColor: `#${secondaryColor}`,
+        fontFamily: FONT_MAIN,
+        headingFont: FONT_MAIN
+      },
       slidesCount: config.slidesCount,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -305,9 +238,10 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Failed to save.");
+    throw new Error(result.message || "Failed to save presentation.");
+
   } catch (error) {
-    console.error("Presentation Builder Error:", error);
+    console.error("Presentation Engine Error:", error);
     return null;
   }
 };
