@@ -1,11 +1,12 @@
+
 import pptxgen from 'pptxgenjs';
 import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * XBE Engine v3.0 - "The Gamma Aesthetic"
- * Fokus pada: Elegan, Luas, dan Modern.
+ * XBE Engine v3.1 - "The Gamma Aesthetic"
+ * Stability & Aesthetic Update.
  */
 const XBE = {
   LAYOUT: {
@@ -17,11 +18,11 @@ const XBE = {
     GRID_COLS: 12,
   },
   STYLE: {
-    RADIUS: 0.35,      // Sudut lebih membulat ala Gamma
-    CARD_PADDING: 0.5, // Padding dalam kotak lebih luas
-    BORDER_W: 1,       // Border tipis sebagai pengganti shadow berat
-    BORDER_COLOR: 'F1F5F9', // Abu-abu sangat muda (Slate 100)
-    BG_ACCENT: 'F8FAFC',    // Background slide off-white
+    RADIUS: 0.35,      // Rounded corners
+    CARD_PADDING: 0.5, // Generous internal padding
+    BORDER_W: 1,       
+    BORDER_COLOR: 'F1F5F9', 
+    BG_ACCENT: 'F8FAFC',    
   },
   TYPE: {
     FONT_HEADING: 'Inter Bold',
@@ -29,9 +30,24 @@ const XBE = {
     H1_SIZE: 28,      
     H2_SIZE: 20,
     BODY_SIZE: 11,
-    LINE_HEIGHT: 1.3,  // Vertical rhythm lebih lega
+    LINE_HEIGHT: 1.3,  
   }
 };
+
+/**
+ * UTILS: Content Sanitizer
+ */
+class Sanitizer {
+  static clean(text: any): string {
+    if (text === null || text === undefined) return "";
+    return String(text).replace(/[\*_#`]/g, '').trim();
+  }
+
+  static cleanPoints(points: any): string[] {
+    if (!Array.isArray(points)) return [];
+    return points.map(p => this.clean(p)).filter(p => p.length > 0);
+  }
+}
 
 class XBEEngine {
   constructor(private pptx: pptxgen, private colors: any) {}
@@ -47,6 +63,7 @@ class XBEEngine {
 
   /**
    * Render kartu dengan border lembut.
+   * // Fix: Changed ShapeType.RECT to ShapeType.rect to match pptxgenjs type definitions (lowercase)
    */
   addModernCard(slide: pptxgen.Slide, x: number, y: number, w: number, h: number, isPrimary = false) {
     return slide.addShape(this.pptx.ShapeType.rect, {
@@ -59,10 +76,11 @@ class XBEEngine {
 
   /**
    * Text block dengan internal padding yang konsisten.
+   * FIX: Memastikan options bullet tidak bernilai null jika tidak ada.
    */
   addTextToCard(slide: pptxgen.Slide, text: any, x: number, y: number, w: number, h: number, opts: any = {}) {
     const padding = XBE.STYLE.CARD_PADDING;
-    slide.addText(text, {
+    const textOptions: pptxgen.TextPropsOptions = {
       x: x + padding,
       y: y + padding,
       w: w - (padding * 2),
@@ -73,10 +91,46 @@ class XBEEngine {
       align: opts.align || 'left',
       valign: opts.valign || 'top',
       lineSpacing: (opts.lineSpacing || XBE.TYPE.LINE_HEIGHT) * 100,
-      bullet: opts.bullet || null,
       breakLine: true,
+      shrinkText: true,
       ...opts
+    };
+
+    // Remove bullet if null/undefined to avoid library internal errors
+    if (!opts.bullet) delete textOptions.bullet;
+
+    slide.addText(text, textOptions);
+  }
+
+  /**
+   * Render Blok Konten dengan Bullet Points
+   */
+  renderContentBlock(slide: pptxgen.Slide, title: string, points: string[], x: number, y: number, w: number, h: number, isAccent = false) {
+    this.addModernCard(slide, x, y, w, h, isAccent);
+    
+    // Header
+    this.addTextToCard(slide, Sanitizer.clean(title).toUpperCase(), x, y, w, 1, {
+      fontSize: 14,
+      bold: true,
+      color: isAccent ? 'FFFFFF' : this.colors.primary
     });
+
+    // Bullets
+    const cleanedPoints = Sanitizer.cleanPoints(points);
+    if (cleanedPoints.length > 0) {
+      const bulletProps = cleanedPoints.map(p => ({
+        text: p,
+        options: { 
+          bullet: true,
+          color: isAccent ? 'FFFFFF' : this.colors.text.primary,
+          fontSize: cleanedPoints.join('').length > 400 ? 10 : 11
+        }
+      }));
+
+      this.addTextToCard(slide, bulletProps, x, y + 0.6, w, h - 0.7, {
+        color: isAccent ? 'FFFFFF' : this.colors.text.primary
+      });
+    }
   }
 }
 
@@ -116,14 +170,18 @@ export const createPresentationWorkflow = async (
     onProgress?.("Architecting Gamma-style layouts...");
 
     const systemPrompt = `ACT AS A SENIOR UI/UX DESIGNER FOR GAMMA.AI.
-    Create a ${config.slidesCount}-slide presentation in ${config.language}.
+    Create a ${config.slidesCount}-slide academic presentation blueprint in ${config.language}.
+    
+    SOURCE MATERIAL:
     Title: ${config.title}
     Abstract: ${item.abstract || item.title}
     
-    RULES:
-    1. Diversity in layouts: "HERO", "FEATURE_SPLIT", "CENTER_MINIMAL".
-    2. Professional academic tone.
-    3. Output JSON only: { "slides": [{ "title": "", "points": [""], "layout": "" }] }`;
+    DIRECTIONS:
+    - Language: ${config.language}.
+    - Diversify layouts: "HERO", "SPLIT_VIEW", "FULL_CONTENT".
+    - Avoid markdown. Return clean strings in a JSON array.
+
+    OUTPUT JSON: { "slides": [{ "title": "", "points": [""], "layout": "" }] }`;
 
     const aiRes = await callAiProxy('groq', systemPrompt);
     if (!aiRes) throw new Error("AI Refusal");
@@ -141,46 +199,59 @@ export const createPresentationWorkflow = async (
 
     const engine = new XBEEngine(pptx, colors);
 
+    // SLIDE 1: COVER
+    const cover = pptx.addSlide();
+    cover.background = { color: XBE.STYLE.BG_ACCENT };
+    engine.addModernCard(cover, 0.4, 0.4, 9.2, 4.8, true);
+    
+    const cleanTitle = Sanitizer.clean(config.title).toUpperCase();
+    engine.addTextToCard(cover, cleanTitle, 0.4, 0.4, 9.2, 3.5, { 
+      fontSize: cleanTitle.length > 60 ? 24 : 32, 
+      color: 'FFFFFF', 
+      bold: true, 
+      align: 'center', 
+      valign: 'middle' 
+    });
+
+    engine.addTextToCard(cover, config.presenters.join(' • '), 0.4, 4.2, 9.2, 0.5, {
+      fontSize: 10, color: 'FFFFFF', align: 'center', bold: true
+    });
+
+    // SLIDES KONTEN
     slidesData.forEach((s: any, idx: number) => {
+      onProgress?.(`Building slide ${idx+1}...`);
       const slide = pptx.addSlide();
       slide.background = { color: XBE.STYLE.BG_ACCENT };
 
-      const points = s.points || [];
-      const layout = s.layout;
+      const title = Sanitizer.clean(s.title);
+      const points = Sanitizer.cleanPoints(s.points);
+      const layout = s.layout || 'SPLIT_VIEW';
 
-      if (idx === 0) {
-        engine.addModernCard(slide, 0.4, 0.4, 9.2, 4.8, true);
-        engine.addTextToCard(slide, config.title.toUpperCase(), 0.4, 0.4, 9.2, 3.5, { 
-          fontSize: 32, color: 'FFFFFF', bold: true, align: 'center', valign: 'middle' 
-        });
-        engine.addTextToCard(slide, config.presenters.join(' • '), 0.4, 4.2, 9.2, 0.5, {
-          fontSize: 10, color: 'FFFFFF', align: 'center', bold: true
-        });
-      } 
-      else if (layout === "FEATURE_SPLIT" || idx % 2 === 0) {
-        const main = engine.getGridDim(0, 8);
-        const side = engine.getGridDim(8, 4);
+      // Header Global
+      const headDim = engine.getGridDim(0, 12);
+      engine.addTextToCard(slide, title, headDim.x, 0.2, headDim.w, 0.6, {
+        fontSize: 20, bold: true, color: colors.primary
+      });
 
-        engine.addModernCard(slide, main.x, 1.0, main.w, 4.2);
-        engine.addTextToCard(slide, s.title, main.x, 1.0, main.w, 0.8, { fontSize: 20, bold: true, color: colors.primary });
-        engine.addTextToCard(slide, points.map((p:string) => ({ text: p, options: { bullet: true } })), main.x, 1.6, main.w, 3.4);
-
-        engine.addModernCard(slide, side.x, 1.0, side.w, 4.2, true);
-        engine.addTextToCard(slide, "KEY INSIGHT", side.x, 1.0, side.w, 1.0, { color: 'FFFFFF', bold: true, fontSize: 14, align: 'center' });
-      }
-      else {
-        const center = engine.getGridDim(2, 8);
-        engine.addModernCard(slide, center.x, 0.8, center.w, 4.4);
-        engine.addTextToCard(slide, s.title, center.x, 0.8, center.w, 0.8, { fontSize: 22, bold: true, align: 'center' });
-        engine.addTextToCard(slide, points.map((p:string) => ({ text: p, options: { bullet: true } })), center.x, 1.6, center.w, 3.6);
+      if (layout === "SPLIT_VIEW" || idx % 2 === 0) {
+        const left = engine.getGridDim(0, 6);
+        const right = engine.getGridDim(6, 6);
+        const half = Math.ceil(points.length / 2);
+        
+        engine.renderContentBlock(slide, "Overview", points.slice(0, half), left.x, 1.0, left.w, 4.1);
+        engine.renderContentBlock(slide, "Key Points", points.slice(half), right.x, 1.0, right.w, 4.1, true);
+      } else {
+        const center = engine.getGridDim(1, 10);
+        engine.renderContentBlock(slide, "Analysis", points, center.x, 1.0, center.w, 4.2);
       }
 
-      slide.addText(`© ${new Date().getFullYear()} • XEENAPS PKM • PAGE ${idx + 1}`, { 
-        x: 0.5, y: 5.3, w: 5, fontSize: 8, color: '94A3B8' 
+      // Footer
+      slide.addText(`© XEENAPS • ${idx + 2}`, { 
+        x: 8.5, y: 5.3, w: 1, fontSize: 8, color: '94A3B8', align: 'right'
       });
     });
 
-    onProgress?.("Exporting to Google Slides...");
+    onProgress?.("Exporting and saving...");
     const base64 = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentation: Partial<PresentationItem> = {
@@ -204,7 +275,7 @@ export const createPresentationWorkflow = async (
     return out.status === 'success' ? out.data : null;
 
   } catch (error) {
-    console.error("XBE v3 Error:", error);
+    console.error("XBE v3.1 Error:", error);
     return null;
   }
 };
