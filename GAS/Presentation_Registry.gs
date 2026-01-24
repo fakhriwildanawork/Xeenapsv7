@@ -1,11 +1,8 @@
 
 /**
- * XEENAPS PKM - PRESENTATION REGISTRY MODULE
+ * XEENAPS PKM - PRESENTATION REGISTRY MODULE V7
  */
 
-/**
- * Mendapatkan presentasi yang terkait dengan suatu collectionId
- */
 function getPresentationsByCollection(collectionId) {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
@@ -60,45 +57,42 @@ function handleSavePresentation(body) {
   try {
     const { presentation, pptxFileData } = body;
     
-    // 1. Sharding Aware: Tentukan target penyimpanan
+    // 1. Storage Node Determination
     const storageTarget = getViableStorageTarget(CONFIG.STORAGE.THRESHOLD);
     if (!storageTarget) throw new Error("Storage full on all nodes.");
 
-    // DELEGASI TOTAL KE SLAVE (Mencegah File Dobel & Masalah Ownership)
-    // Jika target bukan Local (Master), maka Master menyuruh Slave melakukan handleSavePresentation sepenuhnya.
+    // Delegasi ke Slave jika diperlukan
     if (!storageTarget.isLocal) {
       const res = UrlFetchApp.fetch(storageTarget.url, {
         method: 'post',
         contentType: 'application/json',
         payload: JSON.stringify({
-          action: 'savePresentation', // Delegasikan full alur ke Slave
+          action: 'savePresentation',
           presentation: presentation,
           pptxFileData: pptxFileData
         })
       });
-      // CRITICAL: Kembalikan response dari Slave dan BERHENTI di sini.
       return JSON.parse(res.getContentText());
     }
 
-    // 2. Simpan file PPTX fisik (Hanya dijalankan oleh Node target yang Local)
+    // 2. Simpan file PPTX fisik (Backup)
     const fileName = `${presentation.title}.pptx`;
     const blob = Utilities.newBlob(Utilities.base64Decode(pptxFileData), 'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileName);
     
     const folder = DriveApp.getFolderById(storageTarget.folderId);
     const pptxFile = folder.createFile(blob);
 
-    // 3. Konversi ke Google Slides (Fix Drive API v3 Metadata Naming)
+    // 3. Konversi ke Google Slides (Premium Archiving)
     const resource = {
-      name: presentation.title || "Xeenaps Presentation",
+      name: presentation.title || "Xeenaps Elegant Presentation",
       mimeType: MimeType.GOOGLE_SLIDES,
       parents: [storageTarget.folderId]
     };
     
-    // Drive API v3: Mengonversi blob PPTX ke Google Slides
     const convertedFile = Drive.Files.create(resource, blob);
     presentation.gSlidesId = convertedFile.id;
 
-    // 4. Catat ke Spreadsheet Registry Master (Selalu dicatat di Master SS)
+    // 4. Registry Logging
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEETS.PRESENTATION);
     let sheet = ss.getSheetByName("Presentation");
     if (!sheet) {
@@ -115,7 +109,7 @@ function handleSavePresentation(body) {
     sheet.appendRow(rowData);
     return { status: 'success', data: presentation };
   } catch (e) {
-    console.error("Save Presentation Error: " + e.toString());
+    console.error("Save Presentation Engine Error: " + e.toString());
     return { status: 'error', message: e.toString() };
   }
 }

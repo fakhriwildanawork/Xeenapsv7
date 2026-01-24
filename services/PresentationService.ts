@@ -5,8 +5,8 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS ELEGANT ARCHITECT V7
- * Focus: High-Density Knowledge, Glassmorphism UI, Standardized Excellence.
+ * PresentationService - XEENAPS UNIVERSAL ARCHITECT V7
+ * Focus: Inter Typography, Glassmorphism, Deep Academic Synthesis.
  */
 
 export const createPresentationWorkflow = async (
@@ -29,23 +29,14 @@ export const createPresentationWorkflow = async (
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
     const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
     
-    // Global Styling Constants
+    // Global Constants
     const FONT_MAIN = 'Inter';
-    const BG_GLOBAL = 'FBFDFF'; // Ultra-clean off-white
-    const CARD_GLASS = 'FFFFFFD9'; // 85% opacity white for glass effect
+    const BG_GLOBAL = 'FBFDFF'; 
+    const CARD_GLASS = 'FFFFFFD9'; // 85% opacity for glass effect
 
-    // Helper: Clean Text
     const cleanText = (text: string) => text.replace(/[\*_#]/g, '').trim();
 
-    // Helper: Smart Font Resizer
-    const getSmartFontSize = (text: string, base: number) => {
-      const len = text.length;
-      if (len > 1000) return Math.max(9, base - 4);
-      if (len > 600) return Math.max(10, base - 2);
-      return base;
-    };
-
-    // Helper: Create Glass Card
+    // Helper: Glass Card Drawing
     const drawGlassCard = (slide: any, x: number, y: number, w: number, h: number) => {
       slide.addShape(pptx.ShapeType.roundRect, {
         x, y, w, h,
@@ -55,30 +46,28 @@ export const createPresentationWorkflow = async (
         shadow: {
           type: 'outer',
           color: '64748B',
-          blur: 20,
-          offset: { x: 0, y: 8 },
-          transparency: 90
+          blur: 15,
+          offset: { x: 0, y: 6 },
+          transparency: 92
         }
       });
     };
 
     // ==========================================
-    // 1. AI PROMPT (Deep Synthesis)
+    // 1. AI PROMPT (Deep Synthesis Engine)
     // ==========================================
-    onProgress?.("AI is conducting a profound analysis...");
+    onProgress?.("AI is conducting a profound analytical synthesis...");
     
-    const blueprintPrompt = `ACT AS A SENIOR STRATEGIC ANALYST AND ACADEMIC ARCHITECT.
-    SYNTHESIZE THE FOLLOWING MATERIAL INTO A COMPREHENSIVE, DEEP, AND STRATEGIC PRESENTATION: "${config.title}"
+    const blueprintPrompt = `ACT AS A SENIOR STRATEGIC ANALYST AND RESEARCH ARCHITECT.
+    TRANSFORM THIS SOURCE INTO A PROFOUND KNOWLEDGE PRESENTATION: "${config.title}"
     
     SOURCE MATERIAL: ${item.abstract || item.title}
     CONTEXT: ${config.context}
     
     CRITICAL REQUIREMENTS:
     - EXACTLY ${config.slidesCount} CONTENT SLIDES.
-    - CONTENT DEPTH: Use highly professional, academic, and strategic language. 
-    - AVOID: Simple bullet points or generic summaries.
-    - FOCUS: Deep insights, theoretical implications, and complex conceptual frameworks.
-    - STYLE: Dense but readable. Provide actionable high-level points.
+    - DEPTH: Provide highly technical, strategic, and theoretical insights. NO GENERIC POINTS.
+    - STYLE: Dense academic narrative, structured in actionable points.
     - LANGUAGE: ${config.language}.
     - FORMAT: RAW JSON ONLY.
 
@@ -87,8 +76,8 @@ export const createPresentationWorkflow = async (
         { 
           "title": "A Profound Strategic Heading", 
           "content": [
-            "Comprehensive technical implication or insight 1...",
-            "Deep methodological analysis or discovery 2...",
+            "Comprehensive technical implication 1...",
+            "Deep methodological analysis 2...",
             "Strategic framework or future projection 3..."
           ]
         }
@@ -98,7 +87,6 @@ export const createPresentationWorkflow = async (
     let aiResText = await callAiProxy('groq', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    // Extract JSON from potential noise
     if (aiResText.includes('{')) {
       const start = aiResText.indexOf('{');
       const end = aiResText.lastIndexOf('}');
@@ -113,25 +101,25 @@ export const createPresentationWorkflow = async (
     // ==========================================
     
     // --- COVER SLIDE (Centered Gravity) ---
-    onProgress?.("Designing Cover...");
+    onProgress?.("Designing Cover Slide...");
     const cover = pptx.addSlide();
-    cover.background = { color: '0F172A' }; // Dark Premium Background
+    cover.background = { color: '0F172A' }; 
 
-    // Decorative Shapes
-    cover.addShape(pptx.ShapeType.ellipse, { x: 6, y: -1, w: 6, h: 6, fill: { color: primaryColor, transparency: 85 } });
-    cover.addShape(pptx.ShapeType.rect, { x: 1, y: 4.8, w: 0.5, h: 0.05, fill: { color: secondaryColor } });
-
-    // Title Center
+    // Decor
+    cover.addShape(pptx.ShapeType.ellipse, { x: 7, y: -1, w: 5, h: 5, fill: { color: primaryColor, transparency: 80 } });
+    
+    // Title Box (Fixed size, Auto-fit font)
     cover.addText(config.title.toUpperCase(), {
-      x: 1, y: 1.5, w: 8, h: 2,
-      fontSize: 38, fontFace: FONT_MAIN, color: 'FFFFFF', bold: true,
-      align: 'center', valign: 'middle', breakLine: true
+      x: 1.0, y: 1.8, w: 8.0, h: 1.5,
+      fontSize: 36, fontFace: FONT_MAIN, color: 'FFFFFF', bold: true,
+      align: 'center', valign: 'middle', 
+      autoFit: true, breakLine: true
     });
 
-    // Presenters
+    // Presenter Box
     cover.addText(config.presenters.join(' • '), {
-      x: 1, y: 3.8, w: 8, h: 0.5,
-      fontSize: 12, fontFace: FONT_MAIN, color: '94A3B8', align: 'center', bold: true
+      x: 1.0, y: 3.5, w: 8.0, h: 0.4,
+      fontSize: 11, fontFace: FONT_MAIN, color: '94A3B8', align: 'center', bold: true
     });
 
     // --- CONTENT SLIDES ---
@@ -140,68 +128,63 @@ export const createPresentationWorkflow = async (
       const slide = pptx.addSlide();
       slide.background = { color: BG_GLOBAL };
 
-      // Header: Left Accent Box + Title
-      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.5, w: 0.08, h: 0.6, fill: { color: primaryColor } });
+      // Header: Left Border Box + Title
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.5, w: 0.1, h: 0.6, fill: { color: primaryColor } });
       slide.addText(sData.title, {
         x: 0.75, y: 0.5, w: 8.5, h: 0.6,
-        fontSize: 24, fontFace: FONT_MAIN, color: '1E293B', bold: true, align: 'left', valign: 'middle'
+        fontSize: 22, fontFace: FONT_MAIN, color: '1E293B', bold: true, align: 'left', valign: 'middle'
       });
 
       // Line Separator
-      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.2, w: 9, h: 0.01, fill: { color: 'CBD5E1' } });
+      slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.15, w: 9, h: 0.01, fill: { color: 'E2E8F0' } });
 
-      // Body: Glassmorphism Card
-      const cardX = 0.5;
-      const cardY = 1.5;
-      const cardW = 9.0;
-      const cardH = 3.6;
-      drawGlassCard(slide, cardX, cardY, cardW, cardH);
+      // Body Card (Glassmorphism)
+      drawGlassCard(slide, 0.5, 1.4, 9.0, 3.8);
 
       const textObjects = sData.content.map((line: string) => ({
         text: cleanText(line),
         options: {
-          fontSize: getSmartFontSize(sData.content.join(' '), 13),
+          fontSize: 12,
           fontFace: FONT_MAIN,
           color: '334155',
-          lineSpacing: 22,
+          lineSpacing: 24, // Consistent 1.0 spacing
           bullet: { type: 'bullet', color: primaryColor },
           breakLine: true
         }
       }));
 
       slide.addText(textObjects, {
-        x: cardX + 0.3, y: cardY + 0.3, w: cardW - 0.6, h: cardH - 0.6,
+        x: 0.8, y: 1.7, w: 8.4, h: 3.2,
         valign: 'top', wrap: true
       });
 
-      // Branding Footer
       slide.addText(`XEENAPS KNOWLEDGE ANCHOR • 0${idx + 1}`, {
-        x: 0.5, y: 5.2, w: 9, h: 0.3,
-        fontSize: 8, fontFace: FONT_MAIN, color: '94A3B8', align: 'right', bold: true
+        x: 0.5, y: 5.3, w: 9, h: 0.3,
+        fontSize: 7, fontFace: FONT_MAIN, color: '94A3B8', align: 'right', bold: true
       });
     });
 
-    // --- CLOSING: BIBLIOGRAPHY ---
+    // --- BIBLIOGRAPHY SLIDE ---
     onProgress?.("Finalizing Bibliography...");
     const bibSlide = pptx.addSlide();
-    bibSlide.background = { color: 'F1F5F9' };
+    bibSlide.background = { color: 'F8FAFC' };
 
     bibSlide.addText("BIBLIOGRAPHY", {
-      x: 1, y: 0.8, w: 8, h: 0.5,
-      fontSize: 28, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
+      x: 1, y: 0.6, w: 8, h: 0.6,
+      fontSize: 26, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
     });
 
-    drawGlassCard(bibSlide, 1, 1.5, 8, 3);
+    drawGlassCard(bibSlide, 1, 1.4, 8, 3.5);
     
     const citation = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
     bibSlide.addText(cleanText(citation), {
-      x: 1.3, y: 1.8, w: 7.4, h: 2.4,
-      fontSize: 12, fontFace: FONT_MAIN, color: '475569', align: 'left', italic: true, lineSpacing: 24
+      x: 1.4, y: 1.8, w: 7.2, h: 2.8,
+      fontSize: 12, fontFace: FONT_MAIN, color: '475569', align: 'left', italic: true, lineSpacing: 26
     });
 
     bibSlide.addText("Knowledge Anchored by Xeenaps", {
-      x: 0, y: 5.1, w: 10, h: 0.3,
-      fontSize: 9, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
+      x: 0, y: 5.2, w: 10, h: 0.3,
+      fontSize: 8, fontFace: FONT_MAIN, color: primaryColor, bold: true, align: 'center'
     });
 
     // ==========================================
@@ -215,7 +198,7 @@ export const createPresentationWorkflow = async (
       collectionIds: [item.id],
       title: config.title,
       presenters: config.presenters,
-      templateName: PresentationTemplate.MODERN, // Default internal mapping
+      templateName: PresentationTemplate.MODERN,
       themeConfig: {
         primaryColor: `#${primaryColor}`,
         secondaryColor: `#${secondaryColor}`,
