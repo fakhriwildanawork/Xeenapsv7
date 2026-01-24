@@ -106,6 +106,10 @@ export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, m
     signal
   });
   
+  if (!response.ok) {
+    throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+  }
+
   const result = await response.json();
   if (result && result.status === 'success') return result.data;
   throw new Error(result?.message || 'AI Proxy failed to return a successful response.');
