@@ -4,89 +4,87 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * XEENAPS DESIGN SYSTEM (XDS) CONSTANTS
- * Inspired by Gamma.ai's high-end editorial aesthetics.
+ * XEENAPS BLOCK ENGINE (XBE) - Version 2.0
+ * A high-fidelity layout engine that treats slides as a collection of aesthetic blocks.
  */
-const XDS = {
-  GRID: {
-    COLS: 12,
-    WIDTH: 10,       // PPTX 16:9 Width
-    HEIGHT: 5.625,   // PPTX 16:9 Height
-    MARGIN: 0.5,     // 5% Safe Margin
-    GUTTER: 0.25,    // Spacing between cards
+const XBE = {
+  LAYOUT: {
+    WIDTH: 10,
+    HEIGHT: 5.625,
+    MARGIN_X: 0.6,    // 6% Safe Zone
+    MARGIN_Y: 0.5,
+    GUTTER: 0.3,      // Premium breathing space
+    GRID_COLS: 12,
+  },
+  STYLE: {
+    RADIUS: 0.2,      // Modern rounded corners
+    CARD_PADDING: 0.4, // Internal box model padding
+    SHADOW_OFFSET: 0.05,
+    BORDER_W: 0.5,
+    SHADOW_OPACITY: 94,
   },
   TYPE: {
-    FONT_HEAD: 'Inter',
-    FONT_BODY: 'Inter',
-    H1_SIZE: 34,
-    H2_SIZE: 24,
-    BODY_SIZE: 13,
-    LINE_HEIGHT: 1.3, // Standard editorial spacing
-  },
-  VISUAL: {
-    RADIUS: 0.15,    // Rounded corners
-    SHADOW_OFFSET: 0.04,
-    SHADOW_OPACITY: 95,
-    BORDER_W: 0.5,   // Hairline border
-    CARD_PADDING: 0.3, // Internal padding (Box Model)
+    FONT: 'Inter',
+    H1_MAX: 32,       // Safer for academic long titles
+    H2_MAX: 22,
+    BODY_SIZE: 12.5,
+    LINE_HEIGHT_H: 1.2,
+    LINE_HEIGHT_B: 1.4, // Editorial spacing
   }
 };
 
-/**
- * EDITORIAL LAYOUT ENGINE
- * Handles programmatic placement, grid snapping, and aesthetic styling.
- */
-class EditorialLayoutEngine {
+class XBEEngine {
   constructor(private pptx: pptxgen, private colors: any) {}
 
   /**
-   * Calculates dimensions based on 12-column grid system
+   * Calculates X and Width based on 12-column grid
    */
-  getGrid(startCol: number, span: number) {
-    const totalSafeW = XDS.GRID.WIDTH - (XDS.GRID.MARGIN * 2);
-    const colW = totalSafeW / XDS.GRID.COLS;
+  getGridDim(colStart: number, colSpan: number) {
+    const safeW = XBE.LAYOUT.WIDTH - (XBE.LAYOUT.MARGIN_X * 2);
+    const colW = safeW / XBE.LAYOUT.GRID_COLS;
     return {
-      x: XDS.GRID.MARGIN + (startCol * colW),
-      w: (span * colW) - XDS.GRID.GUTTER
+      x: XBE.LAYOUT.MARGIN_X + (colStart * colW),
+      w: (colSpan * colW) - XBE.LAYOUT.GUTTER
     };
   }
 
   /**
-   * Renders a "Gamma-style" Card with shadow and rounded corners
+   * Renders a "Gamma-style" Block Card
    */
-  renderCard(slide: pptxgen.Slide, x: number, y: number, w: number, h: number, options: any = {}) {
-    // 1. Render Subtle Shadow
+  addBlockCard(slide: pptxgen.Slide, x: number, y: number, w: number, h: number, fill?: string) {
+    // 1. Soft Shadow Layer
     slide.addShape(this.pptx.ShapeType.rect, {
-      x: x + XDS.VISUAL.SHADOW_OFFSET,
-      y: y + XDS.VISUAL.SHADOW_OFFSET,
+      x: x + XBE.STYLE.SHADOW_OFFSET,
+      y: y + XBE.STYLE.SHADOW_OFFSET,
       w, h,
-      fill: { color: '000000', transparency: XDS.VISUAL.SHADOW_OPACITY },
+      fill: { color: '000000', transparency: XBE.STYLE.SHADOW_OPACITY },
       line: { width: 0 },
-      rectRadius: XDS.VISUAL.RADIUS
+      rectRadius: XBE.STYLE.RADIUS
     });
 
-    // 2. Render Main Card Container
+    // 2. Main Card Layer
     return slide.addShape(this.pptx.ShapeType.rect, {
       x, y, w, h,
-      fill: options.fill || { color: 'FFFFFF' },
-      line: options.line || { color: this.colors.surface.border, width: XDS.VISUAL.BORDER_W },
-      rectRadius: XDS.VISUAL.RADIUS
+      fill: fill ? { color: fill } : { color: 'FFFFFF' },
+      line: { color: fill === this.colors.primary ? this.colors.primary : 'E5E7EB', width: XBE.STYLE.BORDER_W },
+      rectRadius: XBE.STYLE.RADIUS
     });
   }
 
   /**
-   * High-fidelity Text Rendering with auto-scaling and proper line spacing
+   * Renders text with high vertical rhythm
    */
-  renderText(slide: pptxgen.Slide, text: any, options: any) {
-    const isHeading = options.fontSize && options.fontSize >= 20;
-    
+  addTextBlock(slide: pptxgen.Slide, text: any, options: any) {
+    const isHeading = options.fontSize && options.fontSize > 20;
+    const spacing = isHeading ? XBE.TYPE.LINE_HEIGHT_H : XBE.TYPE.LINE_HEIGHT_B;
+
     const baseOpts: pptxgen.TextPropsOptions = {
-      fontFace: XDS.TYPE.FONT_BODY,
+      fontFace: XBE.TYPE.FONT,
       color: this.colors.text.primary,
       align: 'left',
       valign: 'top',
-      lineSpacing: (options.lineSpacing || XDS.TYPE.LINE_HEIGHT) * 10, // PPTXGenJS scaling
-      inset: [XDS.VISUAL.CARD_PADDING, XDS.VISUAL.CARD_PADDING, XDS.VISUAL.CARD_PADDING, XDS.VISUAL.CARD_PADDING],
+      lineSpacing: spacing * 100, // Correct pptxgenjs percentage logic
+      inset: [XBE.STYLE.CARD_PADDING, XBE.STYLE.CARD_PADDING, XBE.STYLE.CARD_PADDING, XBE.STYLE.CARD_PADDING],
       shrinkText: true,
       ...options
     };
@@ -95,46 +93,49 @@ class EditorialLayoutEngine {
   }
 
   /**
-   * Smart Content Block: Adjusts font size based on text density
+   * Complex Block: Card with Title and Bullet List
    */
-  renderSmartContent(slide: pptxgen.Slide, points: string[], x: number, y: number, w: number, h: number, cardOptions: any = {}) {
-    this.renderCard(slide, x, y, w, h, cardOptions);
+  renderContentBlock(slide: pptxgen.Slide, title: string, points: string[], x: number, y: number, w: number, h: number, isAccent = false) {
+    this.addBlockCard(slide, x, y, w, h, isAccent ? this.colors.primary : 'FFFFFF');
+    
+    // Header inside block
+    this.addTextBlock(slide, title.toUpperCase(), {
+      x, y, w, h: 0.8,
+      fontSize: 14, bold: true, color: isAccent ? 'FFFFFF' : this.colors.primary,
+      align: 'left', valign: 'top'
+    });
 
-    const totalChars = points.join(' ').length;
-    let fontSize = XDS.TYPE.BODY_SIZE;
-    if (totalChars > 600) fontSize = 10;
-    else if (totalChars > 400) fontSize = 11.5;
+    // Content inside block (using native array for perfect spacing)
+    const totalContentLen = points.join('').length;
+    const dynamicSize = totalContentLen > 500 ? 10 : (totalContentLen > 300 ? 11 : 12);
 
-    const bulletItems = points.map(p => ({
+    const bulletProps = points.map(p => ({
       text: p,
-      options: { 
-        bullet: { type: 'number', color: this.colors.primary },
-        fontSize: fontSize,
-        color: cardOptions.textColor || this.colors.text.primary
+      options: {
+        bullet: { type: 'number', color: isAccent ? 'FFFFFF' : this.colors.primary },
+        fontSize: dynamicSize,
+        color: isAccent ? 'FFFFFF' : this.colors.text.primary,
+        breakLine: true
       }
     }));
 
-    this.renderText(slide, bulletItems, {
-      x, y, w, h,
-      valign: 'middle',
-      fontSize: fontSize
+    this.addTextBlock(slide, bulletProps, {
+      x, y: y + 0.6, w, h: h - 0.7,
+      fontSize: dynamicSize,
+      valign: 'top'
     });
   }
 }
 
-/**
- * CLEANER
- */
-class ContentSanitizer {
+class Sanitizer {
   static clean(text: any): string {
     if (!text) return "";
-    const str = typeof text === 'string' ? text : String(text);
-    return str.replace(/[\*_#`]/g, '').trim();
+    return String(text).replace(/[\*_#`]/g, '').trim();
   }
 }
 
 /**
- * PRESENTATION SERVICE V9 - GAMMA EDITION
+ * MAIN PRESENTATION WORKFLOW
  */
 export const createPresentationWorkflow = async (
   item: LibraryItem,
@@ -150,18 +151,20 @@ export const createPresentationWorkflow = async (
   onProgress?: (stage: string) => void
 ): Promise<PresentationItem | null> => {
   try {
-    onProgress?.("Architecting design engine...");
+    onProgress?.("Designing block architecture...");
     
     const systemPrompt = `ACT AS A SENIOR DESIGNER FOR GAMMA.AI.
-    CREATE AN ACADEMIC PRESENTATION BluePrint.
+    YOUR MISSION IS TO ARCHITECT A ${config.slidesCount}-SLIDE ACADEMIC STORY.
+
+    TITLE: ${config.title}
+    ABSTRACT: ${item.abstract || item.title}
     
-    RULES:
-    - Precisely ${config.slidesCount} slides.
-    - Diversity in Layouts: HERO, SIDEBAR_ACCENT, SPLIT_GRID, FOCUS_CENTER.
-    - No markdown. JSON only.
-    - Abstract: ${item.abstract || item.title}
-    
-    OUTPUT JSON: { "slides": [{ "title": "", "content": [""], "layoutType": "" }] }`;
+    ESTHETIC GUIDELINES:
+    - Language: ${config.language}.
+    - Layouts: Use "LEFT_ACCENT", "GRID_TWO", "HERO_STATEMENT".
+    - Content: Substantial points (min 4 per slide).
+
+    OUTPUT RAW JSON ONLY: { "slides": [{ "title": "", "content": [""], "layout": "" }] }`;
 
     const aiRes = await callAiProxy('groq', systemPrompt);
     if (!aiRes) throw new Error("AI Refusal");
@@ -176,71 +179,72 @@ export const createPresentationWorkflow = async (
       primary: config.theme.primaryColor?.replace('#', '') || '004A74',
       secondary: config.theme.secondaryColor?.replace('#', '') || 'FED400',
       text: { primary: '1F2937', secondary: '6B7280' },
-      surface: { border: 'E5E7EB', card: 'F9FAFB' }
+      surface: { border: 'E5E7EB' }
     };
 
-    const engine = new EditorialLayoutEngine(pptx, colors);
+    const engine = new XBEEngine(pptx, colors);
 
-    // 1. TITLE SLIDE (Hero Aesthetic)
+    // --- SLIDE 1: PREMIUM HERO COVER ---
     const cover = pptx.addSlide();
-    engine.renderCard(cover, 0, 0, 10, 5.625, { fill: { color: colors.primary }, line: { width: 0 } });
+    engine.addBlockCard(cover, 0.2, 0.2, 9.6, 5.2, colors.primary);
     
-    const titleClean = ContentSanitizer.clean(config.title).toUpperCase();
-    const titleSize = titleClean.length > 50 ? 28 : 36;
-    
-    engine.renderText(cover, titleClean, {
-      x: 0.5, y: 1.2, w: 9, h: 2.5,
-      fontSize: titleSize, color: 'FFFFFF', bold: true, align: 'center', valign: 'middle', charSpacing: 1.2, lineSpacing: 1.1
+    const cleanTitle = Sanitizer.clean(config.title).toUpperCase();
+    const coverTitleSize = cleanTitle.length > 80 ? 20 : (cleanTitle.length > 40 ? 26 : 32);
+
+    engine.addTextBlock(cover, cleanTitle, {
+      x: 0.5, y: 1.0, w: 9, h: 3.5,
+      fontSize: coverTitleSize, color: 'FFFFFF', bold: true, align: 'center', valign: 'middle', 
+      charSpacing: 1.1, lineSpacing: 110
     });
 
-    engine.renderText(cover, config.presenters.join(' • '), {
-      x: 0, y: 4.5, w: 10, align: 'center', fontSize: 10, color: colors.secondary, bold: true, charSpacing: 2
+    engine.addTextBlock(cover, config.presenters.join(' • '), {
+      x: 0.5, y: 4.5, w: 9, align: 'center', fontSize: 10, color: colors.secondary, bold: true, charSpacing: 2
     });
 
-    // 2. CONTENT SLIDES
+    // --- CONTENT SLIDES: EDITORIAL DIVERSITY ---
     slidesData.forEach((s: any, idx: number) => {
-      onProgress?.(`Rendering slide ${idx+1}...`);
+      onProgress?.(`Building slide ${idx+1}...`);
       const slide = pptx.addSlide();
-      const title = ContentSanitizer.clean(s.title);
-      const points = (s.content || []).map(ContentSanitizer.clean);
-      const layout = s.layoutType || 'SPLIT_GRID';
+      const title = Sanitizer.clean(s.title);
+      const points = (s.content || []).map(Sanitizer.clean);
+      const layout = s.layout || 'GRID_TWO';
 
-      if (layout === 'SIDEBAR_ACCENT' || (idx % 4 === 0)) {
-        // Sidebar Layout
-        engine.renderCard(slide, 0, 0, 3.2, 5.625, { fill: { color: colors.primary }, line: { width: 0 } });
-        engine.renderText(slide, title, { 
-          x: 0.2, y: 1.5, w: 2.8, h: 2, fontSize: 24, bold: true, color: 'FFFFFF', valign: 'middle' 
-        });
+      // Global Slide Header (snap to grid)
+      const headDim = engine.getGridDim(0, 12);
+      engine.addTextBlock(slide, title, {
+        x: headDim.x, y: 0.3, w: headDim.w, h: 0.6,
+        fontSize: 20, bold: true, color: colors.primary, align: 'left'
+      });
+
+      // Layout Switcher
+      if (layout === 'LEFT_ACCENT' || (idx % 3 === 0)) {
+        const left = engine.getGridDim(0, 4);
+        const right = engine.getGridDim(4, 8);
         
-        const content = engine.getGrid(4, 8);
-        engine.renderSmartContent(slide, points, content.x, 0.8, content.w, 4.0, { fill: { color: colors.surface.card } });
+        engine.addBlockCard(slide, left.x, 1.0, left.w, 4.0, colors.primary);
+        engine.addTextBlock(slide, title, { x: left.x, y: 1.2, w: left.w, h: 3.6, fontSize: 18, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' });
+        
+        engine.renderContentBlock(slide, "Insight Points", points, right.x, 1.0, right.w, 4.0);
       } 
-      else if (layout === 'FOCUS_CENTER' || (idx % 4 === 1)) {
-        // Centered Focus Layout
-        engine.renderText(slide, title.toUpperCase(), { 
-          x: 0.5, y: 0.4, w: 9, fontSize: 18, bold: true, color: colors.primary, align: 'center' 
-        });
-        
-        const center = engine.getGrid(2, 8);
-        engine.renderSmartContent(slide, points, center.x, 1.2, center.w, 3.8, { fill: { color: colors.surface.card } });
+      else if (layout === 'HERO_STATEMENT' || (idx % 3 === 1)) {
+        const center = engine.getGridDim(2, 8);
+        engine.renderContentBlock(slide, "Key Summary", points, center.x, 1.0, center.w, 4.2);
       }
       else {
-        // Split Grid (Standard)
-        engine.renderText(slide, title, { x: 0.5, y: 0.3, w: 9, fontSize: 22, bold: true, color: colors.primary });
-        
+        // GRID_TWO: Balanced columns
+        const col1 = engine.getGridDim(0, 6);
+        const col2 = engine.getGridDim(6, 6);
         const half = Math.ceil(points.length / 2);
-        const col1 = engine.getGrid(0, 6);
-        const col2 = engine.getGrid(6, 6);
         
-        engine.renderSmartContent(slide, points.slice(0, half), col1.x, 1.0, col1.w, 4.1);
-        engine.renderSmartContent(slide, points.slice(half), col2.x, 1.0, col2.w, 4.1, { fill: { color: colors.surface.card } });
+        engine.renderContentBlock(slide, "Part I", points.slice(0, half), col1.x, 1.0, col1.w, 4.2);
+        engine.renderContentBlock(slide, "Part II", points.slice(half), col2.x, 1.0, col2.w, 4.2, true);
       }
 
-      // Footer
-      engine.renderText(slide, `© XEENAPS • Page ${idx+2}`, { x: 8.5, y: 5.2, w: 1, fontSize: 8, color: colors.text.secondary, align: 'right' });
+      // Branded Footer
+      engine.addTextBlock(slide, `XEENAPS EDITORIAL SYSTEM • PAGE ${idx+2}`, { x: 7.5, y: 5.3, w: 2, fontSize: 7, color: colors.text.secondary, align: 'right' });
     });
 
-    onProgress?.("Exporting to Google Slides...");
+    onProgress?.("Finalizing Google Slides export...");
     const base64 = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentation: Partial<PresentationItem> = {
@@ -264,7 +268,7 @@ export const createPresentationWorkflow = async (
     return out.status === 'success' ? out.data : null;
 
   } catch (error) {
-    console.error("Editorial Engine Error:", error);
+    console.error("XBE Engine Critical Error:", error);
     return null;
   }
 };
