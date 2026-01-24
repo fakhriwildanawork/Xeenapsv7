@@ -8,7 +8,7 @@ import { callAiProxy } from './gasService';
  * Enhanced with: Composite Grid System, Hybrid Layouts, Smart Merging
  */
 
-// Helper functions (sama seperti sebelumnya)
+// Helper functions
 const getContrastColor = (hexColor: string): string => {
   const r = parseInt(hexColor.slice(0, 2), 16);
   const g = parseInt(hexColor.slice(2, 4), 16);
@@ -34,14 +34,14 @@ const getHeadingFontSize = (text: string): number => {
   return 18;
 };
 
-// Enhanced Card Component with better styling
+// Enhanced Card Component
 const drawContentCard = (
   slide: any, 
   x: number, 
   y: number, 
   w: number, 
   h: number, 
-  content: string[],
+  content: string[], // Changed: array of strings
   size: 'S' | 'M' | 'B' | 'XL' = 'M',
   accentColor: string,
   backgroundColor: string
@@ -51,7 +51,7 @@ const drawContentCard = (
   const minFontSize = 8;
   const borderWidth = size === 'S' ? 0.5 : size === 'M' ? 1 : size === 'B' ? 1.5 : 2;
   
-  // Main Card with improved styling
+  // Main Card
   slide.addShape(pptxgen.ShapeType.roundRect, {
     x, y, w, h,
     fill: { color: backgroundColor },
@@ -69,7 +69,7 @@ const drawContentCard = (
     }
   });
 
-  // Left accent border with varying thickness
+  // Left accent border
   const leftBorderWidth = size === 'XL' ? 0.12 : 0.08;
   slide.addShape(pptxgen.ShapeType.rect, {
     x: x + 0.01, 
@@ -137,11 +137,11 @@ const drawContentCard = (
   }
 };
 
-// Composite Layout Generator
+// FIXED: Composite Layout Generator - parameter types fixed
 const createCompositeLayout = (
   slide: any,
   layoutType: string,
-  contents: string[],
+  contents: (string[])[], // Changed: array of string arrays
   cardSizes: string[],
   primaryColor: string,
   secondaryColor: string
@@ -154,58 +154,51 @@ const createCompositeLayout = (
 
   // Define composite layout patterns
   const layoutPatterns: Record<string, Array<{x: number, y: number, w: number, h: number}>> = {
-    // Atas 2 Column, Bawah 1 Merged
     '2TOP_1BOTTOM': [
-      { x: marginX, y: marginY, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Kiri atas
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Kanan atas
-      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW, h: totalH/2 - cardSpacing/2 } // Bawah merged
+      { x: marginX, y: marginY, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW/2 + cardSpacing/2, y: marginY, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW, h: totalH/2 - cardSpacing/2 }
     ],
     
-    // Atas 1 Merged, Bawah 3 Column
     '1TOP_3BOTTOM': [
-      { x: marginX, y: marginY, w: totalW, h: totalH/2 - cardSpacing/2 }, // Atas merged
-      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }, // Bawah kiri
-      { x: marginX + totalW/3, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }, // Bawah tengah
-      { x: marginX + totalW*2/3, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 } // Bawah kanan
+      { x: marginX, y: marginY, w: totalW, h: totalH/2 - cardSpacing/2 },
+      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW/3, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW*2/3, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }
     ],
     
-    // Atas 3 Column, Bawah 2 Column
     '3TOP_2BOTTOM': [
-      { x: marginX, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }, // Atas kiri
-      { x: marginX + totalW/3, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }, // Atas tengah
-      { x: marginX + totalW*2/3, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }, // Atas kanan
-      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Bawah kiri
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 } // Bawah kanan
+      { x: marginX, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW/3, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW*2/3, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
+      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }
     ],
     
-    // Sidebar + Grid
     'SIDEBAR_GRID': [
-      { x: marginX, y: marginY, w: totalW/3 - cardSpacing/2, h: totalH }, // Sidebar kiri
-      { x: marginX + totalW/3 + cardSpacing/2, y: marginY, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Kanan atas
-      { x: marginX + totalW/3 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 } // Kanan bawah
+      { x: marginX, y: marginY, w: totalW/3 - cardSpacing/2, h: totalH },
+      { x: marginX + totalW/3 + cardSpacing/2, y: marginY, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW/3 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }
     ],
     
-    // Cross Layout (T-Shape)
     'CROSS_LAYOUT': [
-      { x: marginX, y: marginY, w: totalW, h: totalH/3 - cardSpacing*0.66 }, // Atas merged
-      { x: marginX, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH*2/3 - cardSpacing/2 }, // Kiri bawah
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH*2/3 - cardSpacing/2 } // Kanan bawah
+      { x: marginX, y: marginY, w: totalW, h: totalH/3 - cardSpacing*0.66 },
+      { x: marginX, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH*2/3 - cardSpacing/2 },
+      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH*2/3 - cardSpacing/2 }
     ],
     
-    // Zigzag Layout
     'ZIGZAG': [
-      { x: marginX, y: marginY, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Kiri atas besar
-      { x: marginX + totalW*2/3 + cardSpacing/2, y: marginY, w: totalW/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Kanan atas kecil
-      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }, // Kiri bawah kecil
-      { x: marginX + totalW/3 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 } // Kanan bawah besar
+      { x: marginX, y: marginY, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW*2/3 + cardSpacing/2, y: marginY, w: totalW/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
+      { x: marginX + totalW/3 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }
     ],
     
-    // Pyramid Layout
     'PYRAMID': [
-      { x: marginX + totalW/4, y: marginY, w: totalW/2, h: totalH/3 }, // Atas tengah
-      { x: marginX, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/3 }, // Tengah kiri
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/3 }, // Tengah kanan
-      { x: marginX, y: marginY + totalH*2/3 + cardSpacing, w: totalW, h: totalH/3 - cardSpacing } // Bawah merged
+      { x: marginX + totalW/4, y: marginY, w: totalW/2, h: totalH/3 },
+      { x: marginX, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/3 },
+      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/3 },
+      { x: marginX, y: marginY + totalH*2/3 + cardSpacing, w: totalW, h: totalH/3 - cardSpacing }
     ]
   };
 
@@ -215,13 +208,10 @@ const createCompositeLayout = (
   pattern.forEach((pos, idx) => {
     if (idx >= contents.length) return;
     
-    const cardContent = Array.isArray(contents[idx]) 
-      ? contents[idx] 
-      : [contents[idx]];
-    
+    const cardContent = contents[idx] || [''];
     const size = (cardSizes[idx] || 'M') as 'S' | 'M' | 'B' | 'XL';
     const bgColor = idx === pattern.length - 1 && layoutType.includes('BOTTOM') 
-      ? secondaryColor + '10'  // Lighter for merged bottom cards
+      ? secondaryColor + '10'
       : secondaryColor + '15';
     
     drawContentCard(
@@ -237,7 +227,7 @@ const createCompositeLayout = (
     );
 
     // Add subtle background pattern for merged cards
-    if (pos.w > totalW * 0.6) { // If card is wide (merged)
+    if (pos.w > totalW * 0.6) {
       slide.addShape(pptxgen.ShapeType.ellipse, {
         x: pos.x + pos.w - 0.6,
         y: pos.y + 0.1,
@@ -282,10 +272,13 @@ export const createPresentationWorkflow = async (
     // ==========================================
     onProgress?.("AI is designing adaptive composite grids...");
     
+    // FIXED: Use available properties from item
+    const additionalSource = item.mainInfo || item.abstract || item.summary || '';
+    
     const blueprintPrompt = `ACT AS A SENIOR INFORMATION ARCHITECT & PRESENTATION DESIGNER.
     SYNTHESIZE THIS SOURCE INTO A PREMIUM STRATEGIC PRESENTATION: "${config.title}"
     SOURCE: ${item.abstract || item.title}
-    ADDITIONAL SOURCES: ${item.fullText?.substring(0, 2000) || ''}
+    ADDITIONAL SOURCES: ${additionalSource.substring(0, 2000)}
     CONTEXT: ${config.context}
     
     CRITICAL REQUIREMENTS:
@@ -353,7 +346,7 @@ export const createPresentationWorkflow = async (
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
 
     // ==========================================
-    // 2. MODERN COVER SLIDE (sama seperti sebelumnya)
+    // 2. MODERN COVER SLIDE
     // ==========================================
     onProgress?.("Crafting Modern Cover...");
     const cover = pptx.addSlide();
@@ -402,7 +395,6 @@ export const createPresentationWorkflow = async (
     // 3. SMART CONTENT SLIDES WITH COMPOSITE LAYOUTS
     // ==========================================
     
-    // Define which layouts are composite
     const compositeLayouts = [
       '2TOP_1BOTTOM', '1TOP_3BOTTOM', '3TOP_2BOTTOM',
       'SIDEBAR_GRID', 'CROSS_LAYOUT', 'ZIGZAG', 'PYRAMID'
@@ -468,13 +460,18 @@ export const createPresentationWorkflow = async (
       const contents = sData.content || [];
       const cardSizes = sData.cardSizes || [];
 
+      // FIXED: Ensure contents is array of arrays
+      const normalizedContents = contents.map((content: any) => 
+        Array.isArray(content) ? content : [content]
+      );
+
       // Choose rendering method based on layout type
       if (compositeLayouts.includes(layout)) {
         // Use composite layout generator
         createCompositeLayout(
           slide,
           layout,
-          contents,
+          normalizedContents, // FIXED: passing array of arrays
           cardSizes,
           primaryColor,
           secondaryColor
@@ -493,17 +490,14 @@ export const createPresentationWorkflow = async (
         for (let row = 0; row < config.rows; row++) {
           for (let col = 0; col < config.cols; col++) {
             const cardIndex = row * config.cols + col;
-            if (cardIndex >= contents.length) continue;
+            if (cardIndex >= normalizedContents.length) continue;
             
             const x = marginX + (col * cardWidth) + cardSpacing;
             const y = marginY + (row * cardHeight) + cardSpacing;
             const w = cardWidth - (cardSpacing * 2);
             const h = cardHeight - (cardSpacing * 2);
             
-            const cardContent = Array.isArray(contents[cardIndex]) 
-              ? contents[cardIndex] 
-              : [contents[cardIndex]];
-            
+            const cardContent = normalizedContents[cardIndex];
             const size = (cardSizes[cardIndex] || 'M') as 'S' | 'M' | 'B' | 'XL';
             
             drawContentCard(
@@ -562,8 +556,9 @@ export const createPresentationWorkflow = async (
     const bibItems = [];
     if (item.bibHarvard) {
       bibItems.push(...item.bibHarvard.split('\n').filter(Boolean));
-    } else if (item.authors && item.year && item.title) {
-      bibItems.push(`${item.authors.join(', ')} (${item.year}). ${item.title}.`);
+    } else if (item.authors && item.year) {
+      const year = typeof item.year === 'string' ? item.year : String(item.year);
+      bibItems.push(`${item.authors.join(', ')} (${year}). ${item.title}.`);
     }
     
     // Create numbered list
@@ -571,28 +566,45 @@ export const createPresentationWorkflow = async (
       `${idx + 1}. ${item.replace(/[\*_#]/g, '').trim()}`
     );
 
-    // Use composite layout for bibliography if multiple items
-    if (bibItems.length > 3) {
-      createCompositeLayout(
-        bibSlide,
-        '2TOP_1BOTTOM',
-        [
-          bibContent.slice(0, Math.ceil(bibContent.length/2)),
-          bibContent.slice(Math.ceil(bibContent.length/2))
-        ],
-        ['B', 'B'],
-        primaryColor,
-        secondaryColor
-      );
+    // FIXED: Handle bibliography display
+    if (bibItems.length > 0) {
+      if (bibItems.length > 3) {
+        // Split into two columns
+        const half = Math.ceil(bibContent.length / 2);
+        const leftColumn = bibContent.slice(0, half);
+        const rightColumn = bibContent.slice(half);
+        
+        createCompositeLayout(
+          bibSlide,
+          '2TOP_1BOTTOM',
+          [leftColumn, rightColumn],
+          ['B', 'B'],
+          primaryColor,
+          secondaryColor
+        );
+      } else {
+        drawContentCard(
+          bibSlide, 
+          0.8, 
+          1.2, 
+          8.4, 
+          3.5, 
+          bibContent,
+          'XL',
+          primaryColor,
+          secondaryColor + '10'
+        );
+      }
     } else {
+      // Fallback if no bibliography
       drawContentCard(
         bibSlide, 
         0.8, 
         1.2, 
         8.4, 
         3.5, 
-        bibContent,
-        'XL',
+        ['No bibliography available for this item'],
+        'M',
         primaryColor,
         secondaryColor + '10'
       );
@@ -614,6 +626,7 @@ export const createPresentationWorkflow = async (
     onProgress?.("Securing to Xeenaps Cloud Node...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
+    // FIXED: Remove layoutStrategy from PresentationItem since it's not in the type
     const presentationData: Partial<PresentationItem> = {
       id: crypto.randomUUID(),
       collectionIds: [item.id],
@@ -627,7 +640,7 @@ export const createPresentationWorkflow = async (
         headingFont: FONT_MAIN
       },
       slidesCount: config.slidesCount,
-      layoutStrategy: 'COMPOSITE_GRID',
+      // layoutStrategy: 'COMPOSITE_GRID', // REMOVED: not in PresentationItem type
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -659,4 +672,4 @@ export const fetchRelatedPresentations = async (collectionId: string): Promise<P
   } catch (error) {
     return [];
   }
-}; 
+};
