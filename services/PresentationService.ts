@@ -5,8 +5,8 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - THE "GAMMA ARCHITECT" ENGINE V6 (REFACTORED)
- * Focus: Template-Driven Layouts, Smart Typography, Zero-Overflows.
+ * PresentationService - THE "GAMMA ARCHITECT" ENGINE V6.1
+ * Focus: Correct PptxGenJS v4.x Implementation for Multi-line Text & Bullets.
  */
 
 export const createPresentationWorkflow = async (
@@ -34,14 +34,11 @@ export const createPresentationWorkflow = async (
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
     const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
     
-    // Font Settings
-    const FONT_TITLE = 'Montserrat'; // Modern & Bold
-    const FONT_BODY = 'Open Sans';    // Highly Readable
-    const BG_GLOBAL = 'F8FAFC';       // Off-white luxury feel
+    const FONT_TITLE = 'Montserrat';
+    const FONT_BODY = 'Open Sans';
+    const BG_GLOBAL = 'F8FAFC';
     const BG_CARD = 'FFFFFF';
 
-    // Layout Strategy Mapping (Sistem Mengontrol Visual, Bukan AI)
-    // Menggunakan Enum value langsung sebagai key untuk type-safety
     const TEMPLATE_LAYOUT_STRATEGY: Record<string, string[]> = {
       [PresentationTemplate.MODERN]: ['SPLIT_FOCUS', 'DUO_GRID', 'EDITORIAL_LIST', 'SPLIT_FOCUS', 'EDITORIAL_LIST', 'HERO_CARD'],
       [PresentationTemplate.CORPORATE]: ['EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST', 'EDITORIAL_LIST'],
@@ -54,10 +51,8 @@ export const createPresentationWorkflow = async (
     // 2. HELPER FUNCTIONS (The "Smart" Engine)
     // ==========================================
 
-    // Bersihkan teks dari markdown
     const cleanText = (text: string) => text.replace(/[\*_#]/g, '').trim();
 
-    // Hitung ukuran font berdasarkan panjang teks (Anti-tumpang tindih)
     const getSmartFontSize = (text: string, baseSize: number) => {
       const len = text.length;
       if (len > 800) return Math.max(10, baseSize - 5);
@@ -66,7 +61,6 @@ export const createPresentationWorkflow = async (
       return baseSize;
     };
 
-    // Fungsi Universal untuk membuat Kartu Cantik (Gamma Style)
     const createCard = (
       slide: any, 
       textLines: string[], 
@@ -75,7 +69,7 @@ export const createPresentationWorkflow = async (
       w: number, 
       options?: { accent?: boolean, title?: string }
     ) => {
-      const textContent = textLines.map(cleanText);
+      const textContent = textLines.map(cleanText).filter(t => t.length > 0);
       const fullText = textContent.join(' ');
       
       const estimatedHeight = Math.min(4.0, (textContent.length * 0.35) + 0.8);
@@ -83,7 +77,7 @@ export const createPresentationWorkflow = async (
       const cardOpts: any = {
         x: x, y: y, w: w, h: estimatedHeight,
         fill: { color: options?.accent ? primaryColor + '10' : BG_CARD }, 
-        line: { color: options?.accent ? primaryColor : '#E2E8F0', width: options?.accent ? 1 : 1 },
+        line: { color: options?.accent ? primaryColor : 'E2E8F0', width: 1 },
         rectRadius: 0.2,
         shadow: {
           type: 'outer',
@@ -107,12 +101,26 @@ export const createPresentationWorkflow = async (
         textStartY += 0.5;
       }
 
-      slide.addText(textContent, {
-        x: x + 0.25, y: textStartY, w: w - 0.5, h: estimatedHeight - (textStartY - y) - 0.2,
-        fontSize: fontSize, fontFace: FONT_BODY, color: '#334155',
-        lineSpacing: lineSpacing,
-        bullet: { type: options?.accent ? 'number' : 'bullet', color: primaryColor },
-        bodyProp: { wrap: true }
+      // FIX: Konversi array string menjadi array objek teks (PptxGenJS v4 requirement)
+      const textObjects = textContent.map(line => ({
+        text: line,
+        options: {
+          fontSize: fontSize,
+          fontFace: FONT_BODY,
+          color: '334155',
+          lineSpacing: lineSpacing,
+          bullet: options?.accent ? { type: 'number', color: primaryColor } : { type: 'bullet', color: primaryColor },
+          breakLine: true
+        }
+      }));
+
+      slide.addText(textObjects, {
+        x: x + 0.25, 
+        y: textStartY, 
+        w: w - 0.5, 
+        h: estimatedHeight - (textStartY - y) - 0.2,
+        valign: 'top',
+        wrap: true
       });
     };
 
@@ -124,14 +132,14 @@ export const createPresentationWorkflow = async (
       slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.15, h: 5.625, fill: { color: primaryColor } });
       slide.addText(`0${slideNumber}`, { 
         x: 0.4, y: 0.4, w: 0.5, h: 0.4, 
-        fontSize: 9, fontFace: FONT_TITLE, color: '#94A3B8', bold: true 
+        fontSize: 9, fontFace: FONT_TITLE, color: '94A3B8', bold: true 
       });
       slide.addText(title, { 
         x: 1.2, y: 0.4, w: 8.3, h: 0.8, 
-        fontSize: 28, fontFace: FONT_TITLE, color: '#1E293B', bold: true, 
+        fontSize: 28, fontFace: FONT_TITLE, color: '1E293B', bold: true, 
         lineSpacing: 34 
       });
-      slide.addShape(pptx.ShapeType.rect, { x: 1.2, y: 1.1, w: 8.3, h: 0.02, fill: { color: '#CBD5E1' } });
+      slide.addShape(pptx.ShapeType.rect, { x: 1.2, y: 1.1, w: 8.3, h: 0.02, fill: { color: 'CBD5E1' } });
       return 1.3;
     };
 
@@ -194,7 +202,7 @@ export const createPresentationWorkflow = async (
       "slides": [
         { 
           "title": "Deep Strategic Title", 
-          "content": ["Comprehensive discovery 1...", "Detailed implication 2...", "Technical methodology 3..."]
+          "content": ["Discovery 1", "Detailed implication 2", "Technical methodology 3"]
         }
       ]
     }`;
@@ -215,11 +223,9 @@ export const createPresentationWorkflow = async (
     // 5. SLIDE GENERATION LOOP
     // ==========================================
     
-    // --- COVER SLIDE ---
     onProgress?.("Designing Cover Slide...");
     const slide1 = pptx.addSlide();
     
-    // Design Cover Template-Aware
     if (config.template === PresentationTemplate.CORPORATE) {
       slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 5.625, fill: { color: 'FFFFFF' } });
       slide1.addShape(pptx.ShapeType.rect, { x: 1, y: 4.5, w: 8, h: 0.05, fill: { color: primaryColor } });
@@ -230,15 +236,13 @@ export const createPresentationWorkflow = async (
       slide1.addShape(pptx.ShapeType.rect, { x: 1, y: 4.5, w: 1, h: 0.1, fill: { color: secondaryColor } });
       slide1.addText(config.title, { x: 1, y: 1.5, w: 8, h: 2.5, fontSize: 44, fontFace: FONT_TITLE, color: 'FFFFFF', bold: true, align: 'left', lineSpacing: 50 });
     }
-    slide1.addText(config.presenters.join(' • '), { x: 1, y: 5, w: 8, h: 0.4, fontSize: 12, fontFace: FONT_BODY, color: '#64748B', align: 'center' });
+    slide1.addText(config.presenters.join(' • '), { x: 1, y: 5, w: 8, h: 0.4, fontSize: 12, fontFace: FONT_BODY, color: '64748B', align: 'center' });
 
-    // --- CONTENT SLIDES ---
     blueprint.slides.forEach((sData: any, idx: number) => {
       onProgress?.(`Architecting Slide ${idx + 2}...`);
       const slide = pptx.addSlide();
       slide.background = { color: BG_GLOBAL };
 
-      // Dispatch Layout - config.template adalah string Enum value
       const strategyKey = TEMPLATE_LAYOUT_STRATEGY[config.template] ? config.template : 'DEFAULT';
       const layoutSequence = TEMPLATE_LAYOUT_STRATEGY[strategyKey];
       const currentLayout = layoutSequence[idx % layoutSequence.length];
@@ -255,7 +259,7 @@ export const createPresentationWorkflow = async (
 
       slide.addText(`XEENAPS KNOWLEDGE SERIES • SLIDE ${idx + 2}`, { 
         x: 0.5, y: 5.25, w: 9, h: 0.3, 
-        fontSize: 8, fontFace: FONT_BODY, color: '#94A3B8', align: 'right' 
+        fontSize: 8, fontFace: FONT_BODY, color: '94A3B8', align: 'right' 
       });
     });
 
@@ -268,8 +272,8 @@ export const createPresentationWorkflow = async (
     
     const citation = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}. ${item.publisher || 'Internal Repository'}.`;
     
-    lastSlide.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.5, w: 9, h: 3, fill: { color: BG_CARD }, line: { color: '#E2E8F0' }, rectRadius: 0.2 });
-    lastSlide.addText(cleanText(citation), { x: 1, y: 2, w: 8, h: 2, fontSize: 12, fontFace: FONT_BODY, color: '#475569', italic: true, lineSpacing: 20 });
+    lastSlide.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.5, w: 9, h: 3, fill: { color: BG_CARD }, line: { color: 'E2E8F0' }, rectRadius: 0.2 });
+    lastSlide.addText(cleanText(citation), { x: 1, y: 2, w: 8, h: 2, fontSize: 12, fontFace: FONT_BODY, color: '475569', italic: true, lineSpacing: 20 });
     lastSlide.addText("Knowledge Anchored by Xeenaps PKM", { x: 0, y: 5.1, w: 10, h: 0.3, fontSize: 9, fontFace: FONT_TITLE, color: primaryColor, bold: true, align: 'center' });
 
     // ==========================================
