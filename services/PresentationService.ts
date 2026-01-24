@@ -50,8 +50,12 @@ export const createPresentationWorkflow = async (
       ]
     }`;
 
-    // Use Gemini 3 Flash for high speed and better reliability on free tier keys
-    let aiResText = await callAiProxy('gemini', blueprintPrompt, 'gemini-3-flash-preview');
+    /**
+     * EKSKUSI: Menghapus parameter modelOverride.
+     * Sekarang callAiProxy hanya mengirim provider 'gemini'. 
+     * Backend GAS akan otomatis mengambil nama model dari Spreadsheet AI_CONFIG.
+     */
+    let aiResText = await callAiProxy('gemini', blueprintPrompt);
     
     if (!aiResText) throw new Error("AI Architect returned an empty response.");
 
