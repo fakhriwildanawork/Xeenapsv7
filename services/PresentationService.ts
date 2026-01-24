@@ -147,8 +147,10 @@ class EditorialLayoutEngine {
  * CONTENT OPTIMIZER
  */
 class ContentSanitizer {
-  static clean(text: string): string {
-    return text ? text.replace(/[\*_#`]/g, '').trim() : "";
+  static clean(text: any): string {
+    if (text === null || text === undefined) return "";
+    const str = typeof text === 'string' ? text : String(text);
+    return str.replace(/[\*_#`]/g, '').trim();
   }
 }
 
