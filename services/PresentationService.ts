@@ -5,134 +5,100 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS UNIVERSAL ARCHITECT V8.5
- * Optimized for: Vercel Deployment, High-Contrast Visibility, & Auto-Fit Precision.
+ * PresentationService - XEENAPS UNIVERSAL ARCHITECT V8.6
+ * Optimized for: Extreme Robustness, High-Contrast Visibility, & Auto-Fit Precision.
  */
 
-// Helper functions
+// Helper: Determine high-contrast text color based on background luminance
 const getContrastColor = (hexColor: string): string => {
-  const r = parseInt(hexColor.slice(0, 2), 16);
-  const g = parseInt(hexColor.slice(2, 4), 16);
-  const b = parseInt(hexColor.slice(4, 6), 16);
+  const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
+  const r = parseInt(hex.slice(0, 2), 16) || 255;
+  const g = parseInt(hex.slice(2, 4), 16) || 255;
+  const b = parseInt(hex.slice(4, 6), 16) || 255;
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
   return brightness > 128 ? '1E293B' : 'FFFFFF';
 };
 
-const getTitleFontSize = (text: string): number => {
-  const length = text.length;
-  if (length <= 30) return 44;
-  if (length <= 50) return 36;
-  if (length <= 80) return 30;
-  if (length <= 120) return 26;
-  return 22;
-};
-
 const getHeadingFontSize = (text: string): number => {
-  const length = text.length;
-  if (length <= 20) return 28;
-  if (length <= 40) return 24;
-  if (length <= 60) return 20;
-  return 18;
+  const length = String(text || '').length;
+  if (length <= 20) return 26;
+  if (length <= 40) return 22;
+  if (length <= 60) return 18;
+  return 16;
 };
 
-// Enhanced Card Component - Fixed for Production
+// Enhanced Card Component - Hardened for non-string inputs and unreliable transparency
 const drawContentCard = (
   slide: any, 
   x: number, 
   y: number, 
   w: number, 
   h: number, 
-  content: string[],
+  content: any[],
   size: 'S' | 'M' | 'B' | 'XL' = 'M',
-  accentColor: string,
-  backgroundColor: string
+  accentColor: string
 ) => {
-  // CRITICAL FIX: Use 'roundRect' string instead of pptxgen.ShapeType to avoid Vercel errors
-  const cardTextColor = getContrastColor(backgroundColor.slice(0, 6));
-  const baseFontSize = size === 'S' ? 10 : size === 'M' ? 12 : size === 'B' ? 14 : 16;
-  const minFontSize = 8;
-  const borderWidth = size === 'S' ? 0.5 : size === 'M' ? 1 : size === 'B' ? 1.5 : 2;
+  // Use solid colors for card body to avoid "Black Box" errors in transparency-challenged viewers
+  const cardBgColor = 'F8FAFC'; // Light Gray-Blue for premium visibility
+  const baseFontSize = size === 'S' ? 10 : size === 'M' ? 11 : size === 'B' ? 13 : 15;
+  const borderWidth = size === 'S' ? 0.5 : size === 'M' ? 0.8 : size === 'B' ? 1.2 : 1.5;
   
-  // Main Card - Use 'roundRect' string
+  // 1. Main Card Body
   slide.addShape('roundRect', {
     x, y, w, h,
-    fill: { color: backgroundColor.slice(0, 6), transparency: 90 }, // 90% transparency for soft look
-    line: { 
-      color: accentColor,
-      width: borderWidth,
-      transparency: 50
-    },
-    rectRadius: 0.15,
+    fill: { color: cardBgColor },
+    line: { color: 'E2E8F0', width: borderWidth },
+    rectRadius: 0.1,
     shadow: { 
       type: 'outer', 
-      color: '64748B', 
-      blur: 14, 
-      offset: { x: 0, y: 3 }, 
-      transparency: 90 
+      color: 'CBD5E1', 
+      blur: 10, 
+      offset: { x: 0, y: 2 }, 
+      transparency: 80 
     }
   });
 
-  // Left accent border - Use 'rect' string
-  const leftBorderWidth = size === 'XL' ? 0.12 : 0.08;
+  // 2. Left accent border (Dynamic Color)
   slide.addShape('rect', {
-    x: x + 0.01, 
-    y: y + 0.08, 
-    w: leftBorderWidth, 
-    h: h - 0.16,
-    fill: { color: accentColor }
+    x: x + 0.05, y: y + 0.2, w: 0.04, h: h - 0.4,
+    fill: { color: accentColor.replace('#', '') }
   });
 
-  // Top subtle accent for larger cards
-  if (size === 'B' || size === 'XL') {
-    slide.addShape('rect', {
-      x: x + 0.15, 
-      y: y + 0.04, 
-      w: w - 0.2, 
-      h: 0.006,
-      fill: { color: accentColor, transparency: 40 }
-    });
-  }
-
-  // Text content with smart fitting
-  const textLines = content.map(line => 
-    line.replace(/[\*_#]/g, '')
+  // 3. HARDENED Text Content Processing
+  const safeContent = Array.isArray(content) ? content : [content];
+  const textObjects = safeContent
+    .filter(line => line !== null && line !== undefined)
+    .map(line => {
+      // Cast to string safely to prevent .replace errors
+      const safeLine = String(line)
+        .replace(/[\*_#]/g, '')
         .replace(/\*\*(.*?)\*\*/g, '$1')
         .replace(/\*(.*?)\*/g, '$1')
-        .trim()
-  );
+        .trim();
+        
+      return {
+        text: safeLine,
+        options: {
+          fontSize: baseFontSize,
+          fontFace: 'Inter',
+          color: '1E293B', // Forced High-Contrast Slate
+          lineSpacing: 22,
+          bullet: { type: 'bullet', color: accentColor.replace('#', ''), indent: 0.2 },
+          breakLine: true
+        }
+      };
+    });
 
-  const textObjects = textLines.map(line => ({
-    text: line,
-    options: {
-      fontSize: baseFontSize,
-      fontFace: 'Inter',
-      color: '1E293B', // Forced high contrast dark gray
-      lineSpacing: 18,
-      bullet: { type: 'bullet', color: accentColor, indent: 0.3 },
-      breakLine: true
-    }
-  }));
-
-  slide.addText(textObjects, {
-    x: x + 0.18, 
-    y: y + 0.12, 
-    w: w - 0.25, 
-    h: h - 0.24,
-    valign: 'top', 
-    wrap: true, 
-    shrinkText: true,
-    autoFit: true
-  });
-
-  // Corner decoration for XL cards - Use 'triangle' string
-  if (size === 'XL') {
-    slide.addShape('triangle', {
-      x: x + w - 0.25, 
-      y: y + h - 0.25, 
-      w: 0.2, 
-      h: 0.2,
-      fill: { color: accentColor, transparency: 85 },
-      rotate: 45
+  if (textObjects.length > 0) {
+    slide.addText(textObjects, {
+      x: x + 0.25, 
+      y: y + 0.2, 
+      w: w - 0.4, 
+      h: h - 0.4,
+      valign: 'top', 
+      wrap: true, 
+      autoFit: true,
+      shrinkText: true
     });
   }
 };
@@ -141,98 +107,46 @@ const drawContentCard = (
 const createCompositeLayout = (
   slide: any,
   layoutType: string,
-  contents: (string[])[], 
+  contents: (any[])[], 
   cardSizes: string[],
-  primaryColor: string,
-  secondaryColor: string
+  primaryColor: string
 ) => {
-  const marginX = 0.3;
-  const marginY = 0.8;
-  const totalW = 9.4;
-  const totalH = 4.5;
-  const cardSpacing = 0.1;
+  const marginX = 0.4;
+  const marginY = 1.0;
+  const totalW = 9.2;
+  const totalH = 4.2;
+  const cardSpacing = 0.15;
 
-  // Define composite layout patterns
   const layoutPatterns: Record<string, Array<{x: number, y: number, w: number, h: number}>> = {
     '2TOP_1BOTTOM': [
       { x: marginX, y: marginY, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
       { x: marginX + totalW/2 + cardSpacing/2, y: marginY, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
       { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW, h: totalH/2 - cardSpacing/2 }
     ],
-    
     '1TOP_3BOTTOM': [
       { x: marginX, y: marginY, w: totalW, h: totalH/2 - cardSpacing/2 },
       { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
       { x: marginX + totalW/3, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
       { x: marginX + totalW*2/3, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 }
     ],
-    
-    '3TOP_2BOTTOM': [
-      { x: marginX, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
-      { x: marginX + totalW/3, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
-      { x: marginX + totalW*2/3, y: marginY, w: totalW/3 - cardSpacing*0.66, h: totalH/2 - cardSpacing/2 },
-      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }
-    ],
-    
     'SIDEBAR_GRID': [
       { x: marginX, y: marginY, w: totalW/3 - cardSpacing/2, h: totalH },
       { x: marginX + totalW/3 + cardSpacing/2, y: marginY, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
       { x: marginX + totalW/3 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }
-    ],
-    
-    'CROSS_LAYOUT': [
-      { x: marginX, y: marginY, w: totalW, h: totalH/3 - cardSpacing*0.66 },
-      { x: marginX, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH*2/3 - cardSpacing/2 },
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH*2/3 - cardSpacing/2 }
-    ],
-    
-    'ZIGZAG': [
-      { x: marginX, y: marginY, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
-      { x: marginX + totalW*2/3 + cardSpacing/2, y: marginY, w: totalW/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
-      { x: marginX, y: marginY + totalH/2 + cardSpacing/2, w: totalW/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 },
-      { x: marginX + totalW/3 + cardSpacing/2, y: marginY + totalH/2 + cardSpacing/2, w: totalW*2/3 - cardSpacing/2, h: totalH/2 - cardSpacing/2 }
-    ],
-    
-    'PYRAMID': [
-      { x: marginX + totalW/4, y: marginY, w: totalW/2, h: totalH/3 },
-      { x: marginX, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/3 },
-      { x: marginX + totalW/2 + cardSpacing/2, y: marginY + totalH/3 + cardSpacing/2, w: totalW/2 - cardSpacing/2, h: totalH/3 },
-      { x: marginX, y: marginY + totalH*2/3 + cardSpacing, w: totalW, h: totalH/3 - cardSpacing }
     ]
   };
 
   const pattern = layoutPatterns[layoutType] || layoutPatterns['2TOP_1BOTTOM'];
   
-  // Draw cards based on pattern
   pattern.forEach((pos, idx) => {
-    if (idx >= contents.length) return;
-    
-    const cardContent = contents[idx] || [''];
-    const size = (cardSizes[idx] || 'M') as 'S' | 'M' | 'B' | 'XL';
-    
-    drawContentCard(
-      slide,
-      pos.x,
-      pos.y,
-      pos.w,
-      pos.h,
-      cardContent,
-      size,
-      primaryColor,
-      secondaryColor
-    );
-
-    // Add subtle background pattern for merged cards - Use 'ellipse' string
-    if (pos.w > totalW * 0.6) {
-      slide.addShape('ellipse', {
-        x: pos.x + pos.w - 0.6,
-        y: pos.y + 0.1,
-        w: 0.4,
-        h: 0.4,
-        fill: { color: primaryColor, transparency: 95 },
-        line: { color: primaryColor, width: 0.3, transparency: 90 }
-      });
+    if (idx < contents.length) {
+      drawContentCard(
+        slide,
+        pos.x, pos.y, pos.w, pos.h,
+        contents[idx],
+        (cardSizes[idx] || 'M') as any,
+        primaryColor
+      );
     }
   });
 };
@@ -257,46 +171,25 @@ export const createPresentationWorkflow = async (
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
     const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
     
-    // Modern Color Palette
-    const FONT_MAIN = 'Inter';
-    const BG_GLOBAL = 'FFFFFF';
-    const TEXT_DARK = '1E293B';
-    const TEXT_LIGHT = '64748B';
-
-    // ==========================================
-    // 1. ENHANCED AI SYNTHESIS WITH COMPOSITE LAYOUTS
-    // ==========================================
-    onProgress?.("AI is designing adaptive composite grids...");
+    onProgress?.("AI is synthesizing high-contrast strategy...");
     
-    const additionalSource = item.mainInfo || item.abstract || item.summary || '';
+    const additionalSource = String(item.mainInfo || item.abstract || item.summary || '').substring(0, 2000);
     
-    const blueprintPrompt = `ACT AS A SENIOR INFORMATION ARCHITECT & PRESENTATION DESIGNER.
-    SYNTHESIZE THIS SOURCE INTO A PREMIUM STRATEGIC PRESENTATION: "${config.title}"
-    SOURCE: ${item.abstract || item.title}
-    ADDITIONAL SOURCES: ${additionalSource.substring(0, 2000)}
+    const blueprintPrompt = `ACT AS A SENIOR INFORMATION ARCHITECT.
+    SYNTHESIZE THIS SOURCE INTO A PREMIUM PRESENTATION: "${config.title}"
     CONTEXT: ${config.context}
+    REQUIRED SLIDES: ${config.slidesCount}
+    LAYOUTS: "2TOP_1BOTTOM", "1TOP_3BOTTOM", "SIDEBAR_GRID", "1C1R", "2C1R"
+    LANGUAGE: ${config.language}
     
-    CRITICAL REQUIREMENTS:
-    1. EXACTLY ${config.slidesCount} CONTENT SLIDES.
-    2. FOR EACH SLIDE, CHOOSE THE MOST SUITABLE LAYOUT STRATEGY:
-       
-       A. STANDARD GRID LAYOUTS (for uniform content):
-          - "1C1R", "1C2R", "2C2R", "3C2R"
-       
-       B. COMPOSITE/HYBRID LAYOUTS (for hierarchical content):
-          - "2TOP_1BOTTOM", "1TOP_3BOTTOM", "3TOP_2BOTTOM", "SIDEBAR_GRID", "CROSS_LAYOUT", "ZIGZAG", "PYRAMID"
-    
-    3. For each card, specify size: "S", "M", "B", "XL"
-    4. LANGUAGE: ${config.language}
-    
-    OUTPUT FORMAT: RAW JSON ONLY
+    OUTPUT RAW JSON ONLY:
     {
       "slides": [
         { 
-          "title": "Title Here",
-          "layout": "2TOP_1BOTTOM",
-          "cardSizes": ["B", "B", "XL"],
-          "content": [["Point A"], ["Point B"], ["Point C"]]
+          "title": "Slide Title",
+          "layout": "SIDEBAR_GRID",
+          "cardSizes": ["B", "S", "S"],
+          "content": [["Strategic Pillar 1"], ["Supporting Data A"], ["Supporting Data B"]]
         }
       ]
     }`;
@@ -304,156 +197,99 @@ export const createPresentationWorkflow = async (
     let aiResText = await callAiProxy('groq', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    if (aiResText.includes('{')) {
-      const start = aiResText.indexOf('{');
-      const end = aiResText.lastIndexOf('}');
-      if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
-    }
+    // JSON Cleaning
+    const start = aiResText.indexOf('{');
+    const end = aiResText.lastIndexOf('}');
+    if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
 
-    let blueprint = JSON.parse(aiResText || '{"slides":[]}');
+    let blueprint = JSON.parse(aiResText);
     if (blueprint.presentation && blueprint.presentation.slides) blueprint = blueprint.presentation;
 
-    // ==========================================
-    // 2. MODERN COVER SLIDE (WHITE BACKGROUND)
-    // ==========================================
-    onProgress?.("Crafting Modern Cover...");
+    // --- COVER SLIDE (WHITE BACKGROUND, REFINED PRECISION) ---
+    onProgress?.("Architecting Precision Cover...");
     const cover = pptx.addSlide();
-    cover.background = { color: 'FFFFFF' }; // Forced White
+    cover.background = { color: 'FFFFFF' }; 
 
-    // Modern geometric shapes - Use string literals
+    // Geometric Decoration
     cover.addShape('ellipse', { 
-      x: 8, y: -2, w: 4, h: 4, 
-      fill: { color: primaryColor, transparency: 90 },
-      line: { color: primaryColor, width: 0.5, transparency: 70 }
-    });
-    
-    cover.addShape('rect', { 
-      x: -1, y: 1, w: 3, h: 2, 
-      fill: { color: secondaryColor, transparency: 80 },
-      rotate: 15
+      x: 8.5, y: -0.5, w: 2, h: 2, 
+      fill: { color: primaryColor, transparency: 90 } 
     });
 
-    // Main Title Box - Positioned and Resized for No Overflow
-    cover.addText(config.title.toUpperCase(), {
-      x: 0.5, y: 1.0, w: 9.0, h: 3.5, // Increased height and width
-      fontSize: 36, 
-      fontFace: FONT_MAIN, 
-      color: primaryColor, 
-      bold: true,
-      align: 'center', 
-      valign: 'middle', 
-      autoFit: true, // Crucial for no overflow
-      wrap: true
+    // TITLE: Precision Fit and High Contrast
+    cover.addText(String(config.title).toUpperCase(), {
+      x: 0.5, y: 1.2, w: 9.0, h: 2.5,
+      fontSize: 32, fontFace: 'Inter', color: primaryColor, bold: true,
+      align: 'center', valign: 'middle', 
+      autoFit: true, shrinkText: true, wrap: true
     });
 
-    // Presenters
+    // PRESENTER
     cover.addText(config.presenters.join(' • '), {
-      x: 1.0, y: 4.5, w: 8.0, h: 0.5,
-      fontSize: 14, 
-      fontFace: FONT_MAIN, 
-      color: TEXT_LIGHT, 
-      align: 'center', 
-      bold: true
+      x: 1.0, y: 4.0, w: 8.0, h: 0.4,
+      fontSize: 12, fontFace: 'Inter', color: '64748B', align: 'center', bold: true
     });
 
-    // ==========================================
-    // 3. SMART CONTENT SLIDES WITH COMPOSITE LAYOUTS
-    // ==========================================
-    
-    const compositeLayouts = ['2TOP_1BOTTOM', '1TOP_3BOTTOM', '3TOP_2BOTTOM', 'SIDEBAR_GRID', 'CROSS_LAYOUT', 'ZIGZAG', 'PYRAMID'];
-
+    // --- CONTENT SLIDES ---
     blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Building Composite Slide ${idx + 1}...`);
+      onProgress?.(`Building Adaptive Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
       slide.background = { color: 'FFFFFF' };
 
-      // Modern Slide Header - Use 'rect' string
-      slide.addShape('rect', {
-        x: 0, y: 0, w: 10, h: 0.6,
-        fill: { color: primaryColor, transparency: 95 }
+      // Slide Header
+      slide.addShape('rect', { x: 0.4, y: 0.3, w: 0.06, h: 0.5, fill: { color: primaryColor } });
+      slide.addText(String(sData.title || ''), {
+        x: 0.6, y: 0.3, w: 8.8, h: 0.5,
+        fontSize: getHeadingFontSize(sData.title), fontFace: 'Inter', color: primaryColor, bold: true, 
+        align: 'left', valign: 'middle'
       });
+      slide.addShape('rect', { x: 0.4, y: 0.85, w: 9.2, h: 0.01, fill: { color: secondaryColor } });
 
-      slide.addShape('rect', {
-        x: 0.3, y: 0.1, w: 0.05, h: 0.4,
-        fill: { color: primaryColor }
-      });
-
-      slide.addText(sData.title, {
-        x: 0.5, y: 0.15, w: 8.8, h: 0.5,
-        fontSize: getHeadingFontSize(sData.title), 
-        fontFace: FONT_MAIN, 
-        color: primaryColor, 
-        bold: true, 
-        align: 'left', 
-        valign: 'middle'
-      });
-
-      // Decorative divider - Use 'rect' string
-      slide.addShape('rect', {
-        x: 0.3, y: 0.7, w: 9.4, h: 0.01,
-        fill: { color: secondaryColor, transparency: 30 }
-      });
-
-      const layout = sData.layout || '1C1R';
+      const layout = String(sData.layout || '1C1R');
       const contents = (sData.content || []).map((c: any) => Array.isArray(c) ? c : [c]);
       const cardSizes = sData.cardSizes || [];
 
-      if (compositeLayouts.includes(layout)) {
-        createCompositeLayout(slide, layout, contents, cardSizes, primaryColor, secondaryColor);
+      if (layout.includes('TOP') || layout === 'SIDEBAR_GRID') {
+        createCompositeLayout(slide, layout, contents, cardSizes, primaryColor);
       } else {
-        // Simple fallback
-        drawContentCard(slide, 0.5, 1.2, 9, 3.8, contents[0] || [], 'XL', primaryColor, secondaryColor);
+        // Fallback grid logic
+        const colCount = layout.includes('2C') ? 2 : 1;
+        const cardW = colCount === 2 ? 4.5 : 9.2;
+        contents.forEach((c: any, cIdx: number) => {
+          if (cIdx < colCount) {
+            drawContentCard(slide, 0.4 + (cIdx * 4.7), 1.1, cardW, 4.0, c, 'XL', primaryColor);
+          }
+        });
       }
 
-      // Branding Footer - Use 'rect' string
-      slide.addShape('rect', {
-        x: 0, y: 5.6, w: 10, h: 0.05,
-        fill: { color: primaryColor, transparency: 95 }
-      });
-
-      slide.addText(`XEENAPS KNOWLEDGE ANCHOR v8.5 • 0${idx + 1}`, {
-        x: 0.5, y: 5.65, w: 9, h: 0.3,
-        fontSize: 7, 
-        fontFace: FONT_MAIN, 
-        color: TEXT_LIGHT, 
-        align: 'right', 
-        bold: true
+      // Footer
+      slide.addText(`XEENAPS ANALYTICS • 0${idx + 1}`, {
+        x: 0.5, y: 5.3, w: 9, h: 0.3,
+        fontSize: 7, fontFace: 'Inter', color: 'CBD5E1', align: 'right', bold: true
       });
     });
 
-    // ==========================================
-    // 4. ENHANCED BIBLIOGRAPHY SLIDE
-    // ==========================================
-    onProgress?.("Finalizing References...");
+    // --- BIBLIOGRAPHY ---
     const bibSlide = pptx.addSlide();
     bibSlide.background = { color: 'FFFFFF' };
-    
-    bibSlide.addShape('rect', {
-      x: 0, y: 0, w: 10, h: 0.8,
-      fill: { color: primaryColor, transparency: 95 }
-    });
-
     bibSlide.addText("REFERENCES", {
-      x: 1, y: 0.2, w: 8, h: 0.6,
-      fontSize: 32, 
-      fontFace: FONT_MAIN, 
-      color: primaryColor, 
-      bold: true, 
-      align: 'center'
+      x: 1, y: 0.5, w: 8, h: 0.6,
+      fontSize: 28, fontFace: 'Inter', color: primaryColor, bold: true, align: 'center'
     });
-
+    
     const bibItems = [];
     if (item.bibHarvard) bibItems.push(...item.bibHarvard.split('\n').filter(Boolean));
-    else if (item.authors && item.year) bibItems.push(`${item.authors.join(', ')} (${item.year}). ${item.title}.`);
+    else bibItems.push(`${item.authors?.join(', ')} (${item.year}). ${item.title}.`);
     
-    const bibContent = bibItems.map((it, i) => `${i + 1}. ${it.replace(/[\*_#]/g, '').trim()}`);
+    // Safety processing for bibliography strings
+    const bibContent = bibItems.map((it, i) => {
+      const safeLine = String(it || '').replace(/[\*_#]/g, '').trim();
+      return `${i + 1}. ${safeLine}`;
+    });
 
-    drawContentCard(bibSlide, 0.8, 1.2, 8.4, 3.5, bibContent, 'XL', primaryColor, secondaryColor);
+    drawContentCard(bibSlide, 0.8, 1.4, 8.4, 3.4, bibContent, 'XL', primaryColor);
 
-    // ==========================================
-    // 5. EXPORT & SYNC
-    // ==========================================
-    onProgress?.("Securing to Xeenaps Cloud Node...");
+    onProgress?.("Finalizing Cloud Node sync...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -465,8 +301,8 @@ export const createPresentationWorkflow = async (
       themeConfig: {
         primaryColor: `#${primaryColor}`,
         secondaryColor: `#${secondaryColor}`,
-        fontFamily: FONT_MAIN,
-        headingFont: FONT_MAIN
+        fontFamily: 'Inter',
+        headingFont: 'Inter'
       },
       slidesCount: config.slidesCount,
       createdAt: new Date().toISOString(),
@@ -484,9 +320,9 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Failed to finalize presentation.");
+    throw new Error("Finalization failure.");
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Presentation Engine Failure:", error);
     return null;
   }
