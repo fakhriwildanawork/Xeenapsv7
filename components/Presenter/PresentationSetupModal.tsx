@@ -44,31 +44,33 @@ const PresentationSetupModal: React.FC<PresentationSetupModalProps> = ({ item, o
     e.preventDefault();
     setIsGenerating(true);
     
-    // Custom Workflow with native builder
-    const result = await createPresentationWorkflow(item, {
-      title: formData.title,
-      context: formData.context,
-      presenters: formData.presenters,
-      template: formData.template,
-      theme: {
-        primaryColor: formData.primaryColor.replace('#', ''),
-        secondaryColor: formData.secondaryColor.replace('#', ''),
-        fontFamily: formData.fontFamily,
-        headingFont: 'Inter'
-      },
-      slidesCount: formData.slidesCount,
-      language: formData.language
-    }, (stage) => setProgressStage(stage));
+    try {
+      // Custom Workflow with native builder
+      const result = await createPresentationWorkflow(item, {
+        title: formData.title,
+        context: formData.context,
+        presenters: formData.presenters,
+        template: formData.template,
+        theme: {
+          primaryColor: formData.primaryColor.replace('#', ''),
+          secondaryColor: formData.secondaryColor.replace('#', ''),
+          fontFamily: formData.fontFamily,
+          headingFont: 'Inter'
+        },
+        slidesCount: formData.slidesCount,
+        language: formData.language
+      }, (stage) => setProgressStage(stage));
 
-    if (result) {
-      showXeenapsToast('success', 'Native Presentation Created!');
-      onComplete();
-    } else {
+      if (result) {
+        showXeenapsToast('success', 'Native Presentation Created!');
+        onComplete();
+      }
+    } catch (error: any) {
       Swal.fire({
         ...XEENAPS_SWAL_CONFIG,
         icon: 'error',
         title: 'BUILD FAILED',
-        text: 'The cloud builder encountered an error. Please verify your Drive space or connection.'
+        text: error.message || 'The cloud builder encountered an error. Please verify your settings.'
       });
       setIsGenerating(false);
     }

@@ -96,21 +96,19 @@ export const fetchFileContent = async (fileId: string, nodeUrl?: string): Promis
 };
 
 export const callAiProxy = async (provider: 'groq' | 'gemini', prompt: string, modelOverride?: string, signal?: AbortSignal): Promise<string> => {
-  try {
-    if (!GAS_WEB_APP_URL) throw new Error('GAS_WEB_APP_URL not configured');
-    const response = await fetch(GAS_WEB_APP_URL, {
-      method: 'POST',
-      mode: 'cors',
-      redirect: 'follow',
-      body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride }),
-      signal
-    });
-    const result = await response.json();
-    if (result && result.status === 'success') return result.data;
-    throw new Error(result?.message || 'AI Proxy failed.');
-  } catch (error: any) {
-    return '';
-  }
+  if (!GAS_WEB_APP_URL) throw new Error('VITE_GAS_URL environment variable is missing.');
+  
+  const response = await fetch(GAS_WEB_APP_URL, {
+    method: 'POST',
+    mode: 'cors',
+    redirect: 'follow',
+    body: JSON.stringify({ action: 'aiProxy', provider, prompt, modelOverride }),
+    signal
+  });
+  
+  const result = await response.json();
+  if (result && result.status === 'success') return result.data;
+  throw new Error(result?.message || 'AI Proxy failed to return a successful response.');
 };
 
 const processExtractedText = (extractedText: string, defaultTitle: string = ""): ExtractionResult => {

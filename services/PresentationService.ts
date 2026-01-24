@@ -33,7 +33,7 @@ export const createPresentationWorkflow = async (
     - LANGUAGE: ${config.language}.
     - FOR EACH SLIDE, CHOOSE A LAYOUT: "HERO_TITLE", "CARD_GRID", "SPLIT_CONTENT", "CENTER_SUMMARY".
     - DEFINE "cards" (array of {title, body, iconKeyword}) FOR GRID LAYOUTS.
-    - DEFINE "primaryPoint" AND "secondaryPoint" FOR SPLIT LAYOUTS.
+    - DEFINE "content" (array of strings) FOR SPLIT LAYOUTS.
     - OUTPUT RAW JSON ONLY.
 
     SCHEMA:
@@ -44,24 +44,22 @@ export const createPresentationWorkflow = async (
           "title": "Slide Title", 
           "layout": "CARD_GRID",
           "cards": [{ "title": "Sub", "body": "Text", "icon": "keyword" }],
-          "imageKeyword": "relevant keyword"
+          "imageKeyword": "relevant keyword",
+          "content": ["Optional point 1", "Optional point 2"]
         }
       ]
     }`;
 
-    // Use Gemini 3 Pro for higher reasoning on layouts
-    let aiResText = await callAiProxy('gemini', blueprintPrompt, 'gemini-3-pro-preview');
+    // Use Gemini 3 Flash for high speed and better reliability on free tier keys
+    let aiResText = await callAiProxy('gemini', blueprintPrompt, 'gemini-3-flash-preview');
     
-    if (!aiResText) throw new Error("AI Architect failed.");
+    if (!aiResText) throw new Error("AI Architect returned an empty response.");
 
-    // Clean JSON
-    if (aiResText.includes('{')) {
-      const start = aiResText.indexOf('{');
-      const end = aiResText.lastIndexOf('}');
-      if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
-    }
-
-    const blueprint = JSON.parse(aiResText);
+    // Robust JSON Extractor (removes markdown backticks and extra text)
+    const jsonMatch = aiResText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI Architect did not return a valid JSON structure.");
+    
+    const blueprint = JSON.parse(jsonMatch[0]);
     
     // 2. SEND BLUEPRINT TO GAS BUILDER
     onProgress?.("Transmitting Blueprint to Cloud...");
@@ -84,21 +82,22 @@ export const createPresentationWorkflow = async (
       body: JSON.stringify({
         action: 'savePresentation',
         presentation: presentationData,
-        blueprint: blueprint // Sent blueprint instead of binary PPTX
+        blueprint: blueprint
       })
     });
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Cloud build failed.");
-  } catch (error) {
+    throw new Error(result.message || "Cloud build failed on server side.");
+  } catch (error: any) {
     console.error("Presentation Error:", error);
-    return null;
+    throw error; // Rethrow to allow UI to catch specific message
   }
 };
 
 export const fetchRelatedPresentations = async (collectionId: string): Promise<PresentationItem[]> => {
   try {
+    if (!GAS_WEB_APP_URL) return [];
     const res = await fetch(`${GAS_WEB_APP_URL}?action=getRelatedPresentations&collectionId=${collectionId}`);
     const result = await res.json();
     return result.status === 'success' ? result.data : [];
