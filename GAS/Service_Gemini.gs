@@ -17,10 +17,11 @@ function callGeminiService(prompt, modelOverride) {
       const payload = { 
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.7,
+          temperature: 0.1, // Dikecilkan untuk akurasi struktur JSON
           topP: 0.95,
           topK: 40,
           maxOutputTokens: 8192,
+          responseMimeType: "application/json" // Memaksa output JSON valid
         }
       };
       

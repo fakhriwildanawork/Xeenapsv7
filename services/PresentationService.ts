@@ -18,20 +18,22 @@ const CANVAS_H = 5.625;
  * Menerjemahkan instruksi visual dari AI langsung ke perintah PPTxGenJS
  */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
+  if (!Array.isArray(commands)) return;
+  
   commands.forEach(cmd => {
     try {
       const options: any = {
-        x: cmd.x,
-        y: cmd.y,
-        w: cmd.w,
-        h: cmd.h,
+        x: cmd.x || 0,
+        y: cmd.y || 0,
+        w: cmd.w || 1,
+        h: cmd.h || 1,
       };
 
       if (cmd.type === 'shape') {
         slide.addShape(cmd.kind || 'rect', {
           ...options,
-          fill: { color: (cmd.fill || primaryColor).replace('#', '') },
-          line: cmd.line ? { color: (cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
+          fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
+          line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
           rectRadius: cmd.radius || 0,
           opacity: cmd.opacity || 100
         });
@@ -40,11 +42,11 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
       else if (cmd.type === 'text') {
         const contrastColor = cmd.color || (cmd.onBackground ? getContrastColor(cmd.onBackground) : primaryColor);
         
-        slide.addText(cmd.text, {
+        slide.addText(String(cmd.text || ""), {
           ...options,
           fontSize: cmd.fontSize || 12,
           fontFace: 'Inter',
-          color: contrastColor.replace('#', ''),
+          color: String(contrastColor).replace('#', ''),
           bold: cmd.bold || false,
           italic: cmd.italic || false,
           align: cmd.align || 'left',
@@ -58,7 +60,7 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
       else if (cmd.type === 'line') {
         slide.addShape('line', {
           x: cmd.x, y: cmd.y, w: cmd.w, h: cmd.h,
-          line: { color: (cmd.color || secondaryColor).replace('#', ''), width: cmd.width || 1, dashType: cmd.dash || 'solid' }
+          line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: cmd.width || 1, dashType: cmd.dash || 'solid' }
         });
       }
     } catch (e) {
@@ -102,33 +104,32 @@ export const createPresentationWorkflow = async (
     
     TECHNICAL SPECS:
     - CANVAS: ${CANVAS_W} (W) x ${CANVAS_H} (H) inches.
-    - OUTPUT: JSON array of slides, each slide contains "commands" (array of shapes and text).
+    - OUTPUT: JSON object with "slides" array.
     - COLORS: Hex format WITHOUT '#'.
     - COORDINATES: Inches.
     
-    SPATIAL RULES (ANTI-OVERFLOW):
+    STRICT JSON SANITIZATION RULES:
+    1. ESCAPING: You MUST escape all double quotes within text content with backslashes (\\").
+    2. CLEAN STRINGS: Ensure no raw newlines or special control characters break the JSON structure.
+    3. NO MARKDOWN: Output only the raw JSON string, do not wrap in \`\`\`json blocks.
+    
+    SPATIAL RULES:
     1. MAX DENSITY: 150 characters per 1 square inch of box area.
     2. COLLISION: Maintain 0.2 inch margin between different text elements.
-    3. CONTRAST: Choose text color based on background shape color.
     
-    DESIGN FREEDOM:
-    - Feel free to use decorative shapes, lines, and varied layouts (split screen, sidebar, centered, etc.).
-    - Be creative with positioning to make it look modern and professional.
-    
-    SOURCE MATERIAL: ${config.context}
+    SOURCE MATERIAL: ${config.context.substring(0, 10000)}
     LANGUAGE: ${config.language}
     REQUIRED SLIDES: ${config.slidesCount}
 
-    EXAMPLE COMMANDS:
-    { "type": "shape", "kind": "rect", "x": 0, "y": 0, "w": 4, "h": 5.625, "fill": "${primaryColor}" },
-    { "type": "text", "x": 4.5, "y": 1.5, "w": 5, "h": 3, "text": "Content...", "fontSize": 14, "onBackground": "${primaryColor}" }
-
-    OUTPUT RAW JSON ONLY:
+    OUTPUT SCHEMA:
     {
       "slides": [
         { 
-          "title": "Slide Title",
-          "commands": [ ...array of blueprint commands... ]
+          "title": "string",
+          "commands": [ 
+            { "type": "shape", "kind": "rect", "x": number, "y": number, "w": number, "h": number, "fill": "hex" },
+            { "type": "text", "x": number, "y": number, "w": number, "h": number, "text": "string", "fontSize": number, "bold": boolean }
+          ]
         }
       ]
     }`;
@@ -136,19 +137,32 @@ export const createPresentationWorkflow = async (
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
+    // Sanitasi Respons: Mencari blok JSON pertama jika ada teks sampah
     const start = aiResText.indexOf('{');
     const end = aiResText.lastIndexOf('}');
-    if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
+    if (start !== -1 && end !== -1) {
+      aiResText = aiResText.substring(start, end + 1);
+    }
+
+    // Mekanisme Recovery jika JSON terpotong di akhir (Truncation)
+    if (!aiResText.trim().endsWith('}')) {
+       console.warn("Detected potential truncated JSON, attempting recovery...");
+       if (!aiResText.includes(']')) aiResText += ']}';
+       else if (!aiResText.trim().endsWith('}')) aiResText += '}';
+    }
 
     const blueprint = JSON.parse(aiResText);
+    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
 
-    // Render Slides based on AI Blueprint
+    // Render Slides berdasarkan AI Blueprint
     blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Rendering Architect's Design for Slide ${idx + 1}...`);
+      onProgress?.(`Rendering Design for Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
       
-      // Execute the custom layout designed by AI
-      executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
+      // Eksekusi layout custom dari AI
+      if (sData.commands) {
+        executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
+      }
 
       // Add Footer Branding
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
@@ -188,7 +202,7 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error("Cloud archive failure.");
+    throw new Error(result.message || "Cloud archive failure.");
 
   } catch (error: any) {
     console.error("Blueprint Architect Error:", error);
