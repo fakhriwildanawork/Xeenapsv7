@@ -92,53 +92,42 @@ const RelatedPresentations: React.FC<RelatedPresentationsProps> = ({ collection,
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {presentations.map((ppt) => (
               <div 
                 key={ppt.id}
                 onClick={() => openInGoogleSlides(ppt.gSlidesId)}
-                className="group relative bg-white border border-gray-100 rounded-[2.5rem] p-6 shadow-2xl hover:shadow-[0_45px_100px_rgba(0,0,0,0.15)] hover:-translate-y-3 transition-all duration-500 cursor-pointer overflow-hidden"
-                style={{ borderLeft: `8px solid ${ppt.themeConfig.primaryColor}` }}
+                className="group relative bg-white border border-gray-100 rounded-[2rem] p-6 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer overflow-hidden"
               >
-                {/* Visual Accent Overlay */}
+                {/* Visual Accent */}
                 <div 
-                  className="absolute top-0 right-0 w-40 h-40 opacity-[0.03] translate-x-12 -translate-y-12 rounded-full"
+                  className="absolute top-0 right-0 w-32 h-32 opacity-5 translate-x-8 -translate-y-8 rounded-full"
                   style={{ backgroundColor: ppt.themeConfig.primaryColor }}
                 />
 
-                <div className="flex items-start justify-between mb-8">
-                  <div 
-                    className="p-4 rounded-2xl text-[#004A74] group-hover:scale-110 transition-transform duration-500 shadow-sm"
-                    style={{ backgroundColor: `${ppt.themeConfig.primaryColor}15` }}
-                  >
+                <div className="flex items-start justify-between mb-6">
+                  <div className="p-3 bg-gray-50 rounded-2xl text-[#004A74] group-hover:bg-[#FED400] group-hover:text-[#004A74] transition-colors duration-500">
                     <PresentationChartBarIcon className="w-8 h-8" />
                   </div>
-                  <ArrowTopRightOnSquareIcon className="w-6 h-6 text-gray-200 group-hover:text-[#004A74] transition-colors" />
+                  <ArrowTopRightOnSquareIcon className="w-5 h-5 text-gray-300 group-hover:text-[#004A74] transition-colors" />
                 </div>
 
-                <h3 className="text-xl font-black text-[#004A74] line-clamp-2 leading-tight mb-6 uppercase tracking-tight">{ppt.title}</h3>
+                <h3 className="text-lg font-black text-[#004A74] line-clamp-2 leading-tight mb-4 uppercase">{ppt.title}</h3>
                 
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3 text-gray-400">
-                    <UserGroupIcon className="w-5 h-5 opacity-50" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.15em] line-clamp-1">{ppt.presenters.join(', ')}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <UserGroupIcon className="w-4 h-4" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest line-clamp-1">{ppt.presenters.join(', ')}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-400">
-                    <CalendarDaysIcon className="w-5 h-5 opacity-50" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.15em]">{new Date(ppt.createdAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <CalendarDaysIcon className="w-4 h-4" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{new Date(ppt.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
 
-                <div className="mt-auto pt-6 border-t border-gray-50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span 
-                      className="px-4 py-1.5 text-white text-[9px] font-black rounded-full uppercase tracking-widest shadow-sm"
-                      style={{ backgroundColor: ppt.themeConfig.primaryColor }}
-                    >
-                      {ppt.themeConfig.designStyle || ppt.templateName}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-black text-[#004A74] bg-[#FED400]/20 px-3 py-1 rounded-lg">{ppt.slidesCount} SLIDES</span>
+                <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between">
+                  <span className="px-3 py-1 bg-[#004A74]/5 text-[#004A74] text-[8px] font-black rounded-full uppercase tracking-tighter">{ppt.templateName}</span>
+                  <span className="text-[10px] font-black text-[#004A74]">{ppt.slidesCount} SLIDES</span>
                 </div>
               </div>
             ))}

@@ -1,60 +1,31 @@
 
 import pptxgen from 'pptxgenjs';
-import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig, DesignStyle } from '../types';
+import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
  * PresentationService - XEENAPS BLUEPRINT ARCHITECT V10
- * FOCUS: Elegant Modern UI, Auto-Shrink Text, Rounded Shapes, and Strict Language Alignment.
+ * Fokus: Premium UI/UX, Smart Contrast, Modern Shapes, Charts & Tables.
  */
 
 const CANVAS_W = 10;
 const CANVAS_H = 5.625;
 
 /**
- * Memperbaiki JSON yang terpotong jika terjadi limit token
+ * Kalkulasi kontras warna secara dinamis
  */
-const tryRepairJson = (jsonString: string): string => {
-  let str = jsonString.trim();
-  if (!str.startsWith('{')) return str;
-
-  const openBraces = (str.match(/\{/g) || []).length;
-  const closeBraces = (str.match(/\}/g) || []).length;
-  const openBrackets = (str.match(/\[/g) || []).length;
-  const closeBrackets = (str.match(/\]/g) || []).length;
-
-  if (!str.endsWith('"') && str.match(/"[^"]*$/)) str += '"';
-  for (let i = 0; i < (openBrackets - closeBrackets); i++) str += ']';
-  for (let i = 0; i < (openBraces - closeBraces); i++) str += '}';
-  
-  return str;
+const getContrastColor = (hexColor: string): string => {
+  const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
+  const r = parseInt(hex.slice(0, 2), 16) || 255;
+  const g = parseInt(hex.slice(2, 4), 16) || 255;
+  const b = parseInt(hex.slice(4, 6), 16) || 255;
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 128 ? '1E293B' : 'FFFFFF'; // Gelap untuk background terang, Putih untuk background gelap
 };
 
 /**
- * Master Layout Generator - Menghasilkan base modern untuk setiap slide
- */
-const applyMasterLayout = (slide: any, style: DesignStyle, primary: string, secondary: string, isTitle: boolean = false) => {
-  const pColor = primary.replace('#', '');
-  const sColor = secondary.replace('#', '');
-
-  slide.background = { color: 'FFFFFF' };
-
-  if (isTitle) {
-    // Title Slide Modern Accents
-    slide.addShape('rect', { x: 0, y: 0, w: 0.3, h: 5.625, fill: { color: pColor } });
-    slide.addShape('rect', { x: 9.7, y: 0, w: 0.3, h: 5.625, fill: { color: sColor } });
-    // Decorative background element
-    slide.addShape('rect', { x: 1, y: 1.2, w: 8, h: 3.2, fill: { color: pColor }, opacity: 5, rectRadius: 0.3 });
-  } else {
-    // Content Slide Modern Header
-    slide.addShape('rect', { x: 0.5, y: 0.3, w: 9, h: 0.8, fill: { color: pColor }, rectRadius: 0.15 });
-    slide.addShape('rect', { x: 0.5, y: 1.1, w: 1, h: 0.05, fill: { color: sColor } });
-  }
-};
-
-/**
- * Eksekutor Perintah Visual dari AI
+ * Eksekutor Blueprint V10
  */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
@@ -62,63 +33,86 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
   commands.forEach(cmd => {
     try {
       const options: any = {
-        x: Math.min(Math.max(cmd.x || 0, 0), CANVAS_W - 0.5),
-        y: Math.min(Math.max(cmd.y || 0, 0), CANVAS_H - 0.5),
-        w: Math.min(cmd.w || 1, CANVAS_W - 1),
-        h: Math.min(cmd.h || 1, CANVAS_H - 1),
+        x: cmd.x || 0,
+        y: cmd.y || 0,
+        w: cmd.w || 1,
+        h: cmd.h || 1,
       };
 
-      const fillCol = String(cmd.fill || primaryColor).replace('#', '').toUpperCase();
-      const lineCol = String(cmd.lineColor || secondaryColor).replace('#', '').toUpperCase();
-
+      // 1. SHAPES (Rect, Oval, Triangle, etc)
       if (cmd.type === 'shape') {
         slide.addShape(cmd.kind || 'rect', {
           ...options,
-          fill: { color: fillCol },
-          line: cmd.line ? { color: lineCol, width: cmd.lineWidth || 1 } : undefined,
-          rectRadius: cmd.radius || 0.1, // Modern rounded corners by default
-          opacity: cmd.opacity || 100
+          fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
+          line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
+          rectRadius: cmd.radius || 0.1, // Rounded corners default
+          opacity: cmd.opacity || 100,
+          shadow: cmd.shadow ? { type: 'outer', color: '666666', blur: 3, offset: 2, opacity: 0.3 } : undefined
         });
       } 
       
+      // 2. TEXT (Modern Typography & Smart Contrast)
       else if (cmd.type === 'text') {
-        const textStr = String(cmd.text || "").trim();
-        if (!textStr) return;
-
-        // Warna Teks Cerdas (Kontras)
-        const bgColor = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : (options.y < 1.1 ? primaryColor : 'FFFFFF');
-        const contrastColor = cmd.color || getContrastColor(bgColor);
+        const bgFill = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : null;
+        const textColor = cmd.color ? String(cmd.color).replace('#', '') : (bgFill ? getContrastColor(bgFill) : primaryColor);
         
-        // Ukuran font proporsional (dengan batasan minimum)
-        let fontSize = cmd.fontSize || (options.y < 1.1 ? 24 : 16);
-        if (textStr.length > 100) fontSize = Math.max(fontSize * 0.7, 12);
-
-        slide.addText(textStr, {
+        slide.addText(String(cmd.text || ""), {
           ...options,
-          fontSize: fontSize,
+          fontSize: cmd.fontSize || 12,
           fontFace: 'Inter',
-          color: String(contrastColor).replace('#', '').toUpperCase(),
-          bold: cmd.bold || options.y < 1.1,
-          align: cmd.align || (options.y < 1.1 ? 'center' : 'left'),
-          valign: 'middle',
+          color: textColor.replace('#', ''),
+          bold: cmd.bold || false,
+          italic: cmd.italic || false,
+          align: cmd.align || 'left',
+          valign: cmd.valign || 'top',
           wrap: true,
-          autoFit: true,   
-          shrinkText: true 
+          autoFit: true,
+          shrinkText: true,
+          shadow: cmd.shadow ? { type: 'outer', color: '333333', blur: 1, offset: 1, opacity: 0.2 } : undefined
+        });
+      }
+      
+      // 3. TABLES (Data comparison)
+      else if (cmd.type === 'table') {
+        slide.addTable(cmd.rows || [], {
+          ...options,
+          border: { pt: 1, color: secondaryColor.replace('#', '') },
+          fill: { color: 'F8FAFC' },
+          fontSize: cmd.fontSize || 10,
+          color: primaryColor.replace('#', ''),
+          align: 'center',
+          valign: 'middle'
+        });
+      }
+
+      // 4. CHARTS (Native PPT Data Visualization)
+      else if (cmd.type === 'chart') {
+        const chartType = cmd.chartType || 'bar'; // bar, pie, line
+        slide.addChart(chartType, cmd.data || [], {
+          ...options,
+          showTitle: true,
+          chartTitle: cmd.title || "",
+          chartTitleColor: primaryColor.replace('#', ''),
+          chartTitleFontSize: 14,
+          dataLabelColor: '333333',
+          dataLabelFontSize: 9,
+          showLegend: true,
+          legendPos: 'b',
+          barGapWidthPct: 20
+        });
+      }
+
+      // 5. LINES (Dividers)
+      else if (cmd.type === 'line') {
+        slide.addShape('line', {
+          ...options,
+          line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: cmd.width || 1.5, dashType: cmd.dash || 'solid' }
         });
       }
     } catch (e) {
-      console.warn("Blueprint Command Error:", e);
+      console.warn("Blueprint Execution Warning:", e);
     }
   });
-};
-
-const getContrastColor = (hexColor: string): string => {
-  const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '1E293B' : 'FFFFFF';
 };
 
 export const createPresentationWorkflow = async (
@@ -137,84 +131,80 @@ export const createPresentationWorkflow = async (
     const pptx = new pptxgen();
     pptx.layout = 'LAYOUT_16x9';
     
-    const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
-    const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
-    const designStyle = config.theme.designStyle || DesignStyle.MINIMALIST;
+    const primaryColor = config.theme.primaryColor.replace('#', '');
+    const secondaryColor = config.theme.secondaryColor.replace('#', '');
     
-    onProgress?.("Architecting Slides in " + config.language + "...");
-
-    const bibliographyText = item.bibHarvard || `Reference: ${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
+    onProgress?.("AI Architect is designing your custom layouts...");
     
-    const blueprintPrompt = `ACT AS A SENIOR PRESENTATION ARCHITECT. 
-    LANGUAGE: ${config.language}. (ALL SLIDE CONTENT MUST BE IN ${config.language.toUpperCase()}).
-    STYLE: ${designStyle}. 
-    BRAND COLORS: Primary (#${primaryColor}), Accent (#${secondaryColor}).
+    // Siapkan data bibliografi untuk slide terakhir
+    const bibliographyEntry = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
+
+    const blueprintPrompt = `ACT AS A SENIOR UI/UX ARCHITECT SPECIALIZED IN MODERN SLIDE DESIGN.
+    TASK: Generate a VISUAL BLUEPRINT for a presentation titled: "${config.title}"
     
-    INPUT CONTENT: ${config.context.substring(0, 8000)}
-
-    SLIDE STRUCTURE (TOTAL: ${config.slidesCount}):
-    1. TITLE SLIDE: 
-       - Title: "${config.title}" (Centered, Y=1.8, W=8)
-       - Presenters: "${config.presenters.join(', ')}" (Centered, Y=4.2, W=8)
-    2. BODY SLIDES (${config.slidesCount - 2}): Strategic insights from input.
-    3. BIBLIOGRAPHY: Reference summary.
-
+    BRAND IDENTITY:
+    - PRIMARY COLOR: ${primaryColor} (Use for dominance, backgrounds, headers)
+    - ACCENT COLOR: ${secondaryColor} (Use for emphasis, icons, lines, key points)
+    
+    STRUCTURE RULES:
+    1. SLIDE 1 (COVER): MUST display TITLE: "${config.title}" and PRESENTERS: "${config.presenters.join(', ')}". Make it bold, modern, and centered/left-aligned with large typography.
+    2. LAST SLIDE (BIBLIOGRAPHY): MUST display bibliographic references. Use this text: "${bibliographyEntry}".
+    3. INTERMEDIATE SLIDES: Mix content using shapes (rect, oval, triangle), charts (bar, pie, line), and tables where appropriate.
+    
+    AESTHETIC GUIDELINES:
+    - MODERNISM: Use "oval" kind for decorative blobs, "rect" with "radius": 0.3 for card-style layouts.
+    - DEPTH: Use "shadow": true for shapes and cards to create layering.
+    - CONTRAST: If you place text on a background color, specify "onBackground": "hex" so I can calculate contrast.
+    - DECORATION: Add lines and small shapes as "visual sweets" to empty areas.
+    
     TECHNICAL SPECS:
-    - Background & Headers are ALREADY applied by the system.
-    - Content area for body slides is Y=1.5 to Y=5.0.
-    - Use type: "text" (x, y, w, h, text, fontSize, bold, align, color)
-    - Use type: "shape" (kind: "rect"|"ellipse", x, y, w, h, fill)
-    - Keep text CONCISE. No more than 6 bullets per slide.
-    - OUTPUT RAW JSON ONLY.
+    - Canvas: ${CANVAS_W} (W) x ${CANVAS_H} (H) inches.
+    - COORDINATES: Use Inches.
+    - JSON ONLY: Strictly follow the schema. Escape special characters.
+    
+    CONTENT SOURCE: ${config.context.substring(0, 10000)}
+    LANGUAGE: ${config.language}
+    SLIDES: ${config.slidesCount}
 
-    { "slides": [ { "title": "...", "commands": [...] } ] }`;
+    COMMAND TYPES:
+    - "shape": { kind: "rect"|"oval"|"triangle", x, y, w, h, fill, radius, shadow: boolean, opacity }
+    - "text": { text, x, y, w, h, fontSize, bold, align, color, onBackground, shadow: boolean }
+    - "chart": { chartType: "bar"|"pie"|"line", x, y, w, h, title, data: [{ name: "string", labels: [], values: [] }] }
+    - "table": { rows: [["Col1", "Col2"]], x, y, w, h }
+    - "line": { x, y, w, h, color, width }
+
+    OUTPUT RAW JSON:
+    { "slides": [{ "title": "string", "commands": [] }] }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    let cleanJson = tryRepairJson(aiResText.trim());
-    const firstBrace = cleanJson.indexOf('{');
-    const lastBrace = cleanJson.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
-    }
+    // Sanitasi JSON
+    const start = aiResText.indexOf('{');
+    const end = aiResText.lastIndexOf('}');
+    if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
 
-    let blueprint;
-    try {
-      blueprint = JSON.parse(cleanJson);
-    } catch (e) {
-      throw new Error("Invalid AI Response Structure.");
-    }
+    const blueprint = JSON.parse(aiResText);
+    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
 
-    const slidesData = (blueprint.slides || []).slice(0, config.slidesCount);
-
-    slidesData.forEach((sData: any, idx: number) => {
-      onProgress?.(`Synthesizing Slide ${idx + 1}/${slidesData.length}...`);
+    // Eksekusi Rendering
+    blueprint.slides.forEach((sData: any, idx: number) => {
+      onProgress?.(`Applying Premium UI for Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
       
-      applyMasterLayout(slide, designStyle, primaryColor, secondaryColor, idx === 0);
-
-      // Header title for content slides (consistent placement)
-      if (idx > 0) {
-        slide.addText(sData.title || "", {
-          x: 0.6, y: 0.3, w: 8.8, h: 0.8,
-          fontSize: 24, fontFace: 'Inter', color: 'FFFFFF',
-          bold: true, align: 'center', valign: 'middle'
-        });
-      }
-
+      // Terapkan Blueprint Commands
       if (sData.commands) {
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
-      // Branded Footer
-      slide.addText(`XEENAPS • ${idx + 1}`, {
-        x: 0.5, y: 5.3, w: 9, h: 0.2,
-        fontSize: 7, fontFace: 'Inter', color: 'CBD5E1', align: 'right', bold: true
+      // Branding Footer Tetap Ada
+      slide.addText(`XEENAPS PKM • ${idx + 1}`, {
+        x: 0.5, y: 5.35, w: 9, h: 0.2,
+        fontSize: 7, fontFace: 'Inter', color: '94A3B8', align: 'right', bold: true
       });
     });
 
-    onProgress?.("Encoding Presentation Package...");
+    onProgress?.("Archiving to Xeenaps Cloud Node...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -222,28 +212,33 @@ export const createPresentationWorkflow = async (
       collectionIds: [item.id],
       title: config.title,
       presenters: config.presenters,
+      templateName: PresentationTemplate.MODERN,
       themeConfig: {
         primaryColor: `#${primaryColor}`,
         secondaryColor: `#${secondaryColor}`,
         fontFamily: 'Inter',
-        headingFont: 'Inter',
-        designStyle: designStyle
+        headingFont: 'Inter'
       },
-      slidesCount: slidesData.length,
+      slidesCount: blueprint.slides.length,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'savePresentation', presentation: presentationData, pptxFileData: base64Pptx })
+      body: JSON.stringify({
+        action: 'savePresentation',
+        presentation: presentationData,
+        pptxFileData: base64Pptx
+      })
     });
 
     const result = await res.json();
-    return result.status === 'success' ? result.data : null;
+    if (result.status === 'success') return result.data;
+    throw new Error(result.message || "Cloud archive failure.");
 
   } catch (error: any) {
-    console.error("Presentation Engine Error:", error);
+    console.error("Blueprint Architect Error:", error);
     return null;
   }
 };
