@@ -5,39 +5,19 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V16 (Architectural Precision)
- * Fokus: Anti-Vertical Text, Adaptive Headers, Width-Aware Typography.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V17 (Mastering Layout & Themes)
  */
 
-/**
- * Super Sanitizer V15 - Menghapus semua karakter perusak JSON
- */
 const sanitizeJsonResponse = (text: string): string => {
   if (!text) return "";
   let cleaned = text.trim();
-  
-  if (cleaned.includes('```json')) {
-    cleaned = cleaned.split('```json')[1].split('```')[0].trim();
-  } else if (cleaned.includes('```')) {
-    cleaned = cleaned.split('```')[1].split('```')[0].trim();
-  }
-  
+  if (cleaned.includes('```json')) cleaned = cleaned.split('```json')[1].split('```')[0].trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  if (start !== -1 && end !== -1) {
-    cleaned = cleaned.substring(start, end + 1);
-  }
-
-  return cleaned
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") 
-    .replace(/\\n/g, " ")
-    .replace(/\\r/g, " ")
-    .replace(/\\t/g, " ");
+  if (start !== -1 && end !== -1) cleaned = cleaned.substring(start, end + 1);
+  return cleaned.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/\\n/g, " ").replace(/\\r/g, " ").replace(/\\t/g, " ");
 };
 
-/**
- * Smart Contrast Engine V2 (YIQ Logic)
- */
 const getContrastColor = (hexColor: string): string => {
   const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
   const r = parseInt(hex.slice(0, 2), 16) || 255;
@@ -48,97 +28,65 @@ const getContrastColor = (hexColor: string): string => {
 };
 
 /**
- * Width-Aware Typography V16
- * Menghitung ukuran font berdasarkan panjang teks DAN lebar box.
+ * V17 The Enforcer: Bounding Box Guard
+ * Menjamin elemen tidak keluar slide (10x5.625) dan tidak vertikal.
  */
-const getDynamicFontSize = (text: string, maxWidthInches: number, baseSize: number = 32): number => {
-  const length = text.length;
-  // Rasio presisi V16: ~4.5 karakter per inci pada font 32pt
-  const charCapacity = maxWidthInches * (32 / baseSize) * 4.5;
+const enforceLayoutConstraints = (cmd: any) => {
+  let x = Number(cmd.x) || 1;
+  let y = Number(cmd.y) || 1.6; // Minimal di bawah header
+  let w = Number(cmd.w) || 4;
+  let h = Number(cmd.h) || 1;
+
+  // 1. Anti-Vertical Guard (Lebar minimal 3.5")
+  if (cmd.type === 'text' && w < 3.5) w = 3.5;
+
+  // 2. Slide Boundary Guard (Max 10")
+  if (x + w > 9.5) {
+    if (x > 5) x = 10 - w - 0.5; // Geser ke kiri jika muat
+    else w = 10 - x - 0.5;      // Kecilkan lebar jika terlalu mepet kanan
+  }
   
-  if (length <= charCapacity) return baseSize;
-  const scaleFactor = charCapacity / length;
-  let dynamicSize = Math.floor(baseSize * scaleFactor);
-  
-  // Jika teks sangat panjang (melebihi 2x kapasitas), perkecil lebih drastis
-  if (length > charCapacity * 2) dynamicSize = Math.floor(dynamicSize * 0.9);
-  
-  return Math.max(14, dynamicSize); 
+  // 3. Header Collision Guard
+  if (y < 1.4) y = 1.5;
+
+  return { x, y, w, h };
 };
 
-/**
- * Elite Design Executor V16
- * Implementasi Precision Layout Guard
- */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
   
   commands.forEach(cmd => {
     try {
-      // V16 PRECISION GUARD: Minimal Width & Margin Enforcement
-      const options: any = {
-        x: Math.max(Number(cmd.x) || 0.8, 0.8), // Minimum margin kiri 0.8"
-        y: Math.max(Number(cmd.y) || 1.2, 1.2), // Hindari area header
-        w: Math.max(Number(cmd.w) || 3.5, 3.5), // Minimal lebar 3.5" untuk cegah teks vertikal
-        h: Number(cmd.h) || 1,
-      };
+      const { x, y, w, h } = enforceLayoutConstraints(cmd);
+      const options: any = { x, y, w, h };
 
       if (cmd.type === 'text') {
         const textContent = String(cmd.text || "");
         const bgFill = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : null;
-        let textColor = cmd.color ? String(cmd.color).replace('#', '') : primaryColor.replace('#', '');
-        
+        let textColor = cmd.color ? String(cmd.color).replace('#', '') : '334155';
         if (bgFill) textColor = getContrastColor(bgFill).replace('#', '');
         
-        const baseSize = Number(cmd.fontSize) || 14;
-        const finalSize = cmd.autoScale ? getDynamicFontSize(textContent, options.w, baseSize) : baseSize;
-
         slide.addText(textContent, {
           ...options,
-          fontSize: finalSize,
+          fontSize: Number(cmd.fontSize) || 12,
           fontFace: 'Inter',
           color: textColor,
           bold: !!cmd.bold,
           align: cmd.align || 'left',
           valign: cmd.valign || 'top',
           wrap: true,
-          autoFit: true
+          autoFit: true, // Native pptxgenjs autofit
+          shrinkText: true // Otomatis kecilkan font jika box penuh
         });
       } else if (cmd.type === 'shape') {
         slide.addShape(cmd.kind || 'rect', {
           ...options,
-          fill: { 
-            color: String(cmd.fill || primaryColor).replace('#', ''), 
-            alpha: cmd.glass ? (Number(cmd.opacity) || 20) : (Number(cmd.opacity) || 100) 
-          },
-          line: { 
-            color: String(cmd.lineColor || (cmd.glass ? 'FFFFFF' : secondaryColor)).replace('#', ''), 
-            width: cmd.glass ? 0.5 : (Number(cmd.lineWidth) || 0) 
-          },
-          rectRadius: 0.4,
-          shadow: { type: 'outer', color: '000000', blur: 8, offset: 4, opacity: 0.15 }
+          fill: { color: String(cmd.fill || primaryColor).replace('#', ''), alpha: Number(cmd.opacity) || 100 },
+          line: { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: Number(cmd.lineWidth) || 0 },
+          rectRadius: cmd.radius || 0.1
         });
-      } else if (cmd.type === 'table') {
-        slide.addTable(cmd.rows || [], {
-          ...options,
-          border: { pt: 0.5, color: secondaryColor.replace('#', '') },
-          fill: { color: 'F8FAFC' },
-          fontSize: 10,
-          color: '004A74'
-        });
-      } else if (cmd.type === 'chart') {
-        slide.addChart(cmd.chartType || 'bar', cmd.data || [], {
-          ...options,
-          showTitle: true,
-          chartTitle: String(cmd.title || ""),
-          chartTitleColor: primaryColor.replace('#', '')
-        });
-      } else if (cmd.type === 'line') {
-        slide.addShape('line', { ...options, line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: 2 } });
       }
-    } catch (e) {
-      console.warn("V16 Render Warning:", e);
-    }
+    } catch (e) { console.warn("V17 Render Warning:", e); }
   });
 };
 
@@ -148,6 +96,7 @@ export const createPresentationWorkflow = async (
     title: string;
     context: string;
     presenters: string[];
+    template: PresentationTemplate;
     theme: PresentationThemeConfig;
     slidesCount: number;
     language: string;
@@ -158,61 +107,46 @@ export const createPresentationWorkflow = async (
     const pptx = new pptxgen();
     pptx.layout = 'LAYOUT_16x9';
     const allSlides: any[] = [];
-    
     const primaryColor = config.theme.primaryColor.replace('#', '');
     const secondaryColor = config.theme.secondaryColor.replace('#', '');
-    
-    // 1. MANDATORY COVER (PROCEDURAL)
+
+    // 1. MANDATORY COVER
     onProgress?.("Architecting Elite Cover...");
     const cover = pptx.addSlide();
     allSlides.push(cover);
     cover.addShape('rect', { x: 0, y: 0, w: '100%', h: '100%', fill: { color: primaryColor } });
-    cover.addShape('rect', { x: 0, y: 0, w: '45%', h: '100%', fill: { color: '000000', alpha: 15 } });
-    
-    const coverTitleSize = getDynamicFontSize(config.title, 8.5, 36);
-    cover.addText(config.title.toUpperCase(), {
-      x: 0.8, y: 1.5, w: 8.4, h: 2,
-      fontSize: coverTitleSize, fontFace: 'Inter', color: 'FFFFFF', bold: true, align: 'left', valign: 'bottom'
-    });
+    cover.addText(config.title.toUpperCase(), { x: 0.8, y: 1.5, w: 8.5, h: 2, fontSize: 36, fontFace: 'Inter', color: 'FFFFFF', bold: true, valign: 'bottom' });
     cover.addShape('line', { x: 0.8, y: 3.6, w: 2.5, h: 0, line: { color: secondaryColor, width: 4 } });
-    cover.addText(config.presenters.join(' • '), {
-      x: 0.8, y: 3.8, w: 8, h: 0.5,
-      fontSize: 14, fontFace: 'Inter', color: secondaryColor, bold: true, align: 'left'
-    });
+    cover.addText(config.presenters.join(' • '), { x: 0.8, y: 3.8, w: 8, h: 0.5, fontSize: 14, color: secondaryColor, bold: true });
 
-    // 2. AI COMPOSITION (STRICT PROMPT V16)
-    onProgress?.("AI Librarian is synthesizing content...");
-    const contentCount = Math.max(3, config.slidesCount - 2);
-    const prompt = `ACT AS A SENIOR DESIGNER.
-    Generate ${contentCount} slides for: "${config.title}"
-    Brand: Primary #${primaryColor}, Accent #${secondaryColor}
-    Content: ${config.context.substring(0, 7000)}
+    // 2. TEMPLATE DNA & PROMPT
+    onProgress?.(`Applying ${config.template} DNA...`);
+    const designDNA = {
+      [PresentationTemplate.MODERN]: "Minimalist, generous white space, thin lines, clean grid.",
+      [PresentationTemplate.CREATIVE]: "Dynamic shapes, asymmetric layouts, bold background accents, rotated elements.",
+      [PresentationTemplate.CORPORATE]: "Solid borders, formal headers, perfectly aligned boxes, professional tables.",
+      [PresentationTemplate.ACADEMIC]: "Dual columns, structured citation areas, clean data visualization."
+    };
+
+    const prompt = `ACT AS A SENIOR PRESENTATION ARCHITECT.
+    Template Style: ${config.template} - ${designDNA[config.template]}
+    Generate ${Math.max(3, config.slidesCount - 2)} slides for: "${config.title}"
+    Content: ${config.context || item.abstract || ""}.
     
-    STRICT RULES:
-    - NO Cover/Bibliography slides.
-    - DILARANG meletakkan elemen di x < 0.8 atau y < 1.2.
-    - SETIAP "text" box WAJIB memiliki "w" minimal 3.5.
-    - USE JSON ONLY. NO MARKDOWN. NO PRE-TEXT.
-    - ESCAPE all double quotes in text.
-    - For titles, set "autoScale": true.
+    CRITICAL V17 RULES:
+    1. SLIDE SIZE is 10 x 5.625 inches.
+    2. HEADER AREA is x:0.8, y:0.3, w:8.5, h:1. DO NOT PUT CONTENT HERE.
+    3. MINIMUM WIDTH for text boxes is 3.5 inches. NO VERTICAL TEXT.
+    4. X COORDINATE must be between 0.8 and 6.0.
+    5. Y COORDINATE must be between 1.6 and 4.5.
+    6. USE RAW JSON ONLY. NO MARKDOWN.
     
     FORMAT:
-    { "slides": [{ "title": "...", "commands": [{ "type": "text"|"shape"|"table"|"chart", "x":0, "y":0, "w":3.5, "h":1, ... }] }] }`;
+    { "slides": [{ "title": "...", "commands": [{ "type": "text"|"shape", "x":0.8, "y":1.6, "w":4, "h":1, "text": "..." }] }] }`;
 
     let aiRes = await callAiProxy('gemini', prompt);
     const cleanJson = sanitizeJsonResponse(aiRes);
-    
-    let blueprint;
-    try {
-      blueprint = JSON.parse(cleanJson);
-    } catch (e) {
-      console.error("V16 Parsing Failed. Activating Multi-Slide Recovery.");
-      blueprint = { 
-        slides: [
-          { title: "Executive Summary", commands: [{ type: 'text', text: "Analysis performed via Xeenaps V16 Engine. Summary content unavailable due to structure mismatch.", x: 1, y: 1.5, w: 8, h: 3, fontSize: 16 }] }
-        ] 
-      };
-    }
+    let blueprint = JSON.parse(cleanJson);
 
     // Render Content Slides
     blueprint.slides.forEach((s: any, i: number) => {
@@ -220,41 +154,21 @@ export const createPresentationWorkflow = async (
       const slide = pptx.addSlide();
       allSlides.push(slide);
       
-      // Header Adaptive V16 (Dinamis Berdasarkan Judul)
-      const titleSize = getDynamicFontSize(s.title || "Section Insight", 8.5, 22);
-      slide.addText(s.title || "Section Insight", { 
-        x: 0.8, y: 0.3, w: 8.5, h: 1, 
-        fontSize: titleSize, fontFace: 'Inter', color: primaryColor, bold: true, 
-        valign: 'top', align: 'left' 
-      });
-      
-      // Floating Line: Turun jika judul panjang (berpotensi 2 baris)
-      const lineY = (s.title && s.title.length > 45) ? 1.3 : 1.0;
-      slide.addShape('line', { x: 0.8, y: lineY, w: 1.5, h: 0, line: { color: secondaryColor, width: 3 } });
+      // Header Prosedural (Safe Zone)
+      slide.addText(s.title || "Insight", { x: 0.8, y: 0.4, w: 8.5, h: 0.8, fontSize: 24, fontFace: 'Inter', color: primaryColor, bold: true, valign: 'top' });
+      slide.addShape('line', { x: 0.8, y: 1.1, w: 1.5, h: 0, line: { color: secondaryColor, width: 3 } });
 
       if (s.commands) executeBlueprintCommands(slide, s.commands, primaryColor, secondaryColor);
     });
 
-    // 3. MANDATORY BIBLIOGRAPHY (PROCEDURAL)
-    onProgress?.("Adding Bibliography Archive...");
-    const bibSlide = pptx.addSlide();
-    allSlides.push(bibSlide);
-    bibSlide.addText("REFERENCES & CITATIONS", { x: 0.8, y: 0.5, w: 8.5, h: 0.6, fontSize: 24, fontFace: 'Inter', color: primaryColor, bold: true });
-    bibSlide.addShape('line', { x: 0.8, y: 1.1, w: 8.5, h: 0, line: { color: 'E2E8F0', width: 1 } });
-    
-    const bibText = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
-    bibSlide.addShape('rect', { x: 0.8, y: 1.6, w: 8.4, h: 2, fill: { color: 'F8FAFC' }, rectRadius: 0.3, shadow: { type: 'outer', blur: 4, offset: 2, opacity: 0.1 } });
-    bibSlide.addText(bibText, { x: 1.1, y: 1.9, w: 7.8, h: 1.5, fontSize: 13, fontFace: 'Inter', color: '475569', italic: true });
+    // 3. BIBLIOGRAPHY
+    onProgress?.("Archiving Citations...");
+    const bib = pptx.addSlide();
+    allSlides.push(bib);
+    bib.addText("REFERENCES", { x: 0.8, y: 0.5, w: 8.5, h: 0.6, fontSize: 24, color: primaryColor, bold: true });
+    bib.addText(item.bibHarvard || "Source data archived in Xeenaps Master Library.", { x: 0.8, y: 1.5, w: 8.4, h: 2, fontSize: 12, italic: true, color: '475569' });
 
-    // Page Branding
-    allSlides.forEach((s, i) => {
-      if (i > 0) {
-        s.addText(`XEENAPS • PKM ARCHITECT`, { x: 0.8, y: 5.35, w: 3, h: 0.2, fontSize: 7, fontFace: 'Inter', color: '94A3B8', bold: true });
-        s.addText(`${i + 1}`, { x: 9.2, y: 5.35, w: 0.3, h: 0.2, fontSize: 7, fontFace: 'Inter', color: '94A3B8', bold: true, align: 'right' });
-      }
-    });
-
-    onProgress?.("Finalizing Elite Archive...");
+    onProgress?.("Finalizing PPTX Archive...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -262,7 +176,7 @@ export const createPresentationWorkflow = async (
       collectionIds: [item.id],
       title: config.title,
       presenters: config.presenters,
-      templateName: PresentationTemplate.MODERN,
+      templateName: config.template,
       themeConfig: { primaryColor: `#${primaryColor}`, secondaryColor: `#${secondaryColor}`, fontFamily: 'Inter', headingFont: 'Inter' },
       slidesCount: allSlides.length,
       createdAt: new Date().toISOString(),
@@ -273,9 +187,8 @@ export const createPresentationWorkflow = async (
     const result = await res.json();
     if (result.status === 'success') return result.data;
     throw new Error(result.message || "Save error.");
-
   } catch (error: any) {
-    console.error("V16 Elite Error:", error);
+    console.error("V17 Elite Error:", error);
     return null;
   }
 };
@@ -285,7 +198,5 @@ export const fetchRelatedPresentations = async (collectionId: string): Promise<P
     const res = await fetch(`${GAS_WEB_APP_URL}?action=getRelatedPresentations&collectionId=${collectionId}`);
     const result = await res.json();
     return result.status === 'success' ? result.data : [];
-  } catch (error) {
-    return [];
-  }
+  } catch (error) { return []; }
 };
