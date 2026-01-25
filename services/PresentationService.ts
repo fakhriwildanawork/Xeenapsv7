@@ -5,15 +5,42 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V10
- * Fokus: Premium UI/UX, Smart Contrast, Modern Shapes, Charts & Tables.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V11 (Safe Edition)
+ * Fokus: Robust JSON Parsing, Premium UI/UX, Smart Contrast, Charts & Tables.
  */
 
 const CANVAS_W = 10;
 const CANVAS_H = 5.625;
 
 /**
- * Kalkulasi kontras warna secara dinamis
+ * Membersihkan string JSON dari AI yang sering mengandung karakter ilegal atau markdown
+ */
+const sanitizeJsonResponse = (text: string): string => {
+  let cleaned = text.trim();
+  
+  // Hapus Markdown Code Blocks jika ada
+  if (cleaned.includes('```json')) {
+    cleaned = cleaned.split('```json')[1].split('```')[0].trim();
+  } else if (cleaned.includes('```')) {
+    cleaned = cleaned.split('```')[1].split('```')[0].trim();
+  }
+
+  // Temukan objek JSON pertama dan terakhir
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) return cleaned;
+  cleaned = cleaned.substring(start, end + 1);
+
+  // Perbaikan karakter ilegal yang sering muncul dari AI
+  return cleaned
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Hapus control characters
+    .replace(/\n/g, "\\n") // Escape newlines manual
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+};
+
+/**
+ * Kalkulasi kontras warna secara dinamis (Luminance Sensing)
  */
 const getContrastColor = (hexColor: string): string => {
   const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
@@ -21,11 +48,11 @@ const getContrastColor = (hexColor: string): string => {
   const g = parseInt(hex.slice(2, 4), 16) || 255;
   const b = parseInt(hex.slice(4, 6), 16) || 255;
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 128 ? '1E293B' : 'FFFFFF'; // Gelap untuk background terang, Putih untuk background gelap
+  return brightness > 128 ? '1E293B' : 'FFFFFF'; 
 };
 
 /**
- * Eksekutor Blueprint V10
+ * Eksekutor Blueprint V11
  */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
@@ -39,28 +66,33 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
         h: cmd.h || 1,
       };
 
-      // 1. SHAPES (Rect, Oval, Triangle, etc)
+      // 1. SHAPES (Premium Styling: Rounded, Shadow, Multi-shape)
       if (cmd.type === 'shape') {
         slide.addShape(cmd.kind || 'rect', {
           ...options,
           fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
           line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
-          rectRadius: cmd.radius || 0.1, // Rounded corners default
+          rectRadius: cmd.radius || 0.2, 
           opacity: cmd.opacity || 100,
-          shadow: cmd.shadow ? { type: 'outer', color: '666666', blur: 3, offset: 2, opacity: 0.3 } : undefined
+          shadow: cmd.shadow ? { type: 'outer', color: '666666', blur: 4, offset: 3, opacity: 0.25 } : undefined
         });
       } 
       
-      // 2. TEXT (Modern Typography & Smart Contrast)
+      // 2. TEXT (Modern Typography & Smart Contrast Enforcement)
       else if (cmd.type === 'text') {
         const bgFill = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : null;
-        const textColor = cmd.color ? String(cmd.color).replace('#', '') : (bgFill ? getContrastColor(bgFill) : primaryColor);
+        let textColor = cmd.color ? String(cmd.color).replace('#', '') : primaryColor.replace('#', '');
+        
+        // Proteksi Kontras: Jika teks di atas background, hitung ulang warnanya
+        if (bgFill) {
+          textColor = getContrastColor(bgFill).replace('#', '');
+        }
         
         slide.addText(String(cmd.text || ""), {
           ...options,
           fontSize: cmd.fontSize || 12,
           fontFace: 'Inter',
-          color: textColor.replace('#', ''),
+          color: textColor,
           bold: cmd.bold || false,
           italic: cmd.italic || false,
           align: cmd.align || 'left',
@@ -68,7 +100,7 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
           wrap: true,
           autoFit: true,
           shrinkText: true,
-          shadow: cmd.shadow ? { type: 'outer', color: '333333', blur: 1, offset: 1, opacity: 0.2 } : undefined
+          shadow: cmd.shadow ? { type: 'outer', color: '333333', blur: 1, offset: 1, opacity: 0.15 } : undefined
         });
       }
       
@@ -76,10 +108,10 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
       else if (cmd.type === 'table') {
         slide.addTable(cmd.rows || [], {
           ...options,
-          border: { pt: 1, color: secondaryColor.replace('#', '') },
+          border: { pt: 0.5, color: secondaryColor.replace('#', '') },
           fill: { color: 'F8FAFC' },
           fontSize: cmd.fontSize || 10,
-          color: primaryColor.replace('#', ''),
+          color: '333333',
           align: 'center',
           valign: 'middle'
         });
@@ -87,7 +119,7 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
 
       // 4. CHARTS (Native PPT Data Visualization)
       else if (cmd.type === 'chart') {
-        const chartType = cmd.chartType || 'bar'; // bar, pie, line
+        const chartType = cmd.chartType || 'bar'; 
         slide.addChart(chartType, cmd.data || [], {
           ...options,
           showTitle: true,
@@ -97,12 +129,11 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
           dataLabelColor: '333333',
           dataLabelFontSize: 9,
           showLegend: true,
-          legendPos: 'b',
-          barGapWidthPct: 20
+          legendPos: 'b'
         });
       }
 
-      // 5. LINES (Dividers)
+      // 5. LINES (Premium Dividers)
       else if (cmd.type === 'line') {
         slide.addShape('line', {
           ...options,
@@ -136,55 +167,53 @@ export const createPresentationWorkflow = async (
     
     onProgress?.("AI Architect is designing your custom layouts...");
     
-    // Siapkan data bibliografi untuk slide terakhir
     const bibliographyEntry = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
 
     const blueprintPrompt = `ACT AS A SENIOR UI/UX ARCHITECT SPECIALIZED IN MODERN SLIDE DESIGN.
     TASK: Generate a VISUAL BLUEPRINT for a presentation titled: "${config.title}"
     
     BRAND IDENTITY:
-    - PRIMARY COLOR: ${primaryColor} (Use for dominance, backgrounds, headers)
-    - ACCENT COLOR: ${secondaryColor} (Use for emphasis, icons, lines, key points)
+    - PRIMARY COLOR: ${primaryColor} (Main Brand Identity)
+    - ACCENT COLOR: ${secondaryColor} (Highlight & Action)
+    
+    STRICT JSON RULES:
+    1. ESCAPE ALL DOUBLE QUOTES inside strings (e.g. "text": "He said \\"Hello\\"").
+    2. NO RAW NEWLINES inside strings. Use \\n for breaks.
+    3. DO NOT ADD MARKDOWN TAGS. Output RAW JSON ONLY.
     
     STRUCTURE RULES:
-    1. SLIDE 1 (COVER): MUST display TITLE: "${config.title}" and PRESENTERS: "${config.presenters.join(', ')}". Make it bold, modern, and centered/left-aligned with large typography.
-    2. LAST SLIDE (BIBLIOGRAPHY): MUST display bibliographic references. Use this text: "${bibliographyEntry}".
-    3. INTERMEDIATE SLIDES: Mix content using shapes (rect, oval, triangle), charts (bar, pie, line), and tables where appropriate.
+    1. SLIDE 1 (COVER): MUST use Title: "${config.title}" and Presenter: "${config.presenters.join(', ')}". 
+       Design: Use a large "rect" or "oval" as background, set "onBackground" property to trigger contrast calculation.
+    2. INTERMEDIATE SLIDES: Mix content (Title + Bullets). Use "chart" or "table" for data-heavy parts.
+    3. LAST SLIDE (BIBLIOGRAPHY): MUST use the heading "References" and display: "${bibliographyEntry.replace(/"/g, "'")}".
     
-    AESTHETIC GUIDELINES:
-    - MODERNISM: Use "oval" kind for decorative blobs, "rect" with "radius": 0.3 for card-style layouts.
-    - DEPTH: Use "shadow": true for shapes and cards to create layering.
-    - CONTRAST: If you place text on a background color, specify "onBackground": "hex" so I can calculate contrast.
-    - DECORATION: Add lines and small shapes as "visual sweets" to empty areas.
-    
-    TECHNICAL SPECS:
-    - Canvas: ${CANVAS_W} (W) x ${CANVAS_H} (H) inches.
-    - COORDINATES: Use Inches.
-    - JSON ONLY: Strictly follow the schema. Escape special characters.
-    
+    AESTHETIC SPECS:
+    - "shape": { "kind": "rect"|"oval"|"triangle", "shadow": true, "radius": 0.3 }
+    - "text": { "bold": true, "onBackground": "hex_color_code" }
+    - Canvas Size: 10 x 5.625 inches.
+
     CONTENT SOURCE: ${config.context.substring(0, 10000)}
     LANGUAGE: ${config.language}
     SLIDES: ${config.slidesCount}
 
-    COMMAND TYPES:
-    - "shape": { kind: "rect"|"oval"|"triangle", x, y, w, h, fill, radius, shadow: boolean, opacity }
-    - "text": { text, x, y, w, h, fontSize, bold, align, color, onBackground, shadow: boolean }
-    - "chart": { chartType: "bar"|"pie"|"line", x, y, w, h, title, data: [{ name: "string", labels: [], values: [] }] }
-    - "table": { rows: [["Col1", "Col2"]], x, y, w, h }
-    - "line": { x, y, w, h, color, width }
-
-    OUTPUT RAW JSON:
-    { "slides": [{ "title": "string", "commands": [] }] }`;
+    OUTPUT SCHEMA:
+    { "slides": [{ "title": "string", "commands": [ { "type": "shape"|"text"|"table"|"chart"|"line", ...options } ] }] }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    // Sanitasi JSON
-    const start = aiResText.indexOf('{');
-    const end = aiResText.lastIndexOf('}');
-    if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
+    // Sanitasi JSON sebelum di-parse
+    const sanitizedJson = sanitizeJsonResponse(aiResText);
+    
+    let blueprint;
+    try {
+      blueprint = JSON.parse(sanitizedJson);
+    } catch (parseError) {
+      console.error("JSON Parse Error. Raw Text Sample:", aiResText.substring(0, 200));
+      // Fallback sederhana jika total failure
+      blueprint = { slides: [{ title: config.title, commands: [{ type: 'text', text: config.title, x: 1, y: 1, w: 8, h: 2, fontSize: 32, bold: true }] }] };
+    }
 
-    const blueprint = JSON.parse(aiResText);
     if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
 
     // Eksekusi Rendering
@@ -192,12 +221,11 @@ export const createPresentationWorkflow = async (
       onProgress?.(`Applying Premium UI for Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
       
-      // Terapkan Blueprint Commands
       if (sData.commands) {
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
-      // Branding Footer Tetap Ada
+      // Branding Footer
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
         x: 0.5, y: 5.35, w: 9, h: 0.2,
         fontSize: 7, fontFace: 'Inter', color: '94A3B8', align: 'right', bold: true
