@@ -5,27 +5,59 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V9.1
- * FOCUS: Safe-JSON protocol, Truncation Recovery, Dynamic Font Scaling.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V9.5
+ * FOCUS: Robust Layouts, JSON Auto-Repair, and Payload Compression.
  */
 
 const CANVAS_W = 10;
 const CANVAS_H = 5.625;
 
 /**
- * Menghitung ukuran font dinamis agar tidak meluber
+ * Fungsi untuk memperbaiki JSON yang terpotong (Truncated Recovery)
  */
-const calculateDynamicFontSize = (text: string, baseSize: number, boxWidth: number): number => {
-  if (!text) return baseSize;
-  const charCount = text.length;
-  // Rasio kasar: 1 inci bisa menampung ~10-12 karakter pada font 12pt
-  // Jika teks terlalu panjang untuk lebar box, kita kecilkan baseline-nya
-  const estimatedWidth = (charCount * (baseSize / 2)) / 72; // estimasi lebar dalam inci
-  if (estimatedWidth > boxWidth * 0.9) {
-    const scaleFactor = (boxWidth * 0.9) / estimatedWidth;
-    return Math.max(Math.floor(baseSize * scaleFactor), 14); // Minimal 14pt agar tetap terbaca
+const tryRepairJson = (jsonString: string): string => {
+  let str = jsonString.trim();
+  
+  // Jika tidak dimulai dengan {, abaikan
+  if (!str.startsWith('{')) return str;
+
+  // Hitung jumlah kurung
+  const openBraces = (str.match(/\{/g) || []).length;
+  const closeBraces = (str.match(/\}/g) || []).length;
+  const openBrackets = (str.match(/\[/g) || []).length;
+  const closeBrackets = (str.match(/\]/g) || []).length;
+
+  // Tutup string yang menggantung jika ada (biasanya terpotong di tengah value teks)
+  if (str.endsWith('"')) { /* string looks okay but maybe values missing */ } 
+  else if (str.match(/"[^"]*$/)) { str += '"'; }
+
+  // Tutup objek dan array secara rekursif
+  for (let i = 0; i < (openBrackets - closeBrackets); i++) str += ']';
+  for (let i = 0; i < (openBraces - closeBraces); i++) str += '}';
+  
+  return str;
+};
+
+/**
+ * Pre-defined Layout Master: Mengurangi beban AI dalam menggambar latar belakang
+ */
+const applyMasterLayout = (slide: any, style: DesignStyle, primary: string, secondary: string, isTitle: boolean = false) => {
+  const pColor = primary.replace('#', '');
+  const sColor = secondary.replace('#', '');
+
+  // Default Background
+  slide.background = { color: 'FFFFFF' };
+
+  if (isTitle) {
+    // Title Slide Frame
+    slide.addShape('rect', { x: 0, y: 0, w: 0.5, h: 5.625, fill: { color: pColor } });
+    slide.addShape('rect', { x: 9.5, y: 0, w: 0.5, h: 5.625, fill: { color: sColor } });
+    slide.addShape('rect', { x: 0.5, y: 5.1, w: 9, h: 0.05, fill: { color: pColor }, opacity: 20 });
+  } else {
+    // Content Slide Frame
+    slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.8, fill: { color: pColor } });
+    slide.addShape('rect', { x: 0, y: 0.8, w: 10, h: 0.05, fill: { color: sColor } });
   }
-  return baseSize;
 };
 
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
@@ -33,38 +65,44 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
   
   commands.forEach(cmd => {
     try {
+      // Koordinat aman (Inci)
       const options: any = {
-        x: cmd.x || 0,
-        y: cmd.y || 0,
-        w: cmd.w || 1,
-        h: cmd.h || 1,
+        x: Math.min(Math.max(cmd.x || 0, 0), CANVAS_W - 0.5),
+        y: Math.min(Math.max(cmd.y || 0, 0), CANVAS_H - 0.5),
+        w: Math.min(cmd.w || 1, CANVAS_W - (cmd.x || 0)),
+        h: Math.min(cmd.h || 1, CANVAS_H - (cmd.y || 0)),
       };
+
+      const fillCol = String(cmd.fill || primaryColor).replace('#', '').toUpperCase();
+      const lineCol = String(cmd.lineColor || secondaryColor).replace('#', '').toUpperCase();
 
       if (cmd.type === 'shape') {
         slide.addShape(cmd.kind || 'rect', {
           ...options,
-          fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
-          line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
+          fill: { color: fillCol },
+          line: cmd.line ? { color: lineCol, width: cmd.lineWidth || 1 } : undefined,
           rectRadius: cmd.radius || 0,
           opacity: cmd.opacity || 100
         });
       } 
       
       else if (cmd.type === 'text') {
-        const bgColor = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : primaryColor;
+        const textStr = String(cmd.text || "").trim();
+        if (!textStr) return;
+
+        const bgColor = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : (cmd.y < 0.8 ? primaryColor : 'FFFFFF');
         const contrastColor = cmd.color || getContrastColor(bgColor);
         
-        // FLEXIBLE FONT SIZE LOGIC
-        // Kita hitung font size ideal sebelum dikirim ke PPTxGenJS
-        let fontSize = calculateDynamicFontSize(String(cmd.text), cmd.fontSize || 18, options.w);
+        // Font size logic based on title vs body
+        let fontSize = cmd.fontSize || (options.y < 1 ? 22 : 14);
+        if (textStr.length > 60 && fontSize > 24) fontSize = 20;
 
-        slide.addText(String(cmd.text || ""), {
+        slide.addText(textStr, {
           ...options,
           fontSize: fontSize,
           fontFace: 'Inter',
-          color: String(contrastColor).replace('#', ''),
-          bold: cmd.bold || false,
-          italic: cmd.italic || false,
+          color: String(contrastColor).replace('#', '').toUpperCase(),
+          bold: cmd.bold || options.y < 1,
           align: cmd.align || 'left',
           valign: cmd.valign || 'top',
           wrap: true,
@@ -72,15 +110,8 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
           shrinkText: true 
         });
       }
-      
-      else if (cmd.type === 'line') {
-        slide.addShape('line', {
-          x: cmd.x, y: cmd.y, w: cmd.w, h: cmd.h,
-          line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: cmd.width || 1, dashType: cmd.dash || 'solid' }
-        });
-      }
     } catch (e) {
-      console.warn("Blueprint Command Execution Error:", e);
+      console.warn("Blueprint Command Error:", e);
     }
   });
 };
@@ -118,75 +149,82 @@ export const createPresentationWorkflow = async (
 
     const bibliographyText = item.bibHarvard || `Reference: ${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
     
-    const blueprintPrompt = `YOU ARE A SENIOR UI/UX DESIGNER. TASK: CREATE A VISUAL BLUEPRINT FOR A PRESENTATION TITLED: "${config.title}"
+    // COMPRESSED PROMPT: Mengurangi repetisi warna dan background
+    const blueprintPrompt = `SYSTEM: SENIOR UI DESIGNER.
+    TARGET: PPTX BLUEPRINT (16:9).
+    BRANDING: Primary (#${primaryColor}), Accent (#${secondaryColor}).
     
-    STYLE: "${designStyle}". COLORS: Primary (${primaryColor}), Accent (${secondaryColor}).
-    
-    STRICT SLIDE SEQUENCE (MANDATORY):
-    1. SLIDE 1: Master Title Slide. Title: "${config.title}", Presenters: "${config.presenters.join(', ')}".
-    2. MIDDLE: Synthesize core insights into ${config.slidesCount - 2} slides.
-    3. FINAL: Bibliography slide. Content: "${bibliographyText}".
+    CONTENT SOURCE: ${config.context.substring(0, 8000)}
 
-    STRICT JSON PROTOCOL:
-    - RETURN EXACTLY ${config.slidesCount} ITEMS IN "slides" ARRAY.
-    - BE CONCISE to prevent truncation. Use bullet points.
-    - ESCAPE all double quotes and newlines (\\n) inside string values.
-    - OUTPUT RAW JSON ONLY.
+    SLIDE RULES:
+    1. SLIDE 1 (TITLE): Title "${config.title}", Presenters "${config.presenters.join(', ')}".
+    2. BODY (${config.slidesCount - 2} SLIDES): Core insights from source.
+    3. FINAL (BIBLIOGRAPHY): "${bibliographyText}".
 
-    EXPECTED SCHEMA:
-    {
-      "slides": [
-        { "title": "Slide Title", "commands": [
-          { "type": "shape", "kind": "rect", "x", "y", "w", "h", "fill": "hex" },
-          { "type": "text", "x", "y", "w", "h", "text", "fontSize", "bold", "align", "color": "hex", "onBackground": "hex" }
-        ]}
-      ]
-    }`;
+    TECHNICAL COMMANDS (JSON):
+    - type: "text", x, y, w, h, text, fontSize, bold, align, color
+    - type: "shape", kind: "rect"|"ellipse", x, y, w, h, fill
+
+    IMPORTANT:
+    - Kanvas 10x5.625 inci.
+    - BACKGROUND SUDAH ADA (Jangan buat shape rect 10x5.625).
+    - HEADER SUDAH ADA (y < 0.8 adalah area header, y > 0.8 area konten).
+    - OUTPUT RAW JSON ONLY. NO MARKDOWN.
+    - BE EXTREMELY CONCISE. LIMIT TEXT PER SLIDE.
+
+    JSON SCHEMA:
+    { "slides": [ { "title": "...", "commands": [...] } ] }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    // Robust JSON Sanitization & Recovery
-    let cleanJson = aiResText.trim();
-    // Menghapus karakter kontrol aneh yang mungkin disisipkan AI
-    cleanJson = cleanJson.replace(/[\u0000-\u001F\u007F-\u009F]/g, ""); 
-    
+    // REPAIR & SANITIZE
+    let cleanJson = tryRepairJson(aiResText.trim());
     const firstBrace = cleanJson.indexOf('{');
     const lastBrace = cleanJson.lastIndexOf('}');
-    
-    if (firstBrace === -1 || lastBrace === -1) {
-       throw new Error("AI response did not contain a valid JSON block.");
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
     }
-    
-    cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
 
     let blueprint;
     try {
       blueprint = JSON.parse(cleanJson);
-    } catch (parseErr) {
-      console.error("JSON Parse Error. Length:", cleanJson.length, "Text near error:", cleanJson.substring(cleanJson.length - 50));
-      throw new Error("AI output was malformed or truncated. Try reducing slide count.");
+    } catch (e) {
+      console.error("JSON Error. Result:", cleanJson);
+      throw new Error("AI output limit exceeded. Please try with fewer slides.");
     }
 
-    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
-
-    const slidesToRender = blueprint.slides.slice(0, config.slidesCount);
+    const slidesToRender = (blueprint.slides || []).slice(0, config.slidesCount);
 
     slidesToRender.forEach((sData: any, idx: number) => {
-      onProgress?.(`Rendering Design for Slide ${idx + 1}/${slidesToRender.length}...`);
+      onProgress?.(`Rendering Slide ${idx + 1}/${slidesToRender.length}...`);
       const slide = pptx.addSlide();
       
+      // 1. Apply Master Template
+      applyMasterLayout(slide, designStyle, primaryColor, secondaryColor, idx === 0);
+
+      // 2. Render Slide Title (Auto-Placement jika AI tidak mendesainnya)
+      if (idx > 0) {
+        slide.addText(sData.title || "Key Insight", {
+          x: 0.5, y: 0.15, w: 9, h: 0.5,
+          fontSize: 22, fontFace: 'Inter', color: getContrastColor(primaryColor).replace('#',''),
+          bold: true, align: 'left', valign: 'middle'
+        });
+      }
+
+      // 3. Execute AI Custom Design
       if (sData.commands) {
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
+      // 4. Footer
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
         x: 0.5, y: 5.35, w: 9, h: 0.2,
         fontSize: 7, fontFace: 'Inter', color: 'CBD5E1', align: 'right', bold: true
       });
     });
 
-    onProgress?.("Archiving to Xeenaps Cloud Node...");
+    onProgress?.("Finalizing Presentation...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -194,7 +232,6 @@ export const createPresentationWorkflow = async (
       collectionIds: [item.id],
       title: config.title,
       presenters: config.presenters,
-      templateName: PresentationTemplate.MODERN,
       themeConfig: {
         primaryColor: `#${primaryColor}`,
         secondaryColor: `#${secondaryColor}`,
@@ -209,23 +246,18 @@ export const createPresentationWorkflow = async (
 
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      body: JSON.stringify({
-        action: 'savePresentation',
-        presentation: presentationData,
-        pptxFileData: base64Pptx
-      })
+      body: JSON.stringify({ action: 'savePresentation', presentation: presentationData, pptxFileData: base64Pptx })
     });
 
     const result = await res.json();
-    if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Cloud archive failure.");
+    return result.status === 'success' ? result.data : null;
 
   } catch (error: any) {
-    console.error("Blueprint Architect Error:", error);
+    console.error("Presentation Engine Error:", error);
     return null;
   }
 };
-
+// ... rest of file (fetchRelatedPresentations) ...
 export const fetchRelatedPresentations = async (collectionId: string): Promise<PresentationItem[]> => {
   try {
     const res = await fetch(`${GAS_WEB_APP_URL}?action=getRelatedPresentations&collectionId=${collectionId}`);
