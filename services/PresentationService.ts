@@ -1,16 +1,41 @@
-
 import pptxgen from 'pptxgenjs';
 import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V10
- * Fokus: Premium UI/UX, Smart Contrast, Modern Shapes, Charts & Tables.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V11
+ * Optimized for: Zero Hallucination, Adaptive Layouts, and Strict JSON Compliance.
  */
 
 const CANVAS_W = 10;
 const CANVAS_H = 5.625;
+
+/**
+ * Helper to clean and validate AI JSON output
+ */
+const parseAiJson = (text: string) => {
+  try {
+    // Attempt to extract the first valid JSON block
+    let cleanText = text.trim();
+    const start = cleanText.indexOf('{');
+    const end = cleanText.lastIndexOf('}');
+    
+    if (start === -1 || end === -1) throw new Error("No JSON block found in AI response");
+    
+    cleanText = cleanText.substring(start, end + 1);
+    
+    // Remove potential trailing commas before closing braces/brackets which AI often hallucinates
+    cleanText = cleanText.replace(/,\s*([}\]])/g, '$1');
+    
+    // Fix potential unescaped double quotes inside values (basic approach)
+    // This is a common cause of SyntaxError when AI includes quotes in titles/abstracts
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error("JSON Parsing Error in PresentationService:", e, "\nRaw Text:", text);
+    throw e;
+  }
+};
 
 /**
  * Kalkulasi kontras warna secara dinamis
@@ -21,11 +46,11 @@ const getContrastColor = (hexColor: string): string => {
   const g = parseInt(hex.slice(2, 4), 16) || 255;
   const b = parseInt(hex.slice(4, 6), 16) || 255;
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 128 ? '1E293B' : 'FFFFFF'; // Gelap untuk background terang, Putih untuk background gelap
+  return brightness > 128 ? '1E293B' : 'FFFFFF';
 };
 
 /**
- * Eksekutor Blueprint V10
+ * Blueprint Executor V11 (Chart functionality REMOVED to prevent data hallucination)
  */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
@@ -39,19 +64,21 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
         h: cmd.h || 1,
       };
 
-      // 1. SHAPES (Rect, Oval, Triangle, etc)
+      // Guard for Presenter/Text Y position - Ensure nothing goes off-canvas at bottom
+      if (cmd.y && cmd.y > 5.2) {
+        options.y = 5.0; // Force it up to a safe zone
+      }
+
       if (cmd.type === 'shape') {
         slide.addShape(cmd.kind || 'rect', {
           ...options,
           fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
           line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
-          rectRadius: cmd.radius || 0.1, // Rounded corners default
+          rectRadius: cmd.radius || 0.1,
           opacity: cmd.opacity || 100,
           shadow: cmd.shadow ? { type: 'outer', color: '666666', blur: 3, offset: 2, opacity: 0.3 } : undefined
         });
       } 
-      
-      // 2. TEXT (Modern Typography & Smart Contrast)
       else if (cmd.type === 'text') {
         const bgFill = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : null;
         const textColor = cmd.color ? String(cmd.color).replace('#', '') : (bgFill ? getContrastColor(bgFill) : primaryColor);
@@ -71,8 +98,6 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
           shadow: cmd.shadow ? { type: 'outer', color: '333333', blur: 1, offset: 1, opacity: 0.2 } : undefined
         });
       }
-      
-      // 3. TABLES (Data comparison)
       else if (cmd.type === 'table') {
         slide.addTable(cmd.rows || [], {
           ...options,
@@ -84,31 +109,13 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
           valign: 'middle'
         });
       }
-
-      // 4. CHARTS (Native PPT Data Visualization)
-      else if (cmd.type === 'chart') {
-        const chartType = cmd.chartType || 'bar'; // bar, pie, line
-        slide.addChart(chartType, cmd.data || [], {
-          ...options,
-          showTitle: true,
-          chartTitle: cmd.title || "",
-          chartTitleColor: primaryColor.replace('#', ''),
-          chartTitleFontSize: 14,
-          dataLabelColor: '333333',
-          dataLabelFontSize: 9,
-          showLegend: true,
-          legendPos: 'b',
-          barGapWidthPct: 20
-        });
-      }
-
-      // 5. LINES (Dividers)
       else if (cmd.type === 'line') {
         slide.addShape('line', {
           ...options,
           line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: cmd.width || 1.5, dashType: cmd.dash || 'solid' }
         });
       }
+      // CHART REMOVED to satisfy hallucination guard
     } catch (e) {
       console.warn("Blueprint Execution Warning:", e);
     }
@@ -136,68 +143,64 @@ export const createPresentationWorkflow = async (
     
     onProgress?.("AI Architect is designing your custom layouts...");
     
-    // Siapkan data bibliografi untuk slide terakhir
     const bibliographyEntry = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
 
-    const blueprintPrompt = `ACT AS A SENIOR UI/UX ARCHITECT SPECIALIZED IN MODERN SLIDE DESIGN.
-    TASK: Generate a VISUAL BLUEPRINT for a presentation titled: "${config.title}"
+    const blueprintPrompt = `ACT AS A SENIOR UI/UX ARCHITECT AND ACADEMIC LIBRARIAN.
+    TASK: Generate a VISUAL BLUEPRINT for a professional presentation.
     
-    BRAND IDENTITY:
-    - PRIMARY COLOR: ${primaryColor} (Use for dominance, backgrounds, headers)
-    - ACCENT COLOR: ${secondaryColor} (Use for emphasis, icons, lines, key points)
+    TITLE: "${config.title}"
+    PRESENTERS: "${config.presenters.join(', ')}"
+    BIBLIOGRAPHY: "${bibliographyEntry}"
     
-    STRUCTURE RULES:
-    1. SLIDE 1 (COVER): MUST display TITLE: "${config.title}" and PRESENTERS: "${config.presenters.join(', ')}". Make it bold, modern, and centered/left-aligned with large typography.
-    2. LAST SLIDE (BIBLIOGRAPHY): MUST display bibliographic references. Use this text: "${bibliographyEntry}".
-    3. INTERMEDIATE SLIDES: Mix content using shapes (rect, oval, triangle), charts (bar, pie, line), and tables where appropriate.
+    --- HALLUCINATION GUARD (STRICT) ---
+    1. NEVER create or invent data, statistics, or metrics. 
+    2. CHARTS ARE DISABLED. DO NOT USE THE "chart" COMMAND TYPE.
+    3. ONLY use information provided in the CONTEXT.
+    4. If information is not in the context, do not make it up.
     
-    AESTHETIC GUIDELINES:
-    - MODERNISM: Use "oval" kind for decorative blobs, "rect" with "radius": 0.3 for card-style layouts.
-    - DEPTH: Use "shadow": true for shapes and cards to create layering.
-    - CONTRAST: If you place text on a background color, specify "onBackground": "hex" so I can calculate contrast.
-    - DECORATION: Add lines and small shapes as "visual sweets" to empty areas.
+    --- ADAPTIVE LAYOUT RULES ---
+    1. SLIDE 1 (COVER): 
+       - If Title length > 50 characters: Use fontSize 28-32pt.
+       - If Title length <= 50 characters: Use fontSize 42-48pt.
+       - Presenters must be positioned at y=4.6 to 5.0 (SAFE ZONE) to avoid footer overlap.
+       - Adjust Presenters fontSize if name list is long (max 14pt).
+    2. LAST SLIDE (BIBLIOGRAPHY): 
+       - Identify all sources mentioned in the context.
+       - If there are multiple sources, represent them as a CLEAN LIST.
     
-    TECHNICAL SPECS:
-    - Canvas: ${CANVAS_W} (W) x ${CANVAS_H} (H) inches.
-    - COORDINATES: Use Inches.
-    - JSON ONLY: Strictly follow the schema. Escape special characters.
+    --- TECHNICAL SPECS ---
+    - CANVAS: ${CANVAS_W}x${CANVAS_H} inches.
+    - OUTPUT: RAW JSON ONLY. NO MARKDOWN.
+    - ESCAPE all double quotes inside text strings using backslash (e.g., \\").
     
-    CONTENT SOURCE: ${config.context.substring(0, 10000)}
+    COMMAND TYPES:
+    - "shape": { kind: "rect"|"oval"|"triangle", x, y, w, h, fill, radius, shadow: boolean }
+    - "text": { text, x, y, w, h, fontSize, bold, align, color, onBackground }
+    - "table": { rows: [[]], x, y, w, h }
+    - "line": { x, y, w, h, color }
+
+    CONTEXT: ${config.context.substring(0, 12000)}
     LANGUAGE: ${config.language}
     SLIDES: ${config.slidesCount}
 
-    COMMAND TYPES:
-    - "shape": { kind: "rect"|"oval"|"triangle", x, y, w, h, fill, radius, shadow: boolean, opacity }
-    - "text": { text, x, y, w, h, fontSize, bold, align, color, onBackground, shadow: boolean }
-    - "chart": { chartType: "bar"|"pie"|"line", x, y, w, h, title, data: [{ name: "string", labels: [], values: [] }] }
-    - "table": { rows: [["Col1", "Col2"]], x, y, w, h }
-    - "line": { x, y, w, h, color, width }
-
-    OUTPUT RAW JSON:
+    EXPECTED JSON:
     { "slides": [{ "title": "string", "commands": [] }] }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    // Sanitasi JSON
-    const start = aiResText.indexOf('{');
-    const end = aiResText.lastIndexOf('}');
-    if (start !== -1 && end !== -1) aiResText = aiResText.substring(start, end + 1);
-
-    const blueprint = JSON.parse(aiResText);
+    // Improved JSON parsing with cleanup
+    const blueprint = parseAiJson(aiResText);
     if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
 
-    // Eksekusi Rendering
     blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Applying Premium UI for Slide ${idx + 1}...`);
+      onProgress?.(`Rendering Slide ${idx + 1} with adaptive layout...`);
       const slide = pptx.addSlide();
       
-      // Terapkan Blueprint Commands
       if (sData.commands) {
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
-      // Branding Footer Tetap Ada
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
         x: 0.5, y: 5.35, w: 9, h: 0.2,
         fontSize: 7, fontFace: 'Inter', color: '94A3B8', align: 'right', bold: true
