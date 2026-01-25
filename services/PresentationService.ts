@@ -5,18 +5,29 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V9
- * FOCUS: Safe-JSON protocol, Strict slide count, and Bibliography integration.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V9.1
+ * FOCUS: Safe-JSON protocol, Truncation Recovery, Dynamic Font Scaling.
  */
 
-// Konfigurasi Kanvas Standar PowerPoint (Inci)
 const CANVAS_W = 10;
 const CANVAS_H = 5.625;
 
 /**
- * Fungsi Eksekutor Blueprint
- * Menerjemahkan instruksi visual dari AI langsung ke perintah PPTxGenJS
+ * Menghitung ukuran font dinamis agar tidak meluber
  */
+const calculateDynamicFontSize = (text: string, baseSize: number, boxWidth: number): number => {
+  if (!text) return baseSize;
+  const charCount = text.length;
+  // Rasio kasar: 1 inci bisa menampung ~10-12 karakter pada font 12pt
+  // Jika teks terlalu panjang untuk lebar box, kita kecilkan baseline-nya
+  const estimatedWidth = (charCount * (baseSize / 2)) / 72; // estimasi lebar dalam inci
+  if (estimatedWidth > boxWidth * 0.9) {
+    const scaleFactor = (boxWidth * 0.9) / estimatedWidth;
+    return Math.max(Math.floor(baseSize * scaleFactor), 14); // Minimal 14pt agar tetap terbaca
+  }
+  return baseSize;
+};
+
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
   
@@ -40,16 +51,12 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
       } 
       
       else if (cmd.type === 'text') {
-        // Safe hex conversion
         const bgColor = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : primaryColor;
         const contrastColor = cmd.color || getContrastColor(bgColor);
         
-        // Logical Font Scaler: Sebagian besar library auto-fit butuh baseline yang masuk akal
-        // Jika box kecil tapi font besar, library akan kesulitan.
-        let fontSize = cmd.fontSize || 12;
-        if (cmd.text && cmd.text.length > 50 && fontSize > 24) {
-          fontSize = 18; // Force smaller start for long text to help auto-shrink
-        }
+        // FLEXIBLE FONT SIZE LOGIC
+        // Kita hitung font size ideal sebelum dikirim ke PPTxGenJS
+        let fontSize = calculateDynamicFontSize(String(cmd.text), cmd.fontSize || 18, options.w);
 
         slide.addText(String(cmd.text || ""), {
           ...options,
@@ -61,8 +68,8 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
           align: cmd.align || 'left',
           valign: cmd.valign || 'top',
           wrap: true,
-          autoFit: true,   // PPTxGenJS Fit
-          shrinkText: true // PPTxGenJS Shrink
+          autoFit: true,   
+          shrinkText: true 
         });
       }
       
@@ -80,7 +87,6 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
 
 const getContrastColor = (hexColor: string): string => {
   const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
-  // Improved Luminance calculation
   const r = parseInt(hex.slice(0, 2), 16);
   const g = parseInt(hex.slice(2, 4), 16);
   const b = parseInt(hex.slice(4, 6), 16);
@@ -110,86 +116,70 @@ export const createPresentationWorkflow = async (
     
     onProgress?.("AI Architect is designing your custom layouts...");
 
-    // Generate accurate bibliography string for the final slide
     const bibliographyText = item.bibHarvard || `Reference: ${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
     
-    const blueprintPrompt = `YOU ARE A SENIOR UI/UX DESIGNER SPECIALIZED IN PPTXGENJS.
-    TASK: CREATE A VISUAL BLUEPRINT FOR A PRESENTATION TITLED: "${config.title}"
+    const blueprintPrompt = `YOU ARE A SENIOR UI/UX DESIGNER. TASK: CREATE A VISUAL BLUEPRINT FOR A PRESENTATION TITLED: "${config.title}"
     
-    DESIGN STYLE: "${designStyle}"
-    - Minimalist: Use lots of white space, large titles, thin accent lines.
-    - Corporate: Use strict grid layouts, solid color blocks for sidebars, clear headings.
-    - Creative: Use overlapping shapes, asymmetrical layouts, bold accent colors.
-    - Academic: High density information, very clean hierarchy, structured lists.
-
-    TECHNICAL SPECS:
-    - CANVAS: ${CANVAS_W} (W) x ${CANVAS_H} (H) inches.
-    - OUTPUT: JSON object with "slides" array.
-    - COLORS: Primary (${primaryColor}), Accent (${secondaryColor}).
+    STYLE: "${designStyle}". COLORS: Primary (${primaryColor}), Accent (${secondaryColor}).
     
     STRICT SLIDE SEQUENCE (MANDATORY):
-    1. SLIDE 1: MUST be the Master Title Slide. Elements: Title ("${config.title}"), Presenters ("${config.presenters.join(', ')}"). Use flexible font sizes.
-    2. MIDDLE SLIDES: Synthesize the core insights into ${config.slidesCount - 2} slides.
-    3. FINAL SLIDE: MUST be the Bibliography/Reference slide. Content: "${bibliographyText}".
+    1. SLIDE 1: Master Title Slide. Title: "${config.title}", Presenters: "${config.presenters.join(', ')}".
+    2. MIDDLE: Synthesize core insights into ${config.slidesCount - 2} slides.
+    3. FINAL: Bibliography slide. Content: "${bibliographyText}".
 
     STRICT JSON PROTOCOL:
-    - YOU MUST RETURN EXACTLY ${config.slidesCount} ITEMS IN THE "slides" ARRAY.
-    - USE responseMimeType: application/json.
-    - DO NOT use markdown code blocks.
-    - ESCAPE all double quotes inside string values.
-    - ENSURE NO ILLEGAL LINE BREAKS inside string values.
+    - RETURN EXACTLY ${config.slidesCount} ITEMS IN "slides" ARRAY.
+    - BE CONCISE to prevent truncation. Use bullet points.
+    - ESCAPE all double quotes and newlines (\\n) inside string values.
+    - OUTPUT RAW JSON ONLY.
 
-    SOURCE MATERIAL: ${config.context.substring(0, 10000)}
-    LANGUAGE: ${config.language}
-
-    COMMAND TYPES:
-    - { "type": "shape", "kind": "rect"|"ellipse", "x", "y", "w", "h", "fill": "hex", "radius": number }
-    - { "type": "text", "x", "y", "w", "h", "text", "fontSize", "bold", "align": "left"|"center"|"right", "color": "hex", "onBackground": "hex" }
-    - { "type": "line", "x", "y", "w", "h", "color": "hex", "width" }
-
-    EXPECTED JSON OUTPUT SCHEMA:
+    EXPECTED SCHEMA:
     {
       "slides": [
-        { "title": "Slide Title", "commands": [...] }
+        { "title": "Slide Title", "commands": [
+          { "type": "shape", "kind": "rect", "x", "y", "w", "h", "fill": "hex" },
+          { "type": "text", "x", "y", "w", "h", "text", "fontSize", "bold", "align", "color": "hex", "onBackground": "hex" }
+        ]}
       ]
     }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    // Robust JSON Sanitization
+    // Robust JSON Sanitization & Recovery
     let cleanJson = aiResText.trim();
+    // Menghapus karakter kontrol aneh yang mungkin disisipkan AI
+    cleanJson = cleanJson.replace(/[\u0000-\u001F\u007F-\u009F]/g, ""); 
+    
     const firstBrace = cleanJson.indexOf('{');
     const lastBrace = cleanJson.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+       throw new Error("AI response did not contain a valid JSON block.");
     }
+    
+    cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
 
     let blueprint;
     try {
       blueprint = JSON.parse(cleanJson);
     } catch (parseErr) {
-      console.error("Blueprint Parse Error:", parseErr, "Raw text:", cleanJson);
-      // Fallback: If AI fails to provide JSON, we stop to prevent empty presentation
-      throw new Error("AI output was not valid JSON. Operation aborted.");
+      console.error("JSON Parse Error. Length:", cleanJson.length, "Text near error:", cleanJson.substring(cleanJson.length - 50));
+      throw new Error("AI output was malformed or truncated. Try reducing slide count.");
     }
 
     if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
 
-    // Render Slides berdasarkan AI Blueprint
-    // Enforce slide count limit to prevent infinite loops or massive files
     const slidesToRender = blueprint.slides.slice(0, config.slidesCount);
 
     slidesToRender.forEach((sData: any, idx: number) => {
       onProgress?.(`Rendering Design for Slide ${idx + 1}/${slidesToRender.length}...`);
       const slide = pptx.addSlide();
       
-      // Eksekusi layout custom dari AI
       if (sData.commands) {
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
-      // Add Global Branding/Footer
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
         x: 0.5, y: 5.35, w: 9, h: 0.2,
         fontSize: 7, fontFace: 'Inter', color: 'CBD5E1', align: 'right', bold: true

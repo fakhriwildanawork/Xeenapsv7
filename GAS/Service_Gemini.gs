@@ -14,14 +14,16 @@ function callGeminiService(prompt, modelOverride) {
   for (let key of keys) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      
+      // Peningkatan maxOutputTokens ke 16384 untuk mencegah JSON terpotong pada presentasi panjang
       const payload = { 
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.1, // Dikecilkan untuk akurasi struktur JSON
+          temperature: 0.2, 
           topP: 0.95,
           topK: 40,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json" // Memaksa output JSON valid
+          maxOutputTokens: 16384, 
+          responseMimeType: "application/json" 
         }
       };
       
@@ -36,10 +38,12 @@ function callGeminiService(prompt, modelOverride) {
       if (responseData.candidates && responseData.candidates.length > 0) {
         const responseText = responseData.candidates[0].content.parts[0].text;
         return { status: 'success', data: responseText };
+      } else if (responseData.error) {
+        console.error("Gemini API Error: " + responseData.error.message);
       }
     } catch (err) {
-      console.log("Gemini rotation: key failed, trying next...");
+      console.log("Gemini rotation: key failed or timeout, trying next...");
     }
   }
-  return { status: 'error', message: 'Gemini service is currently unavailable.' };
+  return { status: 'error', message: 'Gemini service is currently unavailable or output limit reached.' };
 }
