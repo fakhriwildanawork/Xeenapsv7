@@ -5,42 +5,38 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V11 (Safe Edition)
- * Fokus: Robust JSON Parsing, Premium UI/UX, Smart Contrast, Charts & Tables.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V12 (Defensive & Rigid)
+ * Fokus: Pencegahan [object Object], Normalisasi Tabel & Chart, Robust UI.
  */
 
 const CANVAS_W = 10;
 const CANVAS_H = 5.625;
 
 /**
- * Membersihkan string JSON dari AI yang sering mengandung karakter ilegal atau markdown
+ * Pembersih JSON dengan sanitasi karakter kontrol dan proteksi markdown
  */
 const sanitizeJsonResponse = (text: string): string => {
   let cleaned = text.trim();
-  
-  // Hapus Markdown Code Blocks jika ada
   if (cleaned.includes('```json')) {
     cleaned = cleaned.split('```json')[1].split('```')[0].trim();
   } else if (cleaned.includes('```')) {
     cleaned = cleaned.split('```')[1].split('```')[0].trim();
   }
 
-  // Temukan objek JSON pertama dan terakhir
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start === -1 || end === -1) return cleaned;
   cleaned = cleaned.substring(start, end + 1);
 
-  // Perbaikan karakter ilegal yang sering muncul dari AI
   return cleaned
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Hapus control characters
-    .replace(/\n/g, "\\n") // Escape newlines manual
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") 
+    .replace(/\n/g, "\\n") 
     .replace(/\r/g, "\\r")
     .replace(/\t/g, "\\t");
 };
 
 /**
- * Kalkulasi kontras warna secara dinamis (Luminance Sensing)
+ * Kontras Dinamis untuk memastikan keterbacaan teks
  */
 const getContrastColor = (hexColor: string): string => {
   const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
@@ -52,96 +48,122 @@ const getContrastColor = (hexColor: string): string => {
 };
 
 /**
- * Eksekutor Blueprint V11
+ * Normalisasi Elemen Slide (Defensive Layer)
  */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
   
   commands.forEach(cmd => {
     try {
+      // 0. Base Options Normalization
       const options: any = {
-        x: cmd.x || 0,
-        y: cmd.y || 0,
-        w: cmd.w || 1,
-        h: cmd.h || 1,
+        x: Number(cmd.x) || 0,
+        y: Number(cmd.y) || 0,
+        w: Number(cmd.w) || 1,
+        h: Number(cmd.h) || 1,
       };
 
-      // 1. SHAPES (Premium Styling: Rounded, Shadow, Multi-shape)
-      if (cmd.type === 'shape') {
-        slide.addShape(cmd.kind || 'rect', {
-          ...options,
-          fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
-          line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
-          rectRadius: cmd.radius || 0.2, 
-          opacity: cmd.opacity || 100,
-          shadow: cmd.shadow ? { type: 'outer', color: '666666', blur: 4, offset: 3, opacity: 0.25 } : undefined
-        });
-      } 
-      
-      // 2. TEXT (Modern Typography & Smart Contrast Enforcement)
-      else if (cmd.type === 'text') {
+      // 1. TEXT (Anti [object Object] Layer)
+      if (cmd.type === 'text') {
+        let textContent = "";
+        if (typeof cmd.text === 'string') {
+          textContent = cmd.text;
+        } else if (typeof cmd.text === 'object' && cmd.text !== null) {
+          textContent = cmd.text.content || cmd.text.text || cmd.text.value || JSON.stringify(cmd.text);
+        } else {
+          textContent = String(cmd.text || "");
+        }
+
         const bgFill = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : null;
         let textColor = cmd.color ? String(cmd.color).replace('#', '') : primaryColor.replace('#', '');
+        if (bgFill) textColor = getContrastColor(bgFill).replace('#', '');
         
-        // Proteksi Kontras: Jika teks di atas background, hitung ulang warnanya
-        if (bgFill) {
-          textColor = getContrastColor(bgFill).replace('#', '');
-        }
-        
-        slide.addText(String(cmd.text || ""), {
+        slide.addText(textContent, {
           ...options,
-          fontSize: cmd.fontSize || 12,
+          fontSize: Number(cmd.fontSize) || 12,
           fontFace: 'Inter',
-          color: textColor,
-          bold: cmd.bold || false,
-          italic: cmd.italic || false,
+          color: textColor.replace('#', ''),
+          bold: !!cmd.bold,
           align: cmd.align || 'left',
           valign: cmd.valign || 'top',
           wrap: true,
           autoFit: true,
-          shrinkText: true,
           shadow: cmd.shadow ? { type: 'outer', color: '333333', blur: 1, offset: 1, opacity: 0.15 } : undefined
         });
-      }
+      } 
       
-      // 3. TABLES (Data comparison)
+      // 2. SHAPES (Premium Rounded & Shadows)
+      else if (cmd.type === 'shape') {
+        slide.addShape(cmd.kind || 'rect', {
+          ...options,
+          fill: { color: String(cmd.fill || primaryColor).replace('#', '') },
+          line: cmd.line ? { color: String(cmd.lineColor || secondaryColor).replace('#', ''), width: cmd.lineWidth || 1 } : undefined,
+          rectRadius: Number(cmd.radius) || 0.2, 
+          opacity: Number(cmd.opacity) || 100,
+          shadow: cmd.shadow ? { type: 'outer', color: '666666', blur: 4, offset: 3, opacity: 0.25 } : undefined
+        });
+      }
+
+      // 3. TABLES (Normalization to Array of Arrays)
       else if (cmd.type === 'table') {
-        slide.addTable(cmd.rows || [], {
-          ...options,
-          border: { pt: 0.5, color: secondaryColor.replace('#', '') },
-          fill: { color: 'F8FAFC' },
-          fontSize: cmd.fontSize || 10,
-          color: '333333',
-          align: 'center',
-          valign: 'middle'
+        let rows = cmd.rows;
+        if (!Array.isArray(rows)) rows = [];
+        
+        // Paksa menjadi Array of Arrays (2D Array)
+        const normalizedRows = rows.map(row => {
+          if (Array.isArray(row)) return row.map(cell => String(cell || ""));
+          if (typeof row === 'object' && row !== null) return Object.values(row).map(v => String(v || ""));
+          return [String(row || "")];
         });
+
+        if (normalizedRows.length > 0) {
+          slide.addTable(normalizedRows, {
+            ...options,
+            border: { pt: 0.5, color: secondaryColor.replace('#', '') },
+            fill: { color: 'F8FAFC' },
+            fontSize: Number(cmd.fontSize) || 10,
+            color: '1E293B',
+            align: 'center',
+            valign: 'middle'
+          });
+        }
       }
 
-      // 4. CHARTS (Native PPT Data Visualization)
+      // 4. CHARTS (Normalization to Array of Objects)
       else if (cmd.type === 'chart') {
-        const chartType = cmd.chartType || 'bar'; 
-        slide.addChart(chartType, cmd.data || [], {
-          ...options,
-          showTitle: true,
-          chartTitle: cmd.title || "",
-          chartTitleColor: primaryColor.replace('#', ''),
-          chartTitleFontSize: 14,
-          dataLabelColor: '333333',
-          dataLabelFontSize: 9,
-          showLegend: true,
-          legendPos: 'b'
-        });
+        let chartData = cmd.data;
+        if (!Array.isArray(chartData)) {
+          chartData = (typeof chartData === 'object' && chartData !== null) ? [chartData] : [];
+        }
+
+        const normalizedData = chartData.map(series => ({
+          name: String(series.name || "Data"),
+          labels: Array.isArray(series.labels) ? series.labels.map(String) : [],
+          values: Array.isArray(series.values) ? series.values.map(v => Number(v) || 0) : []
+        }));
+
+        if (normalizedData.length > 0) {
+          slide.addChart(cmd.chartType || 'bar', normalizedData, {
+            ...options,
+            showTitle: true,
+            chartTitle: String(cmd.title || ""),
+            chartTitleColor: primaryColor.replace('#', ''),
+            chartTitleFontSize: 14,
+            showLegend: true,
+            legendPos: 'b'
+          });
+        }
       }
 
-      // 5. LINES (Premium Dividers)
+      // 5. LINES
       else if (cmd.type === 'line') {
         slide.addShape('line', {
           ...options,
-          line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: cmd.width || 1.5, dashType: cmd.dash || 'solid' }
+          line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: Number(cmd.width) || 1.5, dashType: cmd.dash || 'solid' }
         });
       }
     } catch (e) {
-      console.warn("Blueprint Execution Warning:", e);
+      console.warn("Element Rendering Ignored due to error:", e);
     }
   });
 };
@@ -165,74 +187,62 @@ export const createPresentationWorkflow = async (
     const primaryColor = config.theme.primaryColor.replace('#', '');
     const secondaryColor = config.theme.secondaryColor.replace('#', '');
     
-    onProgress?.("AI Architect is designing your custom layouts...");
+    onProgress?.("AI Architect is synthesizing content...");
     
     const bibliographyEntry = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
 
-    const blueprintPrompt = `ACT AS A SENIOR UI/UX ARCHITECT SPECIALIZED IN MODERN SLIDE DESIGN.
-    TASK: Generate a VISUAL BLUEPRINT for a presentation titled: "${config.title}"
+    const blueprintPrompt = `ACT AS A SENIOR UI/UX ARCHITECT.
+    TASK: Generate a VISUAL BLUEPRINT for: "${config.title}"
     
-    BRAND IDENTITY:
-    - PRIMARY COLOR: ${primaryColor} (Main Brand Identity)
-    - ACCENT COLOR: ${secondaryColor} (Highlight & Action)
-    
-    STRICT JSON RULES:
-    1. ESCAPE ALL DOUBLE QUOTES inside strings (e.g. "text": "He said \\"Hello\\"").
-    2. NO RAW NEWLINES inside strings. Use \\n for breaks.
-    3. DO NOT ADD MARKDOWN TAGS. Output RAW JSON ONLY.
-    
-    STRUCTURE RULES:
-    1. SLIDE 1 (COVER): MUST use Title: "${config.title}" and Presenter: "${config.presenters.join(', ')}". 
-       Design: Use a large "rect" or "oval" as background, set "onBackground" property to trigger contrast calculation.
-    2. INTERMEDIATE SLIDES: Mix content (Title + Bullets). Use "chart" or "table" for data-heavy parts.
-    3. LAST SLIDE (BIBLIOGRAPHY): MUST use the heading "References" and display: "${bibliographyEntry.replace(/"/g, "'")}".
-    
-    AESTHETIC SPECS:
-    - "shape": { "kind": "rect"|"oval"|"triangle", "shadow": true, "radius": 0.3 }
-    - "text": { "bold": true, "onBackground": "hex_color_code" }
-    - Canvas Size: 10 x 5.625 inches.
+    STRICT DATA STRUCTURE RULES:
+    1. "text": MUST BE A STRING. DO NOT use objects for text values.
+    2. "table": "rows" MUST BE AN ARRAY OF ARRAYS. Example: "rows": [["Header"], ["Value"]].
+    3. "chart": "data" MUST BE AN ARRAY OF OBJECTS. Example: "data": [{"name": "S1", "labels": ["A"], "values": [10]}].
+    4. NO MARKDOWN. NO COMMENTS. RAW JSON ONLY.
 
-    CONTENT SOURCE: ${config.context.substring(0, 10000)}
+    SLIDE STRUCTURE:
+    - SLIDE 1: Cover with Title and Presenters: ${config.presenters.join(', ')}.
+    - SLIDES 2-${config.slidesCount - 1}: High-impact insights, comparisons (tables), and trends (charts).
+    - LAST SLIDE: Bibliography with: "${bibliographyEntry.replace(/"/g, "'")}".
+
+    AESTHETIC: Use ${primaryColor} for backgrounds and ${secondaryColor} for accents.
+    CONTENT: ${config.context.substring(0, 8000)}
     LANGUAGE: ${config.language}
     SLIDES: ${config.slidesCount}
 
     OUTPUT SCHEMA:
-    { "slides": [{ "title": "string", "commands": [ { "type": "shape"|"text"|"table"|"chart"|"line", ...options } ] }] }`;
+    { "slides": [{ "title": "string", "commands": [ { "type": "shape"|"text"|"table"|"chart"|"line", "x": number, "y": number, "w": number, "h": number, ... } ] }] }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
-    if (!aiResText) throw new Error("AI Synthesis failed.");
+    if (!aiResText) throw new Error("AI failed to respond.");
 
-    // Sanitasi JSON sebelum di-parse
     const sanitizedJson = sanitizeJsonResponse(aiResText);
     
     let blueprint;
     try {
       blueprint = JSON.parse(sanitizedJson);
-    } catch (parseError) {
-      console.error("JSON Parse Error. Raw Text Sample:", aiResText.substring(0, 200));
-      // Fallback sederhana jika total failure
-      blueprint = { slides: [{ title: config.title, commands: [{ type: 'text', text: config.title, x: 1, y: 1, w: 8, h: 2, fontSize: 32, bold: true }] }] };
+    } catch (e) {
+      console.error("Critical Parsing Error:", e);
+      // Absolute Minimal Fallback
+      blueprint = { slides: [{ title: config.title, commands: [{ type: 'text', text: config.title, x: 1, y: 1, w: 8, h: 1, fontSize: 24, bold: true }] }] };
     }
 
-    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
+    if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Structure");
 
-    // Eksekusi Rendering
     blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Applying Premium UI for Slide ${idx + 1}...`);
+      onProgress?.(`Rendering Slide ${idx + 1}...`);
       const slide = pptx.addSlide();
-      
       if (sData.commands) {
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
-      // Branding Footer
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
         x: 0.5, y: 5.35, w: 9, h: 0.2,
         fontSize: 7, fontFace: 'Inter', color: '94A3B8', align: 'right', bold: true
       });
     });
 
-    onProgress?.("Archiving to Xeenaps Cloud Node...");
+    onProgress?.("Archiving to Xeenaps Cloud...");
     const base64Pptx = await pptx.write({ outputType: 'base64' }) as string;
 
     const presentationData: Partial<PresentationItem> = {
@@ -263,10 +273,10 @@ export const createPresentationWorkflow = async (
 
     const result = await res.json();
     if (result.status === 'success') return result.data;
-    throw new Error(result.message || "Cloud archive failure.");
+    throw new Error(result.message || "Failed to save.");
 
   } catch (error: any) {
-    console.error("Blueprint Architect Error:", error);
+    console.error("Blueprint Architect Final Error:", error);
     return null;
   }
 };
