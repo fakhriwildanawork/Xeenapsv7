@@ -1,9 +1,11 @@
+
 /**
  * XEENAPS PKM - GEMINI AI SERVICE
  */
 
 function callGeminiService(prompt, modelOverride) {
-  const keys = getKeysFromSheet('ApiKeys', 1);
+  // Menggunakan Kolom B (Index 2) sesuai spesifikasi user
+  const keys = getKeysFromSheet('ApiKeys', 2);
   if (!keys || keys.length === 0) return { status: 'error', message: 'No Gemini API keys found in database.' };
 
   const config = getProviderModel('GEMINI');
@@ -12,7 +14,15 @@ function callGeminiService(prompt, modelOverride) {
   for (let key of keys) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-      const payload = { contents: [{ parts: [{ text: prompt }] }] };
+      const payload = { 
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 8192,
+        }
+      };
       
       const res = UrlFetchApp.fetch(url, { 
         method: "post", 
