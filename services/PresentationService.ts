@@ -5,8 +5,8 @@ import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
- * PresentationService - XEENAPS BLUEPRINT ARCHITECT V15 (Zero-Failure Update)
- * Fokus: Robust JSON, Auto-Scaling Font, Smart Contrast, Mandatory Slides.
+ * PresentationService - XEENAPS BLUEPRINT ARCHITECT V16 (Architectural Precision)
+ * Fokus: Anti-Vertical Text, Adaptive Headers, Width-Aware Typography.
  */
 
 /**
@@ -16,21 +16,18 @@ const sanitizeJsonResponse = (text: string): string => {
   if (!text) return "";
   let cleaned = text.trim();
   
-  // 1. Hapus Markdown Blocks
   if (cleaned.includes('```json')) {
     cleaned = cleaned.split('```json')[1].split('```')[0].trim();
   } else if (cleaned.includes('```')) {
     cleaned = cleaned.split('```')[1].split('```')[0].trim();
   }
   
-  // 2. Ambil hanya konten di antara kurung kurawal pertama dan terakhir
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start !== -1 && end !== -1) {
     cleaned = cleaned.substring(start, end + 1);
   }
 
-  // 3. Hapus karakter kontrol dan whitespace ilegal
   return cleaned
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") 
     .replace(/\\n/g, " ")
@@ -40,46 +37,49 @@ const sanitizeJsonResponse = (text: string): string => {
 
 /**
  * Smart Contrast Engine V2 (YIQ Logic)
- * Menentukan warna teks terbaik (Putih vs Xeenaps Navy) berdasarkan background.
  */
 const getContrastColor = (hexColor: string): string => {
   const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
   const r = parseInt(hex.slice(0, 2), 16) || 255;
   const g = parseInt(hex.slice(2, 4), 16) || 255;
   const b = parseInt(hex.slice(4, 6), 16) || 255;
-  // YIQ formula for contrast perception
   const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return yiq >= 128 ? '004A74' : 'FFFFFF'; // Dark Blue vs White
+  return yiq >= 128 ? '004A74' : 'FFFFFF'; 
 };
 
 /**
- * Auto-Scaling Typography V15
- * Menghitung ukuran font agar teks fit secara dinamis.
+ * Width-Aware Typography V16
+ * Menghitung ukuran font berdasarkan panjang teks DAN lebar box.
  */
 const getDynamicFontSize = (text: string, maxWidthInches: number, baseSize: number = 32): number => {
   const length = text.length;
-  // Rasio kasar: 1 inch muat ~4 karakter font 32
-  const charCapacity = maxWidthInches * (32 / baseSize) * 4;
+  // Rasio presisi V16: ~4.5 karakter per inci pada font 32pt
+  const charCapacity = maxWidthInches * (32 / baseSize) * 4.5;
   
   if (length <= charCapacity) return baseSize;
   const scaleFactor = charCapacity / length;
-  const dynamicSize = Math.floor(baseSize * scaleFactor);
+  let dynamicSize = Math.floor(baseSize * scaleFactor);
   
-  return Math.max(16, dynamicSize); // Jangan pernah lebih kecil dari 16pt
+  // Jika teks sangat panjang (melebihi 2x kapasitas), perkecil lebih drastis
+  if (length > charCapacity * 2) dynamicSize = Math.floor(dynamicSize * 0.9);
+  
+  return Math.max(14, dynamicSize); 
 };
 
 /**
- * Elite Design Executor V15
+ * Elite Design Executor V16
+ * Implementasi Precision Layout Guard
  */
 const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: string, secondaryColor: string) => {
   if (!Array.isArray(commands)) return;
   
   commands.forEach(cmd => {
     try {
+      // V16 PRECISION GUARD: Minimal Width & Margin Enforcement
       const options: any = {
-        x: Number(cmd.x) || 0,
-        y: Number(cmd.y) || 0,
-        w: Number(cmd.w) || 1,
+        x: Math.max(Number(cmd.x) || 0.8, 0.8), // Minimum margin kiri 0.8"
+        y: Math.max(Number(cmd.y) || 1.2, 1.2), // Hindari area header
+        w: Math.max(Number(cmd.w) || 3.5, 3.5), // Minimal lebar 3.5" untuk cegah teks vertikal
         h: Number(cmd.h) || 1,
       };
 
@@ -137,7 +137,7 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
         slide.addShape('line', { ...options, line: { color: String(cmd.color || secondaryColor).replace('#', ''), width: 2 } });
       }
     } catch (e) {
-      console.warn("V15 Render Warning:", e);
+      console.warn("V16 Render Warning:", e);
     }
   });
 };
@@ -180,7 +180,7 @@ export const createPresentationWorkflow = async (
       fontSize: 14, fontFace: 'Inter', color: secondaryColor, bold: true, align: 'left'
     });
 
-    // 2. AI COMPOSITION (STRICT PROMPT)
+    // 2. AI COMPOSITION (STRICT PROMPT V16)
     onProgress?.("AI Librarian is synthesizing content...");
     const contentCount = Math.max(3, config.slidesCount - 2);
     const prompt = `ACT AS A SENIOR DESIGNER.
@@ -188,14 +188,16 @@ export const createPresentationWorkflow = async (
     Brand: Primary #${primaryColor}, Accent #${secondaryColor}
     Content: ${config.context.substring(0, 7000)}
     
-    RULES:
+    STRICT RULES:
     - NO Cover/Bibliography slides.
+    - DILARANG meletakkan elemen di x < 0.8 atau y < 1.2.
+    - SETIAP "text" box WAJIB memiliki "w" minimal 3.5.
     - USE JSON ONLY. NO MARKDOWN. NO PRE-TEXT.
     - ESCAPE all double quotes in text.
     - For titles, set "autoScale": true.
     
     FORMAT:
-    { "slides": [{ "title": "...", "commands": [{ "type": "text"|"shape"|"table"|"chart", "x":0, "y":0, "w":0, "h":0, ... }] }] }`;
+    { "slides": [{ "title": "...", "commands": [{ "type": "text"|"shape"|"table"|"chart", "x":0, "y":0, "w":3.5, "h":1, ... }] }] }`;
 
     let aiRes = await callAiProxy('gemini', prompt);
     const cleanJson = sanitizeJsonResponse(aiRes);
@@ -204,12 +206,10 @@ export const createPresentationWorkflow = async (
     try {
       blueprint = JSON.parse(cleanJson);
     } catch (e) {
-      console.error("V15 Parsing Failed. Activating Multi-Slide Recovery.");
-      // Recovery: Create dynamic summary slides based on context snippet
+      console.error("V16 Parsing Failed. Activating Multi-Slide Recovery.");
       blueprint = { 
         slides: [
-          { title: "Executive Summary", commands: [{ type: 'text', text: "Analysis performed via Xeenaps V15 Engine. Summary content unavailable due to structure mismatch.", x: 1, y: 1.5, w: 8, h: 3, fontSize: 16 }] },
-          { title: "Key Insights", commands: [{ type: 'text', text: "Please review the library source for full data. Structure recovery active.", x: 1, y: 1.5, w: 8, h: 3, fontSize: 16 }] }
+          { title: "Executive Summary", commands: [{ type: 'text', text: "Analysis performed via Xeenaps V16 Engine. Summary content unavailable due to structure mismatch.", x: 1, y: 1.5, w: 8, h: 3, fontSize: 16 }] }
         ] 
       };
     }
@@ -220,9 +220,17 @@ export const createPresentationWorkflow = async (
       const slide = pptx.addSlide();
       allSlides.push(slide);
       
-      // Header Prosedural (Pasti Ada)
-      slide.addText(s.title || "Section Insight", { x: 0.5, y: 0.3, w: 9, h: 0.8, fontSize: 22, fontFace: 'Inter', color: primaryColor, bold: true });
-      slide.addShape('line', { x: 0.5, y: 1.0, w: 1, h: 0, line: { color: secondaryColor, width: 3 } });
+      // Header Adaptive V16 (Dinamis Berdasarkan Judul)
+      const titleSize = getDynamicFontSize(s.title || "Section Insight", 8.5, 22);
+      slide.addText(s.title || "Section Insight", { 
+        x: 0.8, y: 0.3, w: 8.5, h: 1, 
+        fontSize: titleSize, fontFace: 'Inter', color: primaryColor, bold: true, 
+        valign: 'top', align: 'left' 
+      });
+      
+      // Floating Line: Turun jika judul panjang (berpotensi 2 baris)
+      const lineY = (s.title && s.title.length > 45) ? 1.3 : 1.0;
+      slide.addShape('line', { x: 0.8, y: lineY, w: 1.5, h: 0, line: { color: secondaryColor, width: 3 } });
 
       if (s.commands) executeBlueprintCommands(slide, s.commands, primaryColor, secondaryColor);
     });
@@ -231,17 +239,17 @@ export const createPresentationWorkflow = async (
     onProgress?.("Adding Bibliography Archive...");
     const bibSlide = pptx.addSlide();
     allSlides.push(bibSlide);
-    bibSlide.addText("REFERENCES & CITATIONS", { x: 0.5, y: 0.5, w: 9, h: 0.6, fontSize: 24, fontFace: 'Inter', color: primaryColor, bold: true });
-    bibSlide.addShape('line', { x: 0.5, y: 1.1, w: 9, h: 0, line: { color: 'E2E8F0', width: 1 } });
+    bibSlide.addText("REFERENCES & CITATIONS", { x: 0.8, y: 0.5, w: 8.5, h: 0.6, fontSize: 24, fontFace: 'Inter', color: primaryColor, bold: true });
+    bibSlide.addShape('line', { x: 0.8, y: 1.1, w: 8.5, h: 0, line: { color: 'E2E8F0', width: 1 } });
     
     const bibText = item.bibHarvard || `${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
-    bibSlide.addShape('rect', { x: 0.5, y: 1.6, w: 9, h: 2, fill: { color: 'F8FAFC' }, rectRadius: 0.3, shadow: { type: 'outer', blur: 4, offset: 2, opacity: 0.1 } });
-    bibSlide.addText(bibText, { x: 0.8, y: 1.9, w: 8.4, h: 1.5, fontSize: 13, fontFace: 'Inter', color: '475569', italic: true });
+    bibSlide.addShape('rect', { x: 0.8, y: 1.6, w: 8.4, h: 2, fill: { color: 'F8FAFC' }, rectRadius: 0.3, shadow: { type: 'outer', blur: 4, offset: 2, opacity: 0.1 } });
+    bibSlide.addText(bibText, { x: 1.1, y: 1.9, w: 7.8, h: 1.5, fontSize: 13, fontFace: 'Inter', color: '475569', italic: true });
 
     // Page Branding
     allSlides.forEach((s, i) => {
       if (i > 0) {
-        s.addText(`XEENAPS • PKM ARCHITECT`, { x: 0.5, y: 5.35, w: 3, h: 0.2, fontSize: 7, fontFace: 'Inter', color: '94A3B8', bold: true });
+        s.addText(`XEENAPS • PKM ARCHITECT`, { x: 0.8, y: 5.35, w: 3, h: 0.2, fontSize: 7, fontFace: 'Inter', color: '94A3B8', bold: true });
         s.addText(`${i + 1}`, { x: 9.2, y: 5.35, w: 0.3, h: 0.2, fontSize: 7, fontFace: 'Inter', color: '94A3B8', bold: true, align: 'right' });
       }
     });
@@ -267,7 +275,7 @@ export const createPresentationWorkflow = async (
     throw new Error(result.message || "Save error.");
 
   } catch (error: any) {
-    console.error("V15 Elite Error:", error);
+    console.error("V16 Elite Error:", error);
     return null;
   }
 };
