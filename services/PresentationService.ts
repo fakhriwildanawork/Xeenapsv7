@@ -1,12 +1,12 @@
 
 import pptxgen from 'pptxgenjs';
-import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig } from '../types';
+import { LibraryItem, PresentationItem, PresentationTemplate, PresentationThemeConfig, DesignStyle } from '../types';
 import { GAS_WEB_APP_URL } from '../constants';
 import { callAiProxy } from './gasService';
 
 /**
  * PresentationService - XEENAPS BLUEPRINT ARCHITECT V9
- * Fokus: Kebebasan Layouting (X, Y, W, H) dengan Guardrail Spasial & PPTxGenJS Awareness.
+ * FOCUS: Safe-JSON protocol, Strict slide count, and Bibliography integration.
  */
 
 // Konfigurasi Kanvas Standar PowerPoint (Inci)
@@ -40,11 +40,20 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
       } 
       
       else if (cmd.type === 'text') {
-        const contrastColor = cmd.color || (cmd.onBackground ? getContrastColor(cmd.onBackground) : primaryColor);
+        // Safe hex conversion
+        const bgColor = cmd.onBackground ? String(cmd.onBackground).replace('#', '') : primaryColor;
+        const contrastColor = cmd.color || getContrastColor(bgColor);
         
+        // Logical Font Scaler: Sebagian besar library auto-fit butuh baseline yang masuk akal
+        // Jika box kecil tapi font besar, library akan kesulitan.
+        let fontSize = cmd.fontSize || 12;
+        if (cmd.text && cmd.text.length > 50 && fontSize > 24) {
+          fontSize = 18; // Force smaller start for long text to help auto-shrink
+        }
+
         slide.addText(String(cmd.text || ""), {
           ...options,
-          fontSize: cmd.fontSize || 12,
+          fontSize: fontSize,
           fontFace: 'Inter',
           color: String(contrastColor).replace('#', ''),
           bold: cmd.bold || false,
@@ -71,11 +80,12 @@ const executeBlueprintCommands = (slide: any, commands: any[], primaryColor: str
 
 const getContrastColor = (hexColor: string): string => {
   const hex = (hexColor || 'FFFFFF').replace('#', '').slice(0, 6);
-  const r = parseInt(hex.slice(0, 2), 16) || 255;
-  const g = parseInt(hex.slice(2, 4), 16) || 255;
-  const b = parseInt(hex.slice(4, 6), 16) || 255;
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 128 ? '1E293B' : 'FFFFFF';
+  // Improved Luminance calculation
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '1E293B' : 'FFFFFF';
 };
 
 export const createPresentationWorkflow = async (
@@ -96,67 +106,82 @@ export const createPresentationWorkflow = async (
     
     const primaryColor = (config.theme.primaryColor || '004A74').replace('#', '');
     const secondaryColor = (config.theme.secondaryColor || 'FED400').replace('#', '');
+    const designStyle = config.theme.designStyle || DesignStyle.MINIMALIST;
     
     onProgress?.("AI Architect is designing your custom layouts...");
+
+    // Generate accurate bibliography string for the final slide
+    const bibliographyText = item.bibHarvard || `Reference: ${item.authors?.join(', ')} (${item.year}). ${item.title}.`;
     
-    const blueprintPrompt = `YOU ARE A SENIOR UI/UX DESIGNER SPECIALIZED IN PPTXGENJS (V4.0).
+    const blueprintPrompt = `YOU ARE A SENIOR UI/UX DESIGNER SPECIALIZED IN PPTXGENJS.
     TASK: CREATE A VISUAL BLUEPRINT FOR A PRESENTATION TITLED: "${config.title}"
     
+    DESIGN STYLE: "${designStyle}"
+    - Minimalist: Use lots of white space, large titles, thin accent lines.
+    - Corporate: Use strict grid layouts, solid color blocks for sidebars, clear headings.
+    - Creative: Use overlapping shapes, asymmetrical layouts, bold accent colors.
+    - Academic: High density information, very clean hierarchy, structured lists.
+
     TECHNICAL SPECS:
     - CANVAS: ${CANVAS_W} (W) x ${CANVAS_H} (H) inches.
     - OUTPUT: JSON object with "slides" array.
-    - COLORS: Hex format WITHOUT '#'.
-    - COORDINATES: Inches.
+    - COLORS: Primary (${primaryColor}), Accent (${secondaryColor}).
     
-    STRICT JSON SANITIZATION RULES:
-    1. ESCAPING: You MUST escape all double quotes within text content with backslashes (\\").
-    2. CLEAN STRINGS: Ensure no raw newlines or special control characters break the JSON structure.
-    3. NO MARKDOWN: Output only the raw JSON string, do not wrap in \`\`\`json blocks.
-    
-    SPATIAL RULES:
-    1. MAX DENSITY: 150 characters per 1 square inch of box area.
-    2. COLLISION: Maintain 0.2 inch margin between different text elements.
-    
+    STRICT SLIDE SEQUENCE (MANDATORY):
+    1. SLIDE 1: MUST be the Master Title Slide. Elements: Title ("${config.title}"), Presenters ("${config.presenters.join(', ')}"). Use flexible font sizes.
+    2. MIDDLE SLIDES: Synthesize the core insights into ${config.slidesCount - 2} slides.
+    3. FINAL SLIDE: MUST be the Bibliography/Reference slide. Content: "${bibliographyText}".
+
+    STRICT JSON PROTOCOL:
+    - YOU MUST RETURN EXACTLY ${config.slidesCount} ITEMS IN THE "slides" ARRAY.
+    - USE responseMimeType: application/json.
+    - DO NOT use markdown code blocks.
+    - ESCAPE all double quotes inside string values.
+    - ENSURE NO ILLEGAL LINE BREAKS inside string values.
+
     SOURCE MATERIAL: ${config.context.substring(0, 10000)}
     LANGUAGE: ${config.language}
-    REQUIRED SLIDES: ${config.slidesCount}
 
-    OUTPUT SCHEMA:
+    COMMAND TYPES:
+    - { "type": "shape", "kind": "rect"|"ellipse", "x", "y", "w", "h", "fill": "hex", "radius": number }
+    - { "type": "text", "x", "y", "w", "h", "text", "fontSize", "bold", "align": "left"|"center"|"right", "color": "hex", "onBackground": "hex" }
+    - { "type": "line", "x", "y", "w", "h", "color": "hex", "width" }
+
+    EXPECTED JSON OUTPUT SCHEMA:
     {
       "slides": [
-        { 
-          "title": "string",
-          "commands": [ 
-            { "type": "shape", "kind": "rect", "x": number, "y": number, "w": number, "h": number, "fill": "hex" },
-            { "type": "text", "x": number, "y": number, "w": number, "h": number, "text": "string", "fontSize": number, "bold": boolean }
-          ]
-        }
+        { "title": "Slide Title", "commands": [...] }
       ]
     }`;
 
     let aiResText = await callAiProxy('gemini', blueprintPrompt);
     if (!aiResText) throw new Error("AI Synthesis failed.");
 
-    // Sanitasi Respons: Mencari blok JSON pertama jika ada teks sampah
-    const start = aiResText.indexOf('{');
-    const end = aiResText.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
-      aiResText = aiResText.substring(start, end + 1);
+    // Robust JSON Sanitization
+    let cleanJson = aiResText.trim();
+    const firstBrace = cleanJson.indexOf('{');
+    const lastBrace = cleanJson.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
     }
 
-    // Mekanisme Recovery jika JSON terpotong di akhir (Truncation)
-    if (!aiResText.trim().endsWith('}')) {
-       console.warn("Detected potential truncated JSON, attempting recovery...");
-       if (!aiResText.includes(']')) aiResText += ']}';
-       else if (!aiResText.trim().endsWith('}')) aiResText += '}';
+    let blueprint;
+    try {
+      blueprint = JSON.parse(cleanJson);
+    } catch (parseErr) {
+      console.error("Blueprint Parse Error:", parseErr, "Raw text:", cleanJson);
+      // Fallback: If AI fails to provide JSON, we stop to prevent empty presentation
+      throw new Error("AI output was not valid JSON. Operation aborted.");
     }
 
-    const blueprint = JSON.parse(aiResText);
     if (!blueprint.slides || !Array.isArray(blueprint.slides)) throw new Error("Invalid Blueprint Schema");
 
     // Render Slides berdasarkan AI Blueprint
-    blueprint.slides.forEach((sData: any, idx: number) => {
-      onProgress?.(`Rendering Design for Slide ${idx + 1}...`);
+    // Enforce slide count limit to prevent infinite loops or massive files
+    const slidesToRender = blueprint.slides.slice(0, config.slidesCount);
+
+    slidesToRender.forEach((sData: any, idx: number) => {
+      onProgress?.(`Rendering Design for Slide ${idx + 1}/${slidesToRender.length}...`);
       const slide = pptx.addSlide();
       
       // Eksekusi layout custom dari AI
@@ -164,7 +189,7 @@ export const createPresentationWorkflow = async (
         executeBlueprintCommands(slide, sData.commands, primaryColor, secondaryColor);
       }
 
-      // Add Footer Branding
+      // Add Global Branding/Footer
       slide.addText(`XEENAPS PKM • ${idx + 1}`, {
         x: 0.5, y: 5.35, w: 9, h: 0.2,
         fontSize: 7, fontFace: 'Inter', color: 'CBD5E1', align: 'right', bold: true
@@ -184,9 +209,10 @@ export const createPresentationWorkflow = async (
         primaryColor: `#${primaryColor}`,
         secondaryColor: `#${secondaryColor}`,
         fontFamily: 'Inter',
-        headingFont: 'Inter'
+        headingFont: 'Inter',
+        designStyle: designStyle
       },
-      slidesCount: config.slidesCount,
+      slidesCount: slidesToRender.length,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

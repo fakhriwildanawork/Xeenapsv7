@@ -140,11 +140,19 @@ export enum PresentationTemplate {
   ACADEMIC = 'Academic Clean'
 }
 
+export enum DesignStyle {
+  MINIMALIST = 'Minimalist',
+  CORPORATE = 'Corporate',
+  CREATIVE = 'Creative',
+  ACADEMIC = 'Academic'
+}
+
 export interface PresentationThemeConfig {
   primaryColor: string;
   secondaryColor: string;
   fontFamily: string;
   headingFont: string;
+  designStyle?: DesignStyle;
 }
 
 export interface PresentationItem {

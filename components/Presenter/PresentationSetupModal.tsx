@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { LibraryItem, PresentationTemplate } from '../../types';
+import { LibraryItem, PresentationTemplate, DesignStyle } from '../../types';
 import { createPresentationWorkflow } from '../../services/PresentationService';
 import { 
   XMarkIcon, 
@@ -8,7 +8,8 @@ import {
   PaintBrushIcon, 
   UserGroupIcon, 
   QueueListIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  WindowIcon
 } from '@heroicons/react/24/outline';
 import { FormField, FormDropdown } from '../Common/FormComponents';
 import Swal from 'sweetalert2';
@@ -33,10 +34,12 @@ const PresentationSetupModal: React.FC<PresentationSetupModalProps> = ({ item, o
     primaryColor: '#004A74',
     secondaryColor: '#FED400',
     fontFamily: 'Inter',
-    language: 'English'
+    language: 'English',
+    designStyle: DesignStyle.MINIMALIST
   });
 
   const languages = ['English', 'Indonesian', 'French', 'German', 'Spanish', 'Japanese'];
+  const styles = Object.values(DesignStyle);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +53,8 @@ const PresentationSetupModal: React.FC<PresentationSetupModalProps> = ({ item, o
         primaryColor: formData.primaryColor,
         secondaryColor: formData.secondaryColor,
         fontFamily: formData.fontFamily,
-        headingFont: formData.fontFamily
+        headingFont: formData.fontFamily,
+        designStyle: formData.designStyle
       },
       slidesCount: formData.slidesCount,
       language: formData.language
@@ -64,7 +68,7 @@ const PresentationSetupModal: React.FC<PresentationSetupModalProps> = ({ item, o
         ...XEENAPS_SWAL_CONFIG,
         icon: 'error',
         title: 'GENERATION FAILED',
-        text: 'A timeout occurred or storage is full. Please check your Drive quota.'
+        text: 'A timeout occurred or the AI provided invalid structure. Please try again.'
       });
       setIsGenerating(false);
     }
@@ -98,7 +102,7 @@ const PresentationSetupModal: React.FC<PresentationSetupModalProps> = ({ item, o
             </div>
             <div>
               <h2 className="text-2xl font-black text-[#004A74] uppercase tracking-tight">Presenter Engine</h2>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Universal Elegant Layout V7</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Universal Elegant Layout V9</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded-full transition-all">
@@ -149,6 +153,17 @@ const PresentationSetupModal: React.FC<PresentationSetupModalProps> = ({ item, o
                   </div>
                 </FormField>
               </div>
+
+              <FormField label="Design Style">
+                <FormDropdown 
+                  value={formData.designStyle}
+                  options={styles}
+                  onChange={(v) => setFormData({...formData, designStyle: v as DesignStyle})}
+                  placeholder="Select Style"
+                  allowCustom={false}
+                  showSearch={false}
+                />
+              </FormField>
 
               <FormField label="Presented By">
                 <FormDropdown 
